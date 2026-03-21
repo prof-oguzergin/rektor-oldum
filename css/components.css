@@ -1,0 +1,1380 @@
+/* ═══════════════════════════════════════════════════════════════════════════
+   Rektör Oldum — Bileşen Stilleri (components.css)
+   Tüm tekrar eden UI bileşenleri burada tanımlanır.
+═══════════════════════════════════════════════════════════════════════════ */
+
+/* ─────────────────────────────────────────────────────────────────────────
+   1. KART (.card)
+   Hoca kartı, bina kartı, olay kartı için genel kap
+───────────────────────────────────────────────────────────────────────── */
+.card {
+  background: var(--bg-secondary);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: var(--space-lg);
+  transition: border-color var(--transition), box-shadow var(--transition);
+}
+
+.card:hover {
+  border-color: var(--border-light);
+  box-shadow: var(--shadow-sm);
+}
+
+.card-header {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-md);
+  margin-bottom: var(--space-md);
+}
+
+.card-title {
+  font-size: var(--font-size-md);
+  font-weight: 700;
+  flex: 1;
+}
+
+.card-subtitle {
+  font-size: var(--font-size-xs);
+  color: var(--text-muted);
+  margin-top: 2px;
+}
+
+.card-body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+}
+
+.card-footer {
+  margin-top: var(--space-md);
+  padding-top: var(--space-md);
+  border-top: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  flex-wrap: wrap;
+}
+
+/* Küçük veri kartı (dashboard istatistik) */
+.stat-card {
+  background: var(--bg-secondary);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: var(--space-lg);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+}
+
+.stat-card-label {
+  font-size: var(--font-size-xs);
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  font-weight: 600;
+}
+
+.stat-card-value {
+  font-size: var(--font-size-2xl);
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+}
+
+.stat-card-delta {
+  font-size: var(--font-size-xs);
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.stat-card-delta.positive { color: var(--accent-green); }
+.stat-card-delta.negative { color: var(--accent); }
+.stat-card-delta.neutral  { color: var(--text-muted); }
+
+/* ─────────────────────────────────────────────────────────────────────────
+   2. İSTATİSTİK ÇUBUĞU (.stat-bar)
+   Araştırma, eğitim vb. değerleri görsel gösterge ile render eder
+───────────────────────────────────────────────────────────────────────── */
+.stat-bar {
+  display: grid;
+  align-items: center;
+  gap: var(--space-sm);
+  grid-template-columns: 80px 1fr 28px;
+}
+
+.stat-bar-label {
+  font-size: var(--font-size-xs);
+  color: var(--text-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.stat-bar-track {
+  background: var(--bg-primary);
+  border-radius: 3px;
+  height: 6px;
+  overflow: hidden;
+  position: relative;
+}
+
+.stat-bar-fill {
+  border-radius: 3px;
+  height: 100%;
+  transition: width 0.4s ease;
+  position: relative;
+}
+
+/* Renk: değer 0-40 kırmızı, 40-70 sarı, 70-100 yeşil */
+.stat-bar-fill.low    { background: var(--stat-low); }
+.stat-bar-fill.mid    { background: var(--stat-mid); }
+.stat-bar-fill.high   { background: var(--stat-high); }
+
+/* Bilinmeyen stat (belirsizlik aralığı) */
+.stat-bar-fill.uncertain {
+  background: linear-gradient(90deg, var(--bg-card) 0%, var(--border-light) 100%);
+}
+
+.stat-bar-value {
+  font-size: var(--font-size-xs);
+  font-variant-numeric: tabular-nums;
+  font-weight: 700;
+  text-align: right;
+  white-space: nowrap;
+}
+
+/* ─────────────────────────────────────────────────────────────────────────
+   3. BADGE (.badge)
+   Unvan, arketip, kategori etiketleri
+───────────────────────────────────────────────────────────────────────── */
+.badge {
+  border-radius: 20px;
+  display: inline-flex;
+  align-items: center;
+  font-size: var(--font-size-xs);
+  font-weight: 700;
+  gap: 4px;
+  letter-spacing: 0.3px;
+  padding: 2px var(--space-sm);
+  white-space: nowrap;
+}
+
+.badge-default  { background: rgba(255,255,255,0.08); color: var(--text-muted); }
+.badge-success  { background: rgba(78,204,163,0.18); color: var(--accent-green); }
+.badge-warning  { background: rgba(240,165,0,0.18); color: var(--accent-yellow); }
+.badge-danger   { background: rgba(233,69,96,0.18); color: var(--accent); }
+.badge-info     { background: rgba(79,163,224,0.18); color: var(--accent-blue); }
+.badge-purple   { background: rgba(155,89,182,0.18); color: var(--accent-purple); }
+
+/* Unvan badge'leri */
+.badge-argö         { background: rgba(79,163,224,0.15); color: var(--accent-blue); }
+.badge-dr_ogr_uyesi { background: rgba(78,204,163,0.15); color: var(--accent-green); }
+.badge-docent       { background: rgba(240,165,0,0.15); color: var(--accent-yellow); }
+.badge-profesor     { background: rgba(233,69,96,0.15); color: var(--accent); }
+
+/* ─────────────────────────────────────────────────────────────────────────
+   4. MODAL (.modal) — ortak bileşen (style.css'ten extend)
+───────────────────────────────────────────────────────────────────────── */
+/* Temel modal stilleri style.css'tedir.
+   Burada sadece özelleşmiş varyantlar. */
+
+.modal-wide  { max-width: 900px; }
+.modal-narrow { max-width: 480px; }
+
+/* ─────────────────────────────────────────────────────────────────────────
+   5. SEKME NAVİGASYONU (.tab-nav, .tab-content)
+   Panel içi alt sekmeler için (üst level sidebar farklı)
+───────────────────────────────────────────────────────────────────────── */
+.tab-nav {
+  display: flex;
+  border-bottom: 2px solid var(--border);
+  gap: 0;
+  margin-bottom: var(--space-xl);
+}
+
+.tab-nav-item {
+  background: none;
+  border: none;
+  border-bottom: 2px solid transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+  font-family: var(--font-main);
+  font-size: var(--font-size-sm);
+  font-weight: 600;
+  margin-bottom: -2px;
+  padding: var(--space-sm) var(--space-lg);
+  transition: var(--transition);
+  white-space: nowrap;
+}
+
+.tab-nav-item:hover {
+  color: var(--text);
+}
+
+.tab-nav-item.active {
+  border-bottom-color: var(--accent-green);
+  color: var(--accent-green);
+}
+
+.tab-content-pane {
+  display: none;
+}
+
+.tab-content-pane.active {
+  display: block;
+}
+
+/* ─────────────────────────────────────────────────────────────────────────
+   6. VERİ TABLOSU (.data-table)
+   Sıralama, bütçe detayı, kohort listesi vb.
+───────────────────────────────────────────────────────────────────────── */
+.data-table {
+  border-collapse: collapse;
+  font-size: var(--font-size-sm);
+  width: 100%;
+}
+
+.data-table thead th {
+  background: var(--bg-secondary);
+  border-bottom: 2px solid var(--border);
+  color: var(--text-muted);
+  font-size: var(--font-size-xs);
+  font-weight: 700;
+  letter-spacing: 0.5px;
+  padding: var(--space-sm) var(--space-md);
+  text-align: left;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.data-table thead th.text-right { text-align: right; }
+
+.data-table tbody tr {
+  border-bottom: 1px solid var(--border);
+  transition: background var(--transition);
+}
+
+.data-table tbody tr:hover {
+  background: var(--bg-hover);
+}
+
+.data-table tbody tr:nth-child(even) {
+  background: var(--bg-table-alt);
+}
+
+.data-table tbody tr:nth-child(even):hover {
+  background: var(--bg-hover);
+}
+
+.data-table td {
+  padding: var(--space-sm) var(--space-md);
+  vertical-align: middle;
+}
+
+.data-table td.text-right { text-align: right; }
+.data-table td.text-muted { color: var(--text-muted); }
+
+/* Satır vurgulama: oyuncunun üniversitesi */
+.data-table tr.highlight-row {
+  background: rgba(78, 204, 163, 0.07) !important;
+  border-left: 3px solid var(--accent-green);
+}
+
+/* ─────────────────────────────────────────────────────────────────────────
+   7. DAİRESEL İLERLEME (.progress-ring)
+   Prestij göstergesi vb. için SVG tabanlı halka
+───────────────────────────────────────────────────────────────────────── */
+.progress-ring-wrapper {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.progress-ring {
+  transform: rotate(-90deg);
+}
+
+.progress-ring-track {
+  fill: none;
+  stroke: var(--border);
+}
+
+.progress-ring-fill {
+  fill: none;
+  stroke: var(--accent-green);
+  stroke-linecap: round;
+  transition: stroke-dashoffset 0.6s ease;
+}
+
+.progress-ring-label {
+  position: absolute;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+}
+
+.progress-ring-value {
+  font-size: var(--font-size-lg);
+  font-weight: 800;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+}
+
+.progress-ring-sublabel {
+  font-size: var(--font-size-xs);
+  color: var(--text-muted);
+  margin-top: 2px;
+}
+
+/* ─────────────────────────────────────────────────────────────────────────
+   8. HOCA PROFİL KARTI (.faculty-card)
+   Football Manager tarzı, stat çubukları ile
+───────────────────────────────────────────────────────────────────────── */
+.faculty-card {
+  background: var(--bg-secondary);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+  transition: border-color var(--transition), box-shadow var(--transition);
+}
+
+.faculty-card:hover {
+  border-color: var(--border-light);
+  box-shadow: var(--shadow-md);
+}
+
+.faculty-card-header {
+  background: var(--bg-card);
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-md);
+  padding: var(--space-md) var(--space-lg);
+}
+
+.faculty-avatar {
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, var(--accent-blue), var(--accent-purple));
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 18px;
+  font-weight: 800;
+  color: #fff;
+  flex-shrink: 0;
+}
+
+.faculty-card-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.faculty-name {
+  font-size: var(--font-size-md);
+  font-weight: 700;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.faculty-meta {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  margin-top: 4px;
+  flex-wrap: wrap;
+}
+
+.faculty-dept {
+  font-size: var(--font-size-xs);
+  color: var(--text-muted);
+}
+
+.faculty-field {
+  font-size: var(--font-size-xs);
+  color: var(--text-faint);
+}
+
+.faculty-age {
+  font-size: var(--font-size-xs);
+  color: var(--text-faint);
+}
+
+.faculty-card-stats {
+  padding: var(--space-md) var(--space-lg);
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.faculty-card-footer {
+  background: var(--bg-primary);
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  padding: var(--space-sm) var(--space-lg);
+  border-top: 1px solid var(--border);
+  flex-wrap: wrap;
+}
+
+.faculty-salary {
+  font-size: var(--font-size-xs);
+  color: var(--text-muted);
+  flex: 1;
+}
+
+.faculty-salary strong {
+  color: var(--accent-green);
+  font-variant-numeric: tabular-nums;
+}
+
+.faculty-pubs {
+  font-size: var(--font-size-xs);
+  color: var(--text-muted);
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+/* Mutluluk göstergesi (hoca kartı footer) */
+.happiness-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+.happiness-dot.high   { background: var(--accent-green); }
+.happiness-dot.mid    { background: var(--accent-yellow); }
+.happiness-dot.low    { background: var(--accent); }
+
+/* ─────────────────────────────────────────────────────────────────────────
+   9. YILDIZ ÖĞRENCİ KARTI (.student-card)
+───────────────────────────────────────────────────────────────────────── */
+.student-card {
+  background: var(--bg-secondary);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: var(--space-md) var(--space-lg);
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-md);
+  transition: border-color var(--transition);
+}
+
+.student-card:hover {
+  border-color: var(--border-light);
+}
+
+.student-card-avatar {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, var(--accent-green), var(--accent-blue));
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 14px;
+  font-weight: 800;
+  color: var(--text-inverse);
+  flex-shrink: 0;
+}
+
+.student-card-body {
+  flex: 1;
+  min-width: 0;
+}
+
+.student-name {
+  font-size: var(--font-size-sm);
+  font-weight: 700;
+}
+
+.student-meta {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  margin-top: 4px;
+  flex-wrap: wrap;
+}
+
+.student-dept {
+  font-size: var(--font-size-xs);
+  color: var(--text-muted);
+}
+
+.student-gpa {
+  font-size: var(--font-size-xs);
+  font-weight: 700;
+  color: var(--accent-green);
+}
+
+.student-year {
+  font-size: var(--font-size-xs);
+  color: var(--text-faint);
+}
+
+.student-card-right {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: var(--space-xs);
+}
+
+/* ─────────────────────────────────────────────────────────────────────────
+   10. DÖNEM SONU ÖZET KARTI (.summary-card)
+───────────────────────────────────────────────────────────────────────── */
+.summary-cards-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: var(--space-lg);
+  margin-bottom: var(--space-xl);
+}
+
+.summary-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: var(--space-lg);
+}
+
+.summary-card-title {
+  font-size: var(--font-size-sm);
+  font-weight: 700;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin-bottom: var(--space-md);
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+}
+
+.summary-card-title .summary-icon {
+  font-size: 16px;
+}
+
+.summary-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 4px 0;
+  font-size: var(--font-size-sm);
+  border-bottom: 1px solid rgba(255,255,255,0.04);
+}
+
+.summary-row:last-child {
+  border-bottom: none;
+}
+
+.summary-row-label {
+  color: var(--text-muted);
+}
+
+.summary-row-value {
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.summary-row-value.positive { color: var(--accent-green); }
+.summary-row-value.negative { color: var(--accent); }
+.summary-row-value.neutral  { color: var(--text); }
+
+.summary-total-row {
+  border-top: 2px solid var(--border-light);
+  margin-top: var(--space-sm);
+  padding-top: var(--space-sm);
+  font-size: var(--font-size-md);
+  font-weight: 800;
+}
+
+/* ─────────────────────────────────────────────────────────────────────────
+   11. BİLDİRİM TOAST (.notification)
+───────────────────────────────────────────────────────────────────────── */
+.notification {
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-light);
+  border-left: 4px solid var(--accent-blue);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-md);
+  color: var(--text);
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-sm);
+  font-size: var(--font-size-sm);
+  max-width: 360px;
+  padding: var(--space-sm) var(--space-md);
+  pointer-events: all;
+  animation: slideInRight 0.25s ease;
+}
+
+.notification.success { border-left-color: var(--accent-green); }
+.notification.warning { border-left-color: var(--accent-yellow); }
+.notification.danger  { border-left-color: var(--accent); }
+.notification.info    { border-left-color: var(--accent-blue); }
+
+.notification-icon {
+  font-size: 16px;
+  flex-shrink: 0;
+  margin-top: 1px;
+}
+
+.notification-text {
+  flex: 1;
+  line-height: 1.5;
+}
+
+.notification-close {
+  background: none;
+  border: none;
+  color: var(--text-faint);
+  cursor: pointer;
+  font-size: 14px;
+  padding: 0 2px;
+  flex-shrink: 0;
+}
+
+.notification-close:hover {
+  color: var(--text);
+}
+
+.notification.fadeout {
+  animation: fadeOut 0.3s ease forwards;
+}
+
+@keyframes slideInRight {
+  from { opacity: 0; transform: translateX(20px); }
+  to   { opacity: 1; transform: translateX(0); }
+}
+
+@keyframes fadeOut {
+  from { opacity: 1; transform: translateX(0); }
+  to   { opacity: 0; transform: translateX(20px); }
+}
+
+/* Alt bar bildirim (kısa mesaj) */
+.inline-notification {
+  font-size: var(--font-size-xs);
+  padding: 3px var(--space-sm);
+  border-radius: var(--radius-sm);
+  background: rgba(79,163,224,0.1);
+  border: 1px solid rgba(79,163,224,0.2);
+  color: var(--accent-blue);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 420px;
+}
+
+/* ─────────────────────────────────────────────────────────────────────────
+   12. SPARKLİNE (.sparkline)
+   Mini trend grafiği, SVG tabanlı
+───────────────────────────────────────────────────────────────────────── */
+.sparkline-wrapper {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-xs);
+}
+
+.sparkline {
+  /* SVG doğrudan JS tarafından oluşturulur */
+  flex-shrink: 0;
+}
+
+.sparkline-polyline {
+  fill: none;
+  stroke-width: 1.5;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.sparkline-area {
+  opacity: 0.12;
+}
+
+.sparkline-dot {
+  /* Son nokta */
+}
+
+.sparkline-value {
+  font-size: var(--font-size-xs);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+/* ─────────────────────────────────────────────────────────────────────────
+   13. BÖLÜM SATIRI (.department-row)
+   Bölüm listesi görünümü
+───────────────────────────────────────────────────────────────────────── */
+.department-row {
+  display: grid;
+  grid-template-columns: 32px 1fr 80px 80px 80px auto;
+  align-items: center;
+  gap: var(--space-md);
+  padding: var(--space-sm) var(--space-md);
+  border-radius: var(--radius-md);
+  transition: background var(--transition);
+  border: 1px solid transparent;
+}
+
+.department-row:hover {
+  background: var(--bg-hover);
+  border-color: var(--border);
+}
+
+.dept-row-icon {
+  font-size: 20px;
+  text-align: center;
+}
+
+.dept-row-info {
+  min-width: 0;
+}
+
+.dept-row-name {
+  font-size: var(--font-size-sm);
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.dept-row-cat {
+  font-size: var(--font-size-xs);
+  color: var(--text-muted);
+}
+
+.dept-row-stat {
+  font-size: var(--font-size-sm);
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+
+.dept-row-actions {
+  display: flex;
+  gap: var(--space-xs);
+  justify-content: flex-end;
+}
+
+/* Bölüm listesi kap */
+.dept-list-header {
+  display: grid;
+  grid-template-columns: 32px 1fr 80px 80px 80px auto;
+  align-items: center;
+  gap: var(--space-md);
+  padding: var(--space-xs) var(--space-md);
+  font-size: var(--font-size-xs);
+  color: var(--text-muted);
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  border-bottom: 1px solid var(--border);
+  margin-bottom: var(--space-xs);
+}
+
+/* ─────────────────────────────────────────────────────────────────────────
+   14. YILDIZ DERECELENDİRME (.star-rating)
+───────────────────────────────────────────────────────────────────────── */
+.star-rating {
+  display: inline-flex;
+  gap: 2px;
+  align-items: center;
+}
+
+.star {
+  font-style: normal;
+  color: var(--text-faint);
+  font-size: 13px;
+  line-height: 1;
+}
+
+.star.filled {
+  color: var(--accent-yellow);
+}
+
+.star.half {
+  color: var(--accent-yellow);
+  opacity: 0.5;
+}
+
+/* ─────────────────────────────────────────────────────────────────────────
+   15. ARAÇ İPUCU (.tooltip)
+───────────────────────────────────────────────────────────────────────── */
+.tooltip-host {
+  position: relative;
+  display: inline-flex;
+}
+
+.tooltip {
+  background: #111122;
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-md);
+  color: var(--text);
+  font-size: var(--font-size-xs);
+  left: 50%;
+  line-height: 1.5;
+  max-width: 240px;
+  opacity: 0;
+  padding: var(--space-sm) var(--space-md);
+  pointer-events: none;
+  position: absolute;
+  bottom: calc(100% + 6px);
+  transform: translateX(-50%);
+  transition: opacity 0.15s ease, transform 0.15s ease;
+  transform-origin: bottom center;
+  white-space: normal;
+  z-index: 300;
+}
+
+.tooltip::after {
+  border: 5px solid transparent;
+  border-top-color: var(--border-light);
+  bottom: -10px;
+  content: '';
+  left: 50%;
+  position: absolute;
+  transform: translateX(-50%);
+}
+
+.tooltip-host:hover .tooltip {
+  opacity: 1;
+  transform: translateX(-50%) translateY(-2px);
+}
+
+/* ─────────────────────────────────────────────────────────────────────────
+   OLAY SEÇENEĞİ BUTONU
+───────────────────────────────────────────────────────────────────────── */
+.event-choice-btn {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  color: var(--text);
+  cursor: pointer;
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-md);
+  padding: var(--space-md) var(--space-lg);
+  text-align: left;
+  transition: var(--transition);
+  width: 100%;
+  font-family: var(--font-main);
+}
+
+.event-choice-btn:hover {
+  background: var(--bg-hover);
+  border-color: var(--accent-green);
+}
+
+.event-choice-key {
+  background: var(--border-light);
+  border-radius: var(--radius-sm);
+  color: var(--text-muted);
+  flex-shrink: 0;
+  font-size: var(--font-size-xs);
+  font-weight: 700;
+  min-width: 22px;
+  padding: 2px var(--space-xs);
+  text-align: center;
+}
+
+.event-choice-content {
+  flex: 1;
+}
+
+.event-choice-label {
+  font-size: var(--font-size-sm);
+  font-weight: 600;
+  margin-bottom: 4px;
+}
+
+.event-choice-desc {
+  font-size: var(--font-size-xs);
+  color: var(--text-muted);
+  line-height: 1.5;
+}
+
+.event-choice-effects {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-xs);
+  margin-top: var(--space-xs);
+}
+
+.effect-tag {
+  font-size: var(--font-size-xs);
+  padding: 1px var(--space-xs);
+  border-radius: var(--radius-sm);
+  font-weight: 700;
+}
+
+.effect-tag.pos { background: rgba(78,204,163,0.15); color: var(--accent-green); }
+.effect-tag.neg { background: rgba(233,69,96,0.15);  color: var(--accent); }
+.effect-tag.neu { background: rgba(255,255,255,0.07); color: var(--text-muted); }
+
+/* ─────────────────────────────────────────────────────────────────────────
+   TRANSFER PAZARI
+───────────────────────────────────────────────────────────────────────── */
+.transfer-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--space-lg);
+}
+
+.transfer-offer-form {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: var(--space-lg);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-md);
+}
+
+.offer-form-title {
+  font-size: var(--font-size-sm);
+  font-weight: 700;
+  color: var(--accent-green);
+  border-bottom: 1px solid var(--border);
+  padding-bottom: var(--space-sm);
+}
+
+.offer-row {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.offer-label {
+  font-size: var(--font-size-xs);
+  color: var(--text-muted);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+}
+
+.offer-input {
+  background: var(--bg-input);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  color: var(--text);
+  font-family: var(--font-mono);
+  font-size: var(--font-size-sm);
+  padding: var(--space-xs) var(--space-sm);
+  width: 100%;
+  outline: none;
+  transition: border-color var(--transition);
+}
+
+.offer-input:focus {
+  border-color: var(--accent-green);
+}
+
+.offer-checkbox-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  font-size: var(--font-size-sm);
+  cursor: pointer;
+}
+
+.accept-probability-bar {
+  background: var(--bg-primary);
+  border-radius: 4px;
+  height: 8px;
+  overflow: hidden;
+  margin-top: var(--space-xs);
+}
+
+.accept-probability-fill {
+  background: linear-gradient(90deg, var(--accent), var(--accent-yellow), var(--accent-green));
+  height: 100%;
+  border-radius: 4px;
+  transition: width 0.4s ease;
+}
+
+.accept-probability-label {
+  font-size: var(--font-size-xs);
+  color: var(--text-muted);
+  margin-top: 4px;
+  text-align: right;
+}
+
+/* ─────────────────────────────────────────────────────────────────────────
+   BÜTÇE PASTA GRAFİĞİ (SVG)
+───────────────────────────────────────────────────────────────────────── */
+.pie-chart-wrapper {
+  display: flex;
+  align-items: center;
+  gap: var(--space-xl);
+  flex-wrap: wrap;
+}
+
+.pie-legend {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+}
+
+.pie-legend-item {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  font-size: var(--font-size-sm);
+}
+
+.pie-legend-color {
+  width: 12px;
+  height: 12px;
+  border-radius: 3px;
+  flex-shrink: 0;
+}
+
+.pie-legend-label {
+  flex: 1;
+  color: var(--text-muted);
+}
+
+.pie-legend-value {
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+/* ─────────────────────────────────────────────────────────────────────────
+   HARİCA SLIDER (.budget-slider)
+───────────────────────────────────────────────────────────────────────── */
+.slider-row {
+  display: grid;
+  align-items: center;
+  gap: var(--space-md);
+  grid-template-columns: 120px 1fr 60px;
+}
+
+.slider-label {
+  font-size: var(--font-size-sm);
+  color: var(--text-muted);
+}
+
+input[type="range"].budget-slider {
+  -webkit-appearance: none;
+  appearance: none;
+  background: var(--bg-primary);
+  border-radius: 3px;
+  cursor: pointer;
+  height: 6px;
+  outline: none;
+  width: 100%;
+}
+
+input[type="range"].budget-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  background: var(--accent-green);
+  border-radius: 50%;
+  cursor: pointer;
+  height: 16px;
+  width: 16px;
+  transition: background var(--transition);
+}
+
+input[type="range"].budget-slider::-webkit-slider-thumb:hover {
+  background: #3ab890;
+}
+
+.slider-value {
+  font-size: var(--font-size-sm);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+  color: var(--accent-green);
+}
+
+/* ─────────────────────────────────────────────────────────────────────────
+   FİLTRE ÇUBUĞU (hoca listesi vb.)
+───────────────────────────────────────────────────────────────────────── */
+.filter-bar {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  margin-bottom: var(--space-lg);
+  flex-wrap: wrap;
+}
+
+.filter-select {
+  background: var(--bg-input);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  color: var(--text);
+  font-family: var(--font-main);
+  font-size: var(--font-size-sm);
+  outline: none;
+  padding: 5px var(--space-sm);
+  transition: border-color var(--transition);
+  cursor: pointer;
+}
+
+.filter-select:focus {
+  border-color: var(--accent-green);
+}
+
+.filter-select option {
+  background: var(--bg-secondary);
+}
+
+.search-input {
+  background: var(--bg-input);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  color: var(--text);
+  font-family: var(--font-main);
+  font-size: var(--font-size-sm);
+  outline: none;
+  padding: 5px var(--space-md);
+  transition: border-color var(--transition);
+  min-width: 180px;
+}
+
+.search-input:focus {
+  border-color: var(--accent-green);
+}
+
+.search-input::placeholder {
+  color: var(--text-faint);
+}
+
+/* ─────────────────────────────────────────────────────────────────────────
+   HOCA LİSTESİ GRID
+───────────────────────────────────────────────────────────────────────── */
+.faculty-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: var(--space-lg);
+}
+
+/* ─────────────────────────────────────────────────────────────────────────
+   BİNA KARTI (.building-card)
+───────────────────────────────────────────────────────────────────────── */
+.building-card {
+  background: var(--bg-secondary);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: var(--space-md) var(--space-lg);
+  display: flex;
+  align-items: center;
+  gap: var(--space-md);
+  transition: var(--transition);
+}
+
+.building-card:hover {
+  border-color: var(--border-light);
+}
+
+.building-card.available {
+  border-style: dashed;
+  opacity: 0.7;
+}
+
+.building-card.available:hover {
+  border-color: var(--accent-green);
+  opacity: 1;
+}
+
+.building-card.under-construction {
+  border-color: var(--accent-yellow);
+}
+
+.building-icon {
+  font-size: 28px;
+  flex-shrink: 0;
+}
+
+.building-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.building-name {
+  font-size: var(--font-size-sm);
+  font-weight: 700;
+}
+
+.building-desc {
+  font-size: var(--font-size-xs);
+  color: var(--text-muted);
+  line-height: 1.5;
+  margin-top: 2px;
+}
+
+.building-quality {
+  margin-top: var(--space-xs);
+}
+
+.construction-progress {
+  margin-top: var(--space-sm);
+}
+
+.construction-bar {
+  background: var(--bg-primary);
+  border-radius: 3px;
+  height: 4px;
+  overflow: hidden;
+}
+
+.construction-fill {
+  background: var(--accent-yellow);
+  height: 100%;
+  border-radius: 3px;
+  transition: width 0.4s ease;
+}
+
+.construction-label {
+  font-size: var(--font-size-xs);
+  color: var(--accent-yellow);
+  margin-top: 3px;
+}
+
+/* ─────────────────────────────────────────────────────────────────────────
+   ARAŞTIRMA PROJESİ KARTI (.research-card)
+───────────────────────────────────────────────────────────────────────── */
+.research-card {
+  background: var(--bg-secondary);
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--accent-purple);
+  border-radius: var(--radius-md);
+  padding: var(--space-md) var(--space-lg);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+}
+
+.research-card-header {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-sm);
+}
+
+.research-card-title {
+  font-size: var(--font-size-sm);
+  font-weight: 700;
+  flex: 1;
+}
+
+.research-card-meta {
+  display: flex;
+  gap: var(--space-sm);
+  font-size: var(--font-size-xs);
+  color: var(--text-muted);
+  flex-wrap: wrap;
+}
+
+.research-progress-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+}
+
+.research-progress-track {
+  flex: 1;
+  background: var(--bg-primary);
+  border-radius: 3px;
+  height: 6px;
+  overflow: hidden;
+}
+
+.research-progress-fill {
+  background: var(--accent-purple);
+  height: 100%;
+  border-radius: 3px;
+  transition: width 0.4s ease;
+}
+
+.research-progress-pct {
+  font-size: var(--font-size-xs);
+  font-variant-numeric: tabular-nums;
+  font-weight: 700;
+  color: var(--accent-purple);
+  min-width: 32px;
+  text-align: right;
+}
+
+/* ─────────────────────────────────────────────────────────────────────────
+   SIFIRLAMA DURUMU (boş liste)
+───────────────────────────────────────────────────────────────────────── */
+.empty-state {
+  text-align: center;
+  padding: var(--space-3xl) var(--space-xl);
+  color: var(--text-muted);
+}
+
+.empty-state-icon {
+  font-size: 48px;
+  margin-bottom: var(--space-md);
+}
+
+.empty-state-title {
+  font-size: var(--font-size-lg);
+  font-weight: 700;
+  margin-bottom: var(--space-sm);
+}
+
+.empty-state-desc {
+  font-size: var(--font-size-sm);
+  line-height: 1.6;
+  max-width: 340px;
+  margin: 0 auto var(--space-lg);
+}
+
+/* ─────────────────────────────────────────────────────────────────────────
+   YÜKLENİYOR
+───────────────────────────────────────────────────────────────────────── */
+.loading-spinner {
+  display: inline-block;
+  width: 20px;
+  height: 20px;
+  border: 2px solid var(--border-light);
+  border-top-color: var(--accent-green);
+  border-radius: 50%;
+  animation: spin 0.6s linear infinite;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+/* ─────────────────────────────────────────────────────────────────────────
+   MALİYET ÖNİZLEME
+───────────────────────────────────────────────────────────────────────── */
+.cost-preview {
+  margin: 10px 0 8px;
+  padding: 10px 12px;
+  background: var(--bg-card-alt, rgba(255,255,255,0.04));
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-md, 8px);
+  font-size: 12px;
+  line-height: 1.6;
+}
+
+.cost-preview:empty {
+  display: none;
+}
+
+.cost-preview-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 8px;
+  margin-bottom: 2px;
+}
+
+.cost-preview-label {
+  color: var(--text-muted);
+  flex-shrink: 0;
+}
+
+.cost-preview-val {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}

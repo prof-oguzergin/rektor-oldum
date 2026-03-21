@@ -1,0 +1,23 @@
+<!DOCTYPE html>
+<html><head><title>Module Test</title></head>
+<body>
+<pre id="out">Testing modules...</pre>
+<script type="module">
+const out = document.getElementById('out');
+const log = msg => { out.textContent += '\n' + msg; console.log(msg); };
+
+const mods = ['data', 'save', 'economy', 'faculty', 'students', 'ranking', 'events', 'ui', 'game', 'main'];
+
+for (const m of mods) {
+  try {
+    await import(`./js/${m}.js`);
+    log(`✅ ${m}.js OK`);
+  } catch(e) {
+    log(`❌ ${m}.js ERROR: ${e.message}`);
+    log(`   Stack: ${e.stack?.split('\n')[1] || 'N/A'}`);
+  }
+}
+log('\nDone!');
+</script>
+</body>
+</html>

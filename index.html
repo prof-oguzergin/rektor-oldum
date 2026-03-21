@@ -1,0 +1,389 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>🎓 Rektör Oldum — Üniversite Yönetim Oyunu</title>
+  <!-- SEO & Social -->
+  <meta name="description" content="Rektör Oldum — Kendi üniversitenizi kurun ve yönetin!">
+  <meta name="keywords" content="rektör oldum, üniversite yönetim oyunu, üniversite simülasyon, oyun, game, management sim">
+  <meta property="og:title" content="🎓 Rektör Oldum — Üniversite Yönetim Oyunu">
+  <meta property="og:description" content="Bir üniversiteyi sıfırdan kurup dünya sıralamasında zirveye taşıyın!">
+  <meta property="og:type" content="website">
+  <meta property="og:url" content="https://prof-oguzergin.github.io/university-tycoon/">
+  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🎓</text></svg>">
+  <link rel="stylesheet" href="style.css">
+  <link rel="stylesheet" href="css/components.css">
+</head>
+<body>
+
+  <!-- ════════════════════════════════════════════════════════════════════════
+       EKRAN 1: ANA MENÜ
+  ════════════════════════════════════════════════════════════════════════ -->
+  <div id="screen-menu" class="screen active">
+    <div class="menu-bg">
+      <div class="menu-overlay"></div>
+      <div class="menu-center">
+        <div class="menu-logo">
+          <h1 class="menu-title">Rektör Oldum</h1>
+          <p class="menu-subtitle">Türkiye'nin en iyi üniversitesini kur</p>
+        </div>
+        <div class="menu-buttons">
+          <button id="btn-new-game" class="btn btn-primary btn-lg">
+            <span class="btn-icon">🎓</span> Yeni Oyun
+          </button>
+          <button id="btn-load-game" class="btn btn-secondary btn-lg">
+            <span class="btn-icon">💾</span> Kayıt Yükle
+          </button>
+          <button id="btn-settings" class="btn btn-ghost btn-lg">
+            <span class="btn-icon">⚙️</span> Ayarlar
+          </button>
+        </div>
+        <div class="menu-version">v0.1-alfa</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ════════════════════════════════════════════════════════════════════════
+       EKRAN 2: OYUN KURULUMU
+  ════════════════════════════════════════════════════════════════════════ -->
+  <div id="screen-setup" class="screen">
+    <div class="setup-container">
+      <div class="setup-header">
+        <button id="btn-back-menu" class="btn btn-ghost btn-sm">← Geri</button>
+        <h2>Yeni Oyun Kur</h2>
+        <div class="setup-step-indicator">
+          <span class="step active" data-step="1">1. Profil</span>
+          <span class="step-sep">›</span>
+          <span class="step" data-step="2">2. Üniversite</span>
+          <span class="step-sep">›</span>
+          <span class="step" data-step="3">3. Bölümler</span>
+        </div>
+      </div>
+
+      <div class="setup-body">
+        <!-- Adım 1: Oyuncu Profili -->
+        <div class="setup-step" id="setup-step-1">
+          <div class="setup-section">
+            <h3>Oyuncu Bilgileri</h3>
+            <div class="form-group">
+              <label for="input-player-name">Rektör Adı</label>
+              <input type="text" id="input-player-name" class="form-input"
+                     placeholder="Adınızı girin..." maxlength="40">
+            </div>
+            <div class="form-group">
+              <label for="input-uni-name">Üniversite Adı</label>
+              <input type="text" id="input-uni-name" class="form-input"
+                     placeholder="Üniversite adını girin..." maxlength="60">
+            </div>
+          </div>
+          <div class="setup-nav">
+            <button class="btn btn-primary" id="btn-step1-next">İleri →</button>
+          </div>
+        </div>
+
+        <!-- Adım 2: Üniversite Tipi ve Zorluk -->
+        <div class="setup-step hidden" id="setup-step-2">
+          <div class="setup-section">
+            <h3>Üniversite Tipi</h3>
+            <div class="type-cards" id="type-cards">
+              <div class="type-card" data-type="devlet">
+                <div class="type-card-icon">🏛️</div>
+                <div class="type-card-name">Devlet Üniversitesi</div>
+                <div class="type-card-desc">
+                  Sabit harç, kamu bütçesi, daha yüksek başlangıç prestiji.
+                  YÖK denetimi güçlü.
+                </div>
+                <div class="type-card-stats">
+                  <span class="type-stat good">+ Yüksek prestij başlangıcı</span>
+                  <span class="type-stat good">+ Garantili öğrenci talebi</span>
+                  <span class="type-stat bad">− Harç ayarlama yok</span>
+                  <span class="type-stat bad">− Bütçe kısıtlı</span>
+                </div>
+              </div>
+              <div class="type-card" data-type="vakif">
+                <div class="type-card-icon">🏗️</div>
+                <div class="type-card-name">Vakıf Üniversitesi</div>
+                <div class="type-card-desc">
+                  Harç belirleyebilirsin, endowment fonu, esnek kadro politikası.
+                  İtibar kazanmak daha zor.
+                </div>
+                <div class="type-card-stats">
+                  <span class="type-stat good">+ Harç kontrolü</span>
+                  <span class="type-stat good">+ Esnek bütçe yönetimi</span>
+                  <span class="type-stat bad">− Düşük başlangıç prestiji</span>
+                  <span class="type-stat bad">− Öğrenci talebi unstable</span>
+                </div>
+              </div>
+              <div class="type-card" data-type="coop">
+                <div class="type-card-icon">🤝</div>
+                <div class="type-card-name">Co-op Üniversitesi</div>
+                <div class="type-card-desc">
+                  Sanayi iş birliği yoğun, 3 dönem/yıl, sponsorluk gelirleri yüksek.
+                  Yerleşke bakım maliyeti artar.
+                </div>
+                <div class="type-card-stats">
+                  <span class="type-stat good">+ Yüksek sponsorluk geliri</span>
+                  <span class="type-stat good">+ Mezun istihdamı</span>
+                  <span class="type-stat bad">− Yüksek bakım maliyeti</span>
+                  <span class="type-stat bad">− Karmaşık dönem takvimi</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="setup-section">
+            <h3>Zorluk Seviyesi</h3>
+            <div class="difficulty-cards" id="difficulty-cards">
+              <div class="difficulty-card selected" data-difficulty="kolay">
+                <div class="diff-name">Kolay</div>
+                <div class="diff-desc">Öğrenmek için ideal. Daha yüksek bütçe, pasif rakipler.</div>
+              </div>
+              <div class="difficulty-card" data-difficulty="normal">
+                <div class="diff-name">Normal</div>
+                <div class="diff-desc">Dengeli deneyim. Rakipler aktif, bütçe sıkı.</div>
+              </div>
+              <div class="difficulty-card" data-difficulty="zor">
+                <div class="diff-name">Zor</div>
+                <div class="diff-desc">Her karar kritik. Agresif rakipler, dar bütçe.</div>
+              </div>
+            </div>
+          </div>
+
+          <div class="setup-nav">
+            <button class="btn btn-ghost" id="btn-step2-back">← Geri</button>
+            <button class="btn btn-primary" id="btn-step2-next">İleri →</button>
+          </div>
+        </div>
+
+        <!-- Adım 3: Bölüm Seçimi -->
+        <div class="setup-step hidden" id="setup-step-3">
+          <div class="setup-section">
+            <h3>Açılış Bölümleri</h3>
+            <p class="setup-hint">En az 2, en fazla 6 bölüm seçin. Seçiminiz üniversitenizin kimliğini belirler.</p>
+
+            <div class="dept-filter-bar" id="dept-filter-bar">
+              <button class="dept-filter-btn active" data-cat="hepsi">Hepsi</button>
+              <button class="dept-filter-btn" data-cat="muhendislik">Mühendislik</button>
+              <button class="dept-filter-btn" data-cat="temel_bilim">Temel Bilim</button>
+              <button class="dept-filter-btn" data-cat="sosyal">Sosyal</button>
+              <button class="dept-filter-btn" data-cat="saglik">Sağlık</button>
+            </div>
+
+            <div class="dept-selection-grid" id="dept-selection-grid">
+              <!-- JS tarafından doldurulacak -->
+            </div>
+
+            <div class="dept-selection-info">
+              <span id="dept-selected-count">0</span> / 6 bölüm seçildi
+              <span class="dept-selection-names" id="dept-selection-names"></span>
+            </div>
+          </div>
+
+          <div class="setup-nav">
+            <button class="btn btn-ghost" id="btn-step3-back">← Geri</button>
+            <button class="btn btn-success" id="btn-start-game" disabled>
+              🎓 Üniversiteyi Kur
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ════════════════════════════════════════════════════════════════════════
+       EKRAN 3: ANA OYUN EKRANI
+  ════════════════════════════════════════════════════════════════════════ -->
+  <div id="screen-game" class="screen">
+
+    <!-- Üst Bar -->
+    <header class="top-bar">
+      <div class="top-bar-left">
+        <div class="uni-name-display" id="uni-name-display">Üniversite Adı</div>
+        <div class="term-display" id="term-display">1. Yıl · Güz Dönemi</div>
+      </div>
+      <div class="top-bar-stats">
+        <div class="top-stat" id="stat-budget">
+          <span class="top-stat-label">Bütçe</span>
+          <span class="top-stat-value budget-value">—</span>
+        </div>
+        <div class="top-stat" id="stat-prestige">
+          <span class="top-stat-label">Prestij</span>
+          <span class="top-stat-value prestige-value">—</span>
+        </div>
+        <div class="top-stat" id="stat-ranking">
+          <span class="top-stat-label">Sıralama</span>
+          <span class="top-stat-value ranking-value">—</span>
+        </div>
+        <div class="top-stat" id="stat-students">
+          <span class="top-stat-label">Öğrenci</span>
+          <span class="top-stat-value">—</span>
+        </div>
+        <div class="top-stat" id="stat-faculty">
+          <span class="top-stat-label">Kadro</span>
+          <span class="top-stat-value">—</span>
+        </div>
+      </div>
+      <div class="top-bar-right">
+        <button class="btn btn-ghost btn-sm" id="btn-save-game">💾</button>
+        <button class="btn btn-ghost btn-sm" id="btn-main-menu">☰</button>
+      </div>
+    </header>
+
+    <!-- Ana Alan: Sidebar + İçerik -->
+    <div class="game-body">
+
+      <!-- Sol Sidebar: Sekme Navigasyonu -->
+      <nav class="sidebar">
+        <div class="sidebar-inner">
+          <button class="sidebar-tab active" data-tab="dashboard">
+            <span class="tab-icon">📊</span>
+            <span class="tab-label">Dashboard</span>
+          </button>
+          <button class="sidebar-tab" data-tab="faculty">
+            <span class="tab-icon">👩‍🏫</span>
+            <span class="tab-label">Kadro</span>
+          </button>
+          <button class="sidebar-tab" data-tab="students">
+            <span class="tab-icon">🎓</span>
+            <span class="tab-label">Öğrenciler</span>
+          </button>
+          <button class="sidebar-tab" data-tab="campus">
+            <span class="tab-icon">🏛️</span>
+            <span class="tab-label">Yerleşke</span>
+          </button>
+          <button class="sidebar-tab" data-tab="research">
+            <span class="tab-icon">🔬</span>
+            <span class="tab-label">Araştırma</span>
+          </button>
+          <button class="sidebar-tab" data-tab="budget">
+            <span class="tab-icon">💰</span>
+            <span class="tab-label">Bütçe</span>
+          </button>
+          <button class="sidebar-tab" data-tab="departments">
+            <span class="tab-icon">🏫</span>
+            <span class="tab-label">Bölümler</span>
+          </button>
+          <button class="sidebar-tab" data-tab="bolumler">
+            <span class="tab-icon">🎓</span>
+            <span class="tab-label">Fakülteler</span>
+          </button>
+          <button class="sidebar-tab" data-tab="admin">
+            <span class="tab-icon">🏢</span>
+            <span class="tab-label">İdari</span>
+          </button>
+          <button class="sidebar-tab" data-tab="ranking">
+            <span class="tab-icon">🏆</span>
+            <span class="tab-label">Sıralama</span>
+          </button>
+        </div>
+      </nav>
+
+      <!-- Ana İçerik Alanı -->
+      <main class="main-content">
+        <div id="tab-dashboard"   class="tab-panel active"></div>
+        <div id="tab-faculty"     class="tab-panel"></div>
+        <div id="tab-students"    class="tab-panel"></div>
+        <div id="tab-departments" class="tab-panel"></div>
+        <div id="tab-bolumler"    class="tab-panel"></div>
+        <div id="tab-campus"      class="tab-panel"></div>
+        <div id="tab-research"    class="tab-panel"></div>
+        <div id="tab-budget"      class="tab-panel"></div>
+        <div id="tab-admin"       class="tab-panel"></div>
+        <div id="tab-ranking"     class="tab-panel"></div>
+      </main>
+
+    </div>
+
+    <!-- Alt Bar -->
+    <footer class="bottom-bar">
+      <div class="notification-area" id="notification-area">
+        <!-- Toast bildirimler burada gösterilir -->
+      </div>
+      <div class="bottom-bar-actions">
+        <div class="turn-info" id="turn-info">Dönem hazır</div>
+        <button class="btn btn-primary btn-next-turn" id="btn-next-turn">
+          Sonraki Dönem →
+        </button>
+      </div>
+    </footer>
+
+  </div>
+
+  <!-- ════════════════════════════════════════════════════════════════════════
+       EKRAN 4: OLAY / KARAR EKRANI (Modal Overlay)
+  ════════════════════════════════════════════════════════════════════════ -->
+  <div id="screen-event" class="screen modal-screen">
+    <div class="modal-backdrop">
+      <div class="modal event-modal" id="event-modal">
+        <div class="event-modal-header">
+          <div class="event-category" id="event-category">Olay</div>
+          <h2 class="event-title" id="event-title">Olay Başlığı</h2>
+        </div>
+        <div class="event-modal-body">
+          <div class="event-description" id="event-description">
+            Olay açıklaması burada yer alır.
+          </div>
+          <div class="event-details" id="event-details"></div>
+          <div class="event-choices" id="event-choices">
+            <!-- Seçenekler JS tarafından eklenir -->
+          </div>
+        </div>
+        <div class="event-modal-footer">
+          <div class="event-footer-info" id="event-footer-info"></div>
+          <button class="btn btn-ghost btn-sm" id="btn-event-skip">Atla</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ════════════════════════════════════════════════════════════════════════
+       GENEL MODAL KAPLAMA (Transfer Pazarı, Detay vb.)
+  ════════════════════════════════════════════════════════════════════════ -->
+  <div id="modal-overlay" class="modal-screen hidden">
+    <div class="modal-backdrop" id="modal-backdrop">
+      <div class="modal general-modal" id="general-modal">
+        <div class="modal-header">
+          <h3 class="modal-title" id="general-modal-title">Başlık</h3>
+          <button class="btn btn-ghost btn-icon" id="btn-close-modal">✕</button>
+        </div>
+        <div class="modal-body" id="general-modal-body">
+          <!-- İçerik JS tarafından eklenir -->
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ════════════════════════════════════════════════════════════════════════
+       DÖNEM SONU ÖZET KAPLAMA
+  ════════════════════════════════════════════════════════════════════════ -->
+  <div id="turn-summary-overlay" class="modal-screen hidden">
+    <div class="modal-backdrop">
+      <div class="modal summary-modal" id="summary-modal">
+        <div class="modal-header">
+          <h3 class="modal-title" id="summary-modal-title">Dönem Özeti</h3>
+        </div>
+        <div class="modal-body" id="summary-modal-body">
+          <!-- renderTurnSummary tarafından doldurulur -->
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ════════════════════════════════════════════════════════════════════════
+       TOAST BİLDİRİM ALANI (sayfanın köşesi)
+  ════════════════════════════════════════════════════════════════════════ -->
+  <div id="toast-container" class="toast-container"></div>
+
+  <script>console.log('[inline] Script tag çalışıyor — before module');</script>
+  <script type="module">
+    console.log('[inline-module] Inline module çalışıyor');
+    try {
+      const m = await import('./js/main.js');
+      console.log('[inline-module] main.js başarıyla yüklendi');
+    } catch(e) {
+      console.error('[inline-module] main.js HATA:', e.message, e.stack);
+    }
+  </script>
+</body>
+</html>
