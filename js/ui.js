@@ -7462,31 +7462,55 @@ export function renderAchievementsPanel(state, achievements, stats) {
 }
 
 /**
- * Başarım açıldığında toast bildirim göster.
+ * Başarım bildirimleri için kuyruk sistemi.
+ * Aynı anda en fazla _ACH_MAX bildirim gösterilir; fazlası sıraya alınır.
  */
-export function showAchievementNotification(ach) {
+const _achQueue   = [];  // bekleyen başarımlar
+let   _achVisible = 0;   // şu anda ekranda görünen sayısı
+const _ACH_MAX    = 4;   // aynı anda gösterilecek maksimum
+const _ACH_DURATION = 4000; // ms — otomatik kapanma süresi
+
+function _achShowNext() {
+  if (_achQueue.length === 0 || _achVisible >= _ACH_MAX) return;
+  const ach = _achQueue.shift();
+  _achVisible++;
+
   const container = el('toast-container') || document.body;
   const toast = document.createElement('div');
-  toast.className = 'toast-notification achievement-toast';
+  toast.className = 'achievement-toast';
   toast.innerHTML = `
-    <div style="display:flex;align-items:center;gap:8px;padding:10px 14px;background:var(--surface);
-         border:2px solid var(--warning);border-radius:8px;box-shadow:0 4px 16px rgba(0,0,0,0.3);
-         animation:slideIn 0.3s ease;">
-      <span style="font-size:24px;">${ach.icon}</span>
-      <div>
-        <div style="font-size:11px;font-weight:700;color:var(--warning);text-transform:uppercase;letter-spacing:1px;">
-          🏆 BAŞARIM AÇILDI!
-        </div>
-        <div style="font-size:14px;font-weight:600;">${ach.name}</div>
-        <div style="font-size:11px;color:var(--text-muted);">${ach.description}</div>
-      </div>
-    </div>`;
+    <span class="achievement-toast-icon">${ach.icon}</span>
+    <div class="achievement-toast-body">
+      <div class="achievement-toast-label">🏆 BAŞARIM AÇILDI!</div>
+      <div class="achievement-toast-name">${ach.name}</div>
+      <div class="achievement-toast-desc">${ach.description}</div>
+    </div>
+    <button class="achievement-toast-close" title="Kapat">✕</button>`;
+
   container.appendChild(toast);
-  setTimeout(() => {
-    toast.style.opacity = '0';
-    toast.style.transition = 'opacity 0.5s';
-    setTimeout(() => toast.remove(), 500);
-  }, 4000);
+
+  const dismiss = () => {
+    if (toast._dismissed) return;
+    toast._dismissed = true;
+    toast.classList.add('fadeout');
+    setTimeout(() => {
+      toast.remove();
+      _achVisible--;
+      _achShowNext(); // sıradaki varsa göster
+    }, 420);
+  };
+
+  toast.querySelector('.achievement-toast-close').addEventListener('click', dismiss);
+  setTimeout(dismiss, _ACH_DURATION);
+}
+
+/**
+ * Başarım açıldığında toast bildirim göster.
+ * Birden fazla çağrı gelirse kuyruğa alır, aynı anda en fazla 4 gösterir.
+ */
+export function showAchievementNotification(ach) {
+  _achQueue.push(ach);
+  _achShowNext();
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

@@ -1591,6 +1591,35 @@ export const BUILDINGS = {
     prerequisite: null,
   },
 
+  saglik_merkezi: {
+    id:                    'saglik_merkezi',
+    name:                  'Sağlık Merkezi',
+    icon:                  '🏥',
+    description:           'Öğrenci ve personel sağlık hizmetleri. Acil müdahale, poliklinik ve psikolojik danışmanlık.',
+    assignable:            false,
+    benefitText:           'Tüm öğrenci ve personele açık',
+    baseCost:              8_000_000,
+    baseArea:              2000,
+    upgradeCostMultiplier: 1.5,
+    maxLevel:              3,
+    areaPerLevel:          1000,
+    capacity:              { dailyPatients: 100 },
+    capacityPerLevel:      { dailyPatients: 50 },
+    maintenanceCostPerM2:  50,
+    constructionTurns:     2,
+    canHaveMultiple:       false,
+    effects: { studentSatisfaction: 5, facultyHappiness: 3 },
+    // Geriye dönük uyumluluk
+    constructionCost:      8_000_000,
+    maintenanceCostRatio:  0.05,
+    constructionTime:      2,
+    qualityEffects: {
+      studentSatisfaction: +5,
+      facultyHappiness:    +3,
+    },
+    prerequisite: null,
+  },
+
   teknokent: {
     id:                    'teknokent',
     name:                  'Teknokent',

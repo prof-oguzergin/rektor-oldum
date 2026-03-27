@@ -137,6 +137,14 @@ const BUILDING_STYLES = {
     windowColor: '#fffaaa',
     windowColorDark: '#c8c070',
   },
+  saglik_merkezi: {
+    top: '#e8e8e8', left: '#c0c0c0', right: '#a0a0a0',
+    topLight: '#ffffff', shadow: 'rgba(40,40,60,0.4)',
+    height: 44, label: 'Sa',
+    roofType: 'flat_cross',      // Düz çatı + kırmızı haç
+    windowColor: '#ffffff',
+    windowColorDark: '#cccccc',
+  },
 };
 
 // Zemin renkleri

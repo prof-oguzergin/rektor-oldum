@@ -811,8 +811,12 @@ export function calculateStudentSatisfaction(state) {
   const tuitionBase = isVakif ? 45 : 70;
   const ucretDeger  = clamp(tuitionBase + state.university.prestige * 0.3, 20, 100);
 
+  // Sağlık Merkezi binası — fiziksel bina idari sağlık skorunu güçlendirir
+  const hasSaglikBinasi  = completedBuildings.some(b => b.type === 'saglik_merkezi');
+  const saglikBinaBonus  = hasSaglikBinasi ? 12 : 0;
+
   // İdari hizmet genel skoru (sağlık, güvenlik, temizlik, BT, uluslararası)
-  const saglikScore      = getAdminUnitScore(state, 'saglik_merkezi');
+  const saglikScore      = clamp(getAdminUnitScore(state, 'saglik_merkezi') + saglikBinaBonus, 0, 100);
   const guvenlikScore    = getAdminUnitScore(state, 'guvenlik');
   const temizlikScore    = getAdminUnitScore(state, 'temizlik_bakim');
   const itScore          = getAdminUnitScore(state, 'bilgi_teknolojileri');

@@ -22,6 +22,7 @@ export const BUILDING_FOOTPRINTS = {
   amfi:              { w: 2, h: 2 },
   yurt:              { w: 2, h: 2 },
   teknokent:         { w: 3, h: 2 },
+  saglik_merkezi:    { w: 2, h: 1 },
 };
 
 /** Bina tipi → tercih edilen bölge */
@@ -36,6 +37,7 @@ export const BUILDING_ZONES = {
   spor_tesisi:       'inner',
   yurt:              'outer',
   teknokent:         'outer',
+  saglik_merkezi:    'inner',
 };
 
 const ZONE_RADIUS = { center: 4, inner: 7, outer: 11 };

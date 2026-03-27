@@ -968,9 +968,95 @@ body {
   right: var(--space-xl);
   z-index: 500;
   display: flex;
-  flex-direction: column;
+  flex-direction: column-reverse;
   gap: var(--space-sm);
   pointer-events: none;
+  max-height: calc(100vh - var(--space-xl) * 2);
+  overflow: visible;
+}
+
+/* Bireysel toast'lar tıklanabilir olmalı */
+.toast-container > * {
+  pointer-events: auto;
+}
+
+/* Başarım tostu */
+.achievement-toast {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 14px;
+  background: var(--surface, var(--bg-secondary));
+  border: 2px solid var(--warning);
+  border-radius: 8px;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.3);
+  animation: achSlideIn 0.35s cubic-bezier(0.34, 1.56, 0.64, 1) both;
+  transition: opacity 0.4s ease, transform 0.4s ease;
+  cursor: default;
+  min-width: 240px;
+  max-width: 320px;
+}
+
+.achievement-toast.fadeout {
+  opacity: 0;
+  transform: translateX(20px);
+}
+
+.achievement-toast-icon {
+  font-size: 24px;
+  flex-shrink: 0;
+}
+
+.achievement-toast-body {
+  flex: 1;
+  min-width: 0;
+}
+
+.achievement-toast-label {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--warning);
+  text-transform: uppercase;
+  letter-spacing: 1px;
+}
+
+.achievement-toast-name {
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.achievement-toast-desc {
+  font-size: 11px;
+  color: var(--text-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.achievement-toast-close {
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  font-size: 14px;
+  padding: 2px 4px;
+  line-height: 1;
+  flex-shrink: 0;
+  opacity: 0.6;
+}
+.achievement-toast-close:hover {
+  opacity: 1;
+}
+
+@keyframes achSlideIn {
+  from {
+    opacity: 0;
+    transform: translateX(40px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
 }
 
 /* ─────────────────────────────────────────────────────────────────────────
