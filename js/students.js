@@ -155,18 +155,27 @@ export function generateInitialStudents(departments, universityType, totalStuden
          generateYKSRanking('yari_burslu', prestige, demand) * burslu.yariBurslu +
          generateYKSRanking('ucretli', prestige, demand) * burslu.ucretli) / Math.max(1, count)
       );
-      // Yıla göre gerçekçi GPA aralıkları: üst sınıflar daha yüksek GPA'ya sahip
-      const gpaRanges = {
-        1: [2.0, 2.5],   // 1. sınıf: henüz adaptasyon aşaması (yeni, 0 yazılır → ilerlemede hesaplanır)
-        2: [2.2, 2.8],   // 2. sınıf
-        3: [2.4, 3.0],   // 3. sınıf
-        4: [2.6, 3.2],   // 4. sınıf: en deneyimliler
-      };
-      const [gpaMin, gpaMax] = gpaRanges[year] || [2.2, 3.0];
+      // YKS bazlı taban GPA (geniş varyans — gerçekçi başlangıç)
+      function yksToBaseGPA(yks) {
+        if (yks < 5000)   return 3.4 + Math.random() * 0.4;   // 3.4–3.8
+        if (yks < 15000)  return 3.1 + Math.random() * 0.5;   // 3.1–3.6
+        if (yks < 30000)  return 2.8 + Math.random() * 0.5;   // 2.8–3.3
+        if (yks < 60000)  return 2.5 + Math.random() * 0.5;   // 2.5–3.0
+        if (yks < 100000) return 2.2 + Math.random() * 0.5;   // 2.2–2.7
+        return 1.8 + Math.random() * 0.6;                      // 1.8–2.4
+      }
+      // Yıl olgunluk düzeltmesi: üst sınıflar hafif daha iyi (zayıflar ayrıldı)
+      const yearOffset = { 1: 0, 2: 0.05, 3: 0.10, 4: 0.15 };
+      // Burs dağılımına göre ücretli oranı
+      const totalBurs = burslu.tamBurslu + burslu.yariBurslu + burslu.ucretli;
+      const ucRatio   = totalBurs > 0 ? burslu.ucretli / totalBurs : 0.65;
+      const bursAdj   = ucRatio > 0.5 ? -0.1 + Math.random() * 0.3 : 0.05 + Math.random() * 0.05;
+
+      const baseGPA = Math.min(4.0, yksToBaseGPA(avgYKS) + (yearOffset[year] || 0) + bursAdj);
       return {
         count,
         avgYKS,
-        avgGPA: parseFloat(randBetween(gpaMin, gpaMax).toFixed(2)),
+        avgGPA: parseFloat(Math.min(4.0, Math.max(1.5, baseGPA)).toFixed(2)),
         satisfaction: randInt(55, 72),
         ...burslu,
       };
@@ -250,9 +259,10 @@ export function generateStarStudent(departmentId, universityPrestige) {
   Object.keys(boost).forEach(key => { stats[key] = clamp(stats[key] + boost[key] + randInt(-10, 10)); });
   Object.keys(stats).forEach(key => { if (!boost[key]) stats[key] = clamp(stats[key] + randInt(-15, 15)); });
 
+  // Yıldız öğrenciler bireysel olarak üstün: en az 3.5 GPA garantili
   const gpa = parseFloat(clamp(
-    (stats.academic / 100) * 4.0 * 0.7 + (universityPrestige / 100) * 0.5 + randBetween(-0.2, 0.3),
-    2.0, 4.0
+    3.5 + (stats.academic / 100) * 0.5 + randBetween(-0.05, 0.1),
+    3.5, 4.0
   ).toFixed(2));
 
   const scholarshipType = stats.academic >= 80 ? 'tam_burslu'
@@ -364,23 +374,48 @@ export function updateStudentYears(state, advanceYears = false) {
       const yr = deptData[yearKey];
       if (!yr || yr.count <= 0) continue;
 
-      // YKS normalizasyonu: sıralama 1000 → 1.0, 200000 → 0.0
-      const yksNorm = clamp(1 - (yr.avgYKS - 1000) / 199_000, 0, 1);
+      // YKS bazlı taban GPA (kohort potansiyeli — belirsizlik geniş)
+      const yks = yr.avgYKS || 50000;
+      let baseGPA;
+      if      (yks < 5000)   baseGPA = 3.4 + Math.random() * 0.4;   // 3.4–3.8
+      else if (yks < 15000)  baseGPA = 3.1 + Math.random() * 0.5;   // 3.1–3.6
+      else if (yks < 30000)  baseGPA = 2.8 + Math.random() * 0.5;   // 2.8–3.3
+      else if (yks < 60000)  baseGPA = 2.5 + Math.random() * 0.5;   // 2.5–3.0
+      else if (yks < 100000) baseGPA = 2.2 + Math.random() * 0.5;   // 2.2–2.7
+      else                   baseGPA = 1.8 + Math.random() * 0.6;   // 1.8–2.4
 
-      const rawGPA =
-        (avgTeaching / 100) * 0.40 * 4.0 +
-        sizeMult             * 0.20 * 4.0 +
-        (yr.satisfaction / 100) * 0.20 * 4.0 +
-        yksNorm              * 0.20 * 4.0;
+      // Burs türü etkisi: tam burslu hafif avantajlı, ücretli daha geniş varyans
+      const totalInYear  = (yr.tamBurslu || 0) + (yr.yariBurslu || 0) + (yr.ucretli || 0);
+      const ucretliRatio = totalInYear > 0 ? (yr.ucretli || 0) / totalInYear : 0.65;
+      // Ücretli kohortlar: bazıları çok çalışır, bazıları çalışmaz → -0.1 ile +0.2 arasında
+      const bursBonus = ucretliRatio > 0.5
+        ? -0.1 + Math.random() * 0.3       // ağırlıklı ücretli → daha geniş varyans
+        : 0.05 + Math.random() * 0.05;     // ağırlıklı burslu → hafif üstün
+
+      // Öğretim kalitesi bonusu: iyi öğretim GPA'yı ciddi etkiler (±0.15)
+      const teachingBonus = ((avgTeaching || 60) - 60) / 200; // –0.15 ile +0.20 arası
+
+      // Memnuniyet bonusu: mutlu öğrenci daha iyi çalışır (±0.10)
+      const satBonus = ((yr.satisfaction ?? 60) - 60) / 300;  // –0.10 ile +0.13 arası
+
+      // Sınıf yılı olgunluk etkisi: üst sınıflar hafif daha yüksek GPA (zayıflar bıraktı)
+      const yearKey2 = yearKey; // 'year1'..'year4'
+      const yearNum  = yearKey2 === 'year1' ? 1 : yearKey2 === 'year2' ? 2 : yearKey2 === 'year3' ? 3 : 4;
+      const yearBonus = (yearNum - 1) * 0.05;  // +0.00, +0.05, +0.10, +0.15
+
+      // Sınıf kalabalığı düzeltmesi
+      const sizeAdjust = (sizeMult - 1.0) * 0.2;  // 0.78→-0.044, 1.0→0
+
+      const rawGPA = baseGPA + bursBonus + teachingBonus + satBonus + yearBonus + sizeAdjust;
 
       if (yr.avgGPA === 0) {
-        yr.avgGPA = parseFloat(clamp(rawGPA, 0, 4.0).toFixed(2));
+        yr.avgGPA = parseFloat(clamp(rawGPA, 1.5, 4.0).toFixed(2));
       } else {
-        yr.avgGPA = parseFloat(clamp(yr.avgGPA * 0.70 + rawGPA * 0.30, 0, 4.0).toFixed(2));
+        yr.avgGPA = parseFloat(clamp(yr.avgGPA * 0.70 + rawGPA * 0.30, 1.5, 4.0).toFixed(2));
       }
 
-      // Bırakma riski
-      const dropRisk = Math.max(0, (1.5 - yr.avgGPA) * 0.015 + (50 - yr.satisfaction) * 0.0008);
+      // Bırakma riski: GPA < 1.8 ise akademik başarısızlık, düşük memnuniyet de etkiler
+      const dropRisk = Math.max(0, (1.8 - yr.avgGPA) * 0.015 + (50 - (yr.satisfaction ?? 60)) * 0.0008);
       const dropouts = Math.round(yr.count * dropRisk);
       yr.count = Math.max(0, yr.count - dropouts);
       summary.dropouts += dropouts;

@@ -1155,6 +1155,35 @@ input[type="range"].budget-slider::-webkit-slider-thumb:hover {
 }
 
 /* ─────────────────────────────────────────────────────────────────────────
+   İDARİ PERSONEL KARTI (.admin-staff-card)
+   Hoca kartıyla aynı görsel dil
+───────────────────────────────────────────────────────────────────────── */
+.admin-staff-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: var(--space-lg);
+}
+
+.admin-staff-card {
+  /* faculty-card sınıfından miras alır; bu sınıf sadece semantik ayrım için */
+}
+
+/* İdari personel avatar — hoca avatarından biraz farklı renk tonu */
+.admin-avatar {
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, var(--accent-green, #38a169), var(--accent-blue, #3182ce));
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 16px;
+  font-weight: 800;
+  color: #fff;
+  flex-shrink: 0;
+}
+
+/* ─────────────────────────────────────────────────────────────────────────
    BİNA KARTI (.building-card)
 ───────────────────────────────────────────────────────────────────────── */
 .building-card {
@@ -1377,4 +1406,77 @@ input[type="range"].budget-slider::-webkit-slider-thumb:hover {
 .cost-preview-val {
   text-align: right;
   font-variant-numeric: tabular-nums;
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   v0.2 — BAŞARIM SİSTEMİ
+───────────────────────────────────────────────────────────────────────────── */
+
+.achievements-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 8px;
+}
+
+.achievement-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  transition: border-color 0.2s, background 0.2s;
+}
+
+.achievement-unlocked {
+  background: rgba(var(--accent-rgb, 99, 179, 237), 0.06);
+  border-color: var(--accent, #63b3ed);
+}
+
+.achievement-locked {
+  opacity: 0.55;
+  filter: grayscale(0.4);
+}
+
+.achievement-icon {
+  font-size: 22px;
+  flex-shrink: 0;
+  width: 32px;
+  text-align: center;
+}
+
+.achievement-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.achievement-name {
+  font-weight: 600;
+  font-size: 13px;
+}
+
+.achievement-desc {
+  font-size: 11px;
+  color: var(--text-muted);
+  margin-top: 2px;
+}
+
+/* Toast bildirimi için kayma animasyonu */
+@keyframes slideIn {
+  from { transform: translateX(100%); opacity: 0; }
+  to   { transform: translateX(0);    opacity: 1; }
+}
+
+.achievement-toast {
+  position: fixed;
+  bottom: 80px;
+  right: 20px;
+  z-index: 9999;
+  animation: slideIn 0.3s ease;
+}
+
+/* Rastgele olay seçenekleri */
+.random-event-choice:hover {
+  border-color: var(--accent) !important;
+  background: rgba(var(--accent-rgb, 99, 179, 237), 0.08) !important;
 }

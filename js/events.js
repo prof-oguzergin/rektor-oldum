@@ -162,10 +162,10 @@ export function applyEventEffects(state, effects) {
     log.push(`Bütçe: ${effects.budget > 0 ? '+' : ''}${effects.budget.toLocaleString('tr-TR')} ₺`);
   }
 
-  // Prestij değişimi
+  // Saygınlık değişimi
   if (effects.prestige) {
     state.university.prestige = clamp(state.university.prestige + effects.prestige);
-    log.push(`Prestij: ${effects.prestige > 0 ? '+' : ''}${effects.prestige}`);
+    log.push(`Saygınlık: ${effects.prestige > 0 ? '+' : ''}${effects.prestige}`);
   }
 
   // Genel memnuniyet
@@ -374,14 +374,14 @@ export function resolveDecision(state, eventId, choiceIndex) {
     effectLog.push(`Memnuniyet: ${delta > 0 ? '+' : ''}${delta}`);
   }
 
-  // Prestij kaybı/bonusu
+  // Saygınlık kaybı/bonusu
   if (chosenOption.prestigeLoss) {
     state.university.prestige = clamp(state.university.prestige + chosenOption.prestigeLoss);
-    effectLog.push(`Prestij: ${chosenOption.prestigeLoss}`);
+    effectLog.push(`Saygınlık: ${chosenOption.prestigeLoss}`);
   }
   if (chosenOption.prestigeBonus) {
     state.university.prestige = clamp(state.university.prestige + chosenOption.prestigeBonus);
-    effectLog.push(`Prestij: +${chosenOption.prestigeBonus}`);
+    effectLog.push(`Saygınlık: +${chosenOption.prestigeBonus}`);
   }
 
   // Akreditasyon bonusu
@@ -594,8 +594,8 @@ export function generateEventDescription(event, state) {
   switch (event.type) {
     case 'positive':
       desc += prestige >= 60
-        ? ' Güçlü prestijiniz bu fırsatı daha değerli kılıyor.'
-        : ' Bu fırsat prestijinizi artırmak için iyi bir adım olabilir.';
+        ? ' Güçlü saygınlığınız bu fırsatı daha değerli kılıyor.'
+        : ' Bu fırsat saygınlığınızı artırmak için iyi bir adım olabilir.';
       break;
     case 'negative':
       desc += prestige >= 50

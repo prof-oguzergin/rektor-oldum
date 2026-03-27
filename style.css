@@ -1182,3 +1182,247 @@ body {
 .mb-md      { margin-bottom: var(--space-md); }
 .mb-lg      { margin-bottom: var(--space-lg); }
 .mt-md      { margin-top: var(--space-md); }
+
+/* ─────────────────────────────────────────────────────────────────────────
+   REHBER (TUTORIAL) SİSTEMİ
+───────────────────────────────────────────────────────────────────────── */
+
+.tutorial-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.72);
+  z-index: 10000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  animation: tutorial-fade-in 0.25s ease;
+}
+
+@keyframes tutorial-fade-in {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+.tutorial-modal {
+  background: #1a2332;
+  border: 2px solid #4fc3f7;
+  border-radius: 12px;
+  padding: 28px 30px 24px;
+  max-width: 480px;
+  width: calc(100% - 40px);
+  color: #e0e6ef;
+  box-shadow: 0 0 30px rgba(79, 195, 247, 0.3), 0 8px 32px rgba(0,0,0,0.6);
+  position: relative;
+  z-index: 10001;
+}
+
+.tutorial-modal.tutorial-modal-in {
+  animation: tutorial-slide-in 0.2s ease;
+}
+
+@keyframes tutorial-slide-in {
+  from { transform: translateY(8px); opacity: 0.6; }
+  to   { transform: translateY(0);   opacity: 1; }
+}
+
+.tutorial-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 14px;
+}
+
+.tutorial-step-counter {
+  color: #7a9bb5;
+  font-size: 0.85rem;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+}
+
+.tutorial-skip-btn {
+  background: none;
+  border: none;
+  color: #5a7a9a;
+  font-size: 0.82rem;
+  cursor: pointer;
+  padding: 4px 8px;
+  border-radius: 4px;
+  transition: color 0.15s, background 0.15s;
+}
+
+.tutorial-skip-btn:hover {
+  color: #4fc3f7;
+  background: rgba(79, 195, 247, 0.1);
+}
+
+.tutorial-title {
+  font-size: 1.1rem;
+  font-weight: 700;
+  color: #4fc3f7;
+  margin: 0 0 12px 0;
+  line-height: 1.4;
+}
+
+.tutorial-content {
+  font-size: 0.92rem;
+  line-height: 1.65;
+  color: #c5d5e8;
+  margin-bottom: 22px;
+}
+
+.tutorial-content ul {
+  padding-left: 4px;
+}
+
+.tutorial-content strong {
+  color: #e8f4ff;
+}
+
+.tutorial-footer {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.tutorial-next-btn {
+  min-width: 130px;
+}
+
+/* Vurgulanan öğe: overlay üzerinde parlayan çerçeve */
+.tutorial-highlight {
+  position: relative;
+  z-index: 10001 !important;
+  box-shadow: 0 0 0 3px #4fc3f7, 0 0 18px rgba(79, 195, 247, 0.5) !important;
+  border-radius: 8px;
+}
+
+/* ❓ Rehber Butonu (oyun içi) */
+.tutorial-replay-btn {
+  position: fixed;
+  bottom: 68px;
+  right: 16px;
+  background: #1a2332;
+  border: 1px solid #3a5a7a;
+  color: #7aabcf;
+  font-size: 0.78rem;
+  padding: 6px 12px;
+  border-radius: 20px;
+  cursor: pointer;
+  z-index: 9000;
+  transition: border-color 0.15s, color 0.15s, background 0.15s;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.tutorial-replay-btn:hover {
+  border-color: #4fc3f7;
+  color: #4fc3f7;
+  background: #1e2d40;
+}
+
+/* ─────────────────────────────────────────────────────────────────────────
+   Alan Seçim Checkbox'ları (Kadro İlanı Modalı)
+───────────────────────────────────────────────────────────────────────── */
+.field-selection {
+  background: rgba(255,255,255,0.03);
+  border: 1px solid rgba(255,255,255,0.08);
+  border-radius: 6px;
+  padding: 8px 10px;
+  max-height: 220px;
+  overflow-y: auto;
+}
+
+.field-checkbox {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 8px;
+  cursor: pointer;
+  border-radius: 4px;
+  font-size: 13px;
+  color: var(--text-primary, #e2e8f0);
+  user-select: none;
+}
+
+.field-checkbox:hover {
+  background: rgba(255,255,255,0.05);
+}
+
+.field-checkbox--all {
+  font-weight: 600;
+  color: var(--accent-green, #4ecca3);
+}
+
+.field-checkbox input[type="checkbox"] {
+  width: 15px;
+  height: 15px;
+  accent-color: var(--accent-green, #4ecca3);
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   AKREDİTASYON UI (v0.3)
+   ───────────────────────────────────────────────────────────────────────────── */
+
+.dept-accreditation {
+  margin-top: 10px;
+  border-top: 1px solid var(--border, #2d3748);
+  padding-top: 10px;
+}
+
+.accreditation-badge {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 12px;
+  border-radius: 6px;
+  font-size: 13px;
+  margin-bottom: 6px;
+  flex-wrap: wrap;
+}
+
+.acc-granted {
+  background: rgba(56, 161, 105, 0.12);
+  border: 1px solid rgba(56, 161, 105, 0.4);
+  color: var(--accent-green, #38a169);
+  font-weight: 600;
+}
+
+.acc-badge-urgent {
+  background: rgba(245, 166, 35, 0.12);
+  border: 1px solid rgba(245, 166, 35, 0.4);
+  color: var(--accent-yellow, #f5a623);
+  animation: acc-pulse 1.5s ease-in-out infinite;
+}
+
+@keyframes acc-pulse {
+  0%, 100% { opacity: 1; }
+  50%       { opacity: 0.7; }
+}
+
+.acc-pending {
+  background: rgba(66, 153, 225, 0.10);
+  border: 1px solid rgba(66, 153, 225, 0.3);
+  color: var(--accent-blue, #4299e1);
+  font-size: 12px;
+}
+
+.acc-badge-info {
+  font-size: 11px;
+  color: var(--text-muted, #a0aec0);
+  font-weight: 400;
+  margin-left: 4px;
+}
+
+.acc-apply-btn {
+  font-size: 12px;
+  padding: 4px 10px;
+}
+
+.acc-renew-btn {
+  margin-left: auto;
+  font-size: 11px;
+  padding: 3px 8px;
+}

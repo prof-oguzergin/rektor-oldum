@@ -28,6 +28,7 @@ import {
   ADMIN_TITLES,
   ADMIN_INITIAL_STAFF,
   STUDENT_NAME_POOL,
+  ACCREDITATION_BODIES,
 } from './data.js';
 
 import { calculateEconomy, applyBudget } from './economy.js';
@@ -51,6 +52,20 @@ import {
 } from './students.js';
 import { calculatePrestige, updateRivals } from './ranking.js';
 import { checkForEvents, applyEventEffects } from './events.js';
+import {
+  initAlumniState,
+  processGraduatesForAlumni,
+  advanceAlumniCareers,
+  organizeAlumniEvent,
+  rollRandomEvents,
+  applyRandomEventChoice,
+  checkAchievements,
+  getAchievementStats,
+  RANDOM_EVENTS,
+  ACHIEVEMENTS,
+} from './alumni_events_achievements.js';
+
+export { RANDOM_EVENTS, ACHIEVEMENTS, getAchievementStats, organizeAlumniEvent, applyRandomEventChoice, ACCREDITATION_BODIES };
 
 // ─────────────────────────────────────────────────────────────────────────────
 // YARDİMCI: Derin kopya (state immutability için)
@@ -70,6 +85,12 @@ function randBetween(min, max) {
 
 function randInt(min, max) {
   return Math.floor(randBetween(min, max + 1));
+}
+
+/** Güvenli sayı dönüşümü — NaN/Infinity yerine 0 döner */
+function safeNum(val) {
+  const n = Number(val);
+  return (isFinite(n) && !isNaN(n)) ? n : 0;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -282,8 +303,12 @@ function _randomAdminName() {
 function generateAdminStaffMember(unitId, title) {
   const salaryRange = ADMIN_TITLES[title] || { min: 14_000, max: 18_000 };
   const salary = randInt(salaryRange.min, salaryRange.max);
-  const quality = randInt(45, 80);
-  const experience = randInt(1, 15);
+  const efficiency    = randInt(45, 80);
+  const communication = randInt(40, 75);
+  const leadership    = randInt(30, 70);
+  const techSkills    = randInt(45, 80);
+  const quality = Math.round((efficiency + communication + leadership + techSkills) / 4);
+  const totalExperience = randInt(1, 15);
   return {
     id: `admin_${_adminIdCounter++}`,
     name: _randomAdminName(),
@@ -291,8 +316,19 @@ function generateAdminStaffMember(unitId, title) {
     title,
     salary,
     quality,
-    experience,
+    experience: totalExperience,
     happiness: randInt(55, 80),
+    // Kariyer sistemi
+    yearsInPosition:      randInt(0, 3),
+    totalExperience,
+    promotionEligible:    false,
+    semestersSinceEligible: 0,
+    performanceHistory:   [],
+    loyalty:              randInt(60, 85),
+    efficiency,
+    communication,
+    leadership,
+    techSkills,
   };
 }
 
@@ -308,6 +344,20 @@ function generateInitialAdminStaff(totalStudents) {
 
 // Birim state'lerindeki staffCount ve staffQuality'yi gerçek personele göre güncelle
 function syncAdminUnitStats(adminUnits, adminStaff) {
+  // Eski kayıtlar için eksik alanları doldur (göç)
+  for (const member of adminStaff) {
+    if (member.efficiency    == null) member.efficiency    = member.quality || 60;
+    if (member.communication == null) member.communication = Math.max(40, (member.quality || 60) - 5);
+    if (member.leadership    == null) member.leadership    = Math.max(30, (member.quality || 60) - 15);
+    if (member.techSkills    == null) member.techSkills    = member.quality || 60;
+    if (member.yearsInPosition      == null) member.yearsInPosition      = 0;
+    if (member.totalExperience      == null) member.totalExperience      = member.experience || 3;
+    if (member.promotionEligible    == null) member.promotionEligible    = false;
+    if (member.semestersSinceEligible == null) member.semestersSinceEligible = 0;
+    if (!Array.isArray(member.performanceHistory)) member.performanceHistory = [];
+    if (member.loyalty == null) member.loyalty = 70;
+  }
+
   // Sayıları sıfırla
   for (const unit of Object.values(adminUnits)) {
     unit.staffCount = 0;
@@ -335,6 +385,256 @@ function syncAdminUnitStats(adminUnits, adminStaff) {
       (ADMIN_UNITS[unit.id]?.levelBonuses?.[unit.level]?.satisfactionBonus || 0)
     );
   }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// İDARİ PERSONEL KARİYER SİSTEMİ
+// ─────────────────────────────────────────────────────────────────────────────
+
+const ADMIN_TITLE_ORDER = ['Memur', 'Uzman', 'Şef', 'Müdür Yrd.', 'Müdür'];
+
+/** Unvanın bir üstünü döndürür (yoksa null) */
+function _nextAdminTitle(title) {
+  const idx = ADMIN_TITLE_ORDER.indexOf(title);
+  return idx >= 0 && idx < ADMIN_TITLE_ORDER.length - 1
+    ? ADMIN_TITLE_ORDER[idx + 1]
+    : null;
+}
+
+/** Maaş barem orta noktasını döndürür */
+function _titleMidpoint(title) {
+  const range = ADMIN_TITLES[title] || { min: 14_000, max: 18_000 };
+  return Math.round((range.min + range.max) / 2);
+}
+
+/**
+ * Terfi uygunluğunu kontrol eder ve staff.promotionEligible'ı günceller.
+ * Kriter:
+ *   Memur → Uzman:     2+ yıl, quality > 55, efficiency > 50
+ *   Uzman → Şef:       3+ yıl, quality > 65, leadership > 55
+ *   Şef → Müdür Yrd.:  3+ yıl, quality > 70, leadership > 65
+ *   Müdür Yrd. → Müdür:4+ yıl, quality > 75, leadership > 70
+ */
+function _checkPromotionEligibility(staff) {
+  const t = staff.title;
+  const yip = safeNum(staff.yearsInPosition);
+  const q   = safeNum(staff.quality);
+  const eff = safeNum(staff.efficiency);
+  const led = safeNum(staff.leadership);
+
+  let eligible = false;
+  if (t === 'Memur')      eligible = yip >= 2 && q > 55 && eff > 50;
+  else if (t === 'Uzman') eligible = yip >= 3 && q > 65 && led > 55;
+  else if (t === 'Şef')   eligible = yip >= 3 && q > 70 && led > 65;
+  else if (t === 'Müdür Yrd.') eligible = yip >= 4 && q > 75 && led > 70;
+
+  if (eligible && !staff.promotionEligible) {
+    // Yeni uygunluk başladı
+    staff.promotionEligible = true;
+    staff.semestersSinceEligible = 0;
+  } else if (!eligible) {
+    staff.promotionEligible = false;
+    staff.semestersSinceEligible = 0;
+  }
+}
+
+/**
+ * Her dönem idari personel performansını hesaplar ve deneyimi günceller.
+ */
+function _updateAdminStaffPerformance(staff) {
+  // Alt istatistikleri hafifçe geliştir (deneyim etkisi)
+  staff.efficiency    = Math.min(100, safeNum(staff.efficiency)    + randInt(0, 2));
+  staff.techSkills    = Math.min(100, safeNum(staff.techSkills)    + randInt(0, 1));
+  // Liderlik: Şef ve üstü unvanlarda daha hızlı gelişir
+  const titleIdx = ADMIN_TITLE_ORDER.indexOf(staff.title);
+  if (titleIdx >= 2) {
+    staff.leadership = Math.min(100, safeNum(staff.leadership) + randInt(0, 1));
+  }
+
+  // Genel kaliteyi alt istatistiklerden yeniden hesapla
+  staff.quality = Math.round(
+    safeNum(staff.efficiency)    * 0.3 +
+    safeNum(staff.communication) * 0.2 +
+    safeNum(staff.leadership)    * 0.25 +
+    safeNum(staff.techSkills)    * 0.25
+  );
+
+  // Dönem performans skoru
+  const perfScore = Math.round(
+    safeNum(staff.efficiency)    * 0.3 +
+    safeNum(staff.communication) * 0.2 +
+    safeNum(staff.leadership)    * 0.2 +
+    safeNum(staff.techSkills)    * 0.2 +
+    (safeNum(staff.happiness) / 100) * 10
+  );
+
+  if (!Array.isArray(staff.performanceHistory)) staff.performanceHistory = [];
+  staff.performanceHistory.push(perfScore);
+  if (staff.performanceHistory.length > 4) staff.performanceHistory.shift();
+
+  // Deneyim güncelle
+  staff.totalExperience = safeNum(staff.totalExperience) + 0.5; // Her dönem = 0.5 yıl
+  staff.yearsInPosition = safeNum(staff.yearsInPosition) + 0.5;
+
+  // Mutluluk: maaş vs. barem etkisi
+  const midpoint = _titleMidpoint(staff.title);
+  const range = ADMIN_TITLES[staff.title] || { min: 14_000, max: 25_000 };
+  if (safeNum(staff.salary) > midpoint) {
+    staff.happiness = Math.min(100, safeNum(staff.happiness) + randInt(0, 3));
+  } else if (safeNum(staff.salary) < range.min) {
+    staff.happiness = Math.max(0, safeNum(staff.happiness) - randInt(2, 5));
+  } else {
+    staff.happiness = Math.max(0, Math.min(100, safeNum(staff.happiness) + randInt(-2, 2)));
+  }
+}
+
+/**
+ * Devir-daim (işten ayrılma) simülasyonu. Ayrılan personeli döndürür.
+ */
+function _calculateAdminTurnover(adminStaff) {
+  const departures = [];
+  for (const staff of adminStaff) {
+    let leaveChance = 0.02;
+
+    const midpoint = _titleMidpoint(staff.title);
+    if (safeNum(staff.salary) < midpoint) leaveChance += 0.05;
+    if (staff.promotionEligible && safeNum(staff.semestersSinceEligible) > 3) leaveChance += 0.08;
+    if (safeNum(staff.happiness) < 40) leaveChance += 0.06;
+    if (safeNum(staff.quality) > 75) leaveChance += 0.03;
+    if (safeNum(staff.happiness) > 80 && safeNum(staff.salary) > midpoint) leaveChance -= 0.03;
+
+    leaveChance = Math.max(0, Math.min(0.5, leaveChance));
+    if (Math.random() < leaveChance) {
+      departures.push(staff);
+    }
+  }
+  return departures;
+}
+
+/**
+ * Birim yöneticisi atama: her birime Müdür/Müdür Yrd. olan en yüksek liderlikli personeli ata.
+ */
+function _assignUnitManagers(adminUnits, adminStaff) {
+  // Önce tüm birimlerin manager'ını temizle
+  for (const unit of Object.values(adminUnits)) {
+    unit.managerId   = unit.managerId   || null;
+    unit.managerName = unit.managerName || null;
+    unit.managerLeadership = unit.managerLeadership || 0;
+  }
+
+  for (const [unitId, unit] of Object.entries(adminUnits)) {
+    const eligible = adminStaff.filter(
+      s => s.unit === unitId && (s.title === 'Müdür' || s.title === 'Müdür Yrd.')
+    );
+    if (eligible.length === 0) {
+      unit.managerId   = null;
+      unit.managerName = null;
+      unit.managerLeadership = 0;
+      continue;
+    }
+    // En yüksek liderlikli olanı seç
+    eligible.sort((a, b) => safeNum(b.leadership) - safeNum(a.leadership));
+    const mgr = eligible[0];
+    unit.managerId         = mgr.id;
+    unit.managerName       = mgr.name;
+    unit.managerLeadership = safeNum(mgr.leadership);
+  }
+}
+
+/**
+ * Yönetici liderliğine göre birim satisfaction bonusu ekler.
+ */
+function _applyManagerBonus(adminUnits) {
+  for (const unit of Object.values(adminUnits)) {
+    let bonus = 0;
+    if (unit.managerId) {
+      // İyi yönetici (liderlik > 60): bonus, kötü yönetici (< 40): ceza
+      const led = safeNum(unit.managerLeadership);
+      if (led > 70) bonus = 8;
+      else if (led > 60) bonus = 4;
+      else if (led < 40) bonus = -5;
+    } else {
+      bonus = -8; // Yönetici yok: ceza
+    }
+    unit.satisfaction = Math.max(0, Math.min(100, safeNum(unit.satisfaction) + bonus));
+  }
+}
+
+/**
+ * Terfi uygula: state'te staff nesnesini günceller.
+ * @returns {{ success: boolean, message: string }}
+ */
+export function promoteAdminStaff(staffId) {
+  if (!_state) return { success: false, message: 'Oyun başlatılmamış.' };
+  const staff = (_state.adminStaff || []).find(s => s.id === staffId);
+  if (!staff) return { success: false, message: 'Personel bulunamadı.' };
+  const nextTitle = _nextAdminTitle(staff.title);
+  if (!nextTitle) return { success: false, message: 'Bu unvan zaten en yüksek.' };
+
+  const newRange = ADMIN_TITLES[nextTitle];
+  const newSalary = Math.round((newRange.min + newRange.max) / 2); // Yeni baremde orta noktadan başla
+  staff.title                  = nextTitle;
+  staff.salary                 = Math.max(staff.salary, newSalary); // Mevcut maaş düşmesin
+  staff.yearsInPosition        = 0;
+  staff.promotionEligible      = false;
+  staff.semestersSinceEligible = 0;
+  staff.happiness              = Math.min(100, safeNum(staff.happiness) + 15);
+  // Liderlik terfi ile artar
+  staff.leadership = Math.min(100, safeNum(staff.leadership) + randInt(3, 7));
+  syncAdminUnitStats(_state.adminUnits, _state.adminStaff);
+  _assignUnitManagers(_state.adminUnits, _state.adminStaff);
+  return { success: true, message: `${staff.name} terfi ettirildi: ${nextTitle}` };
+}
+
+/**
+ * İdari personeli işten çıkar (tazminat: 2 ay maaş).
+ * @returns {{ success: boolean, message: string, severance: number }}
+ */
+export function fireAdminStaff(staffId) {
+  if (!_state) return { success: false, message: 'Oyun başlatılmamış.' };
+  const idx = (_state.adminStaff || []).findIndex(s => s.id === staffId);
+  if (idx === -1) return { success: false, message: 'Personel bulunamadı.' };
+  const [staff] = _state.adminStaff.splice(idx, 1);
+  const severance = safeNum(staff.salary) * 2;
+  _state.university.budget = safeNum(_state.university.budget) - severance;
+  syncAdminUnitStats(_state.adminUnits, _state.adminStaff);
+  _assignUnitManagers(_state.adminUnits, _state.adminStaff);
+  return { success: true, message: `${staff.name} iş akdi feshedildi.`, severance, staffName: staff.name };
+}
+
+/**
+ * İdari personel maaşını günceller.
+ */
+export function updateAdminStaffSalary(staffId, newSalary) {
+  if (!_state) return { success: false, message: 'Oyun başlatılmamış.' };
+  const staff = (_state.adminStaff || []).find(s => s.id === staffId);
+  if (!staff) return { success: false, message: 'Personel bulunamadı.' };
+  const parsed = safeNum(newSalary);
+  if (parsed <= 0) return { success: false, message: 'Geçersiz maaş.' };
+  staff.salary = parsed;
+  return { success: true };
+}
+
+/**
+ * Birim yöneticisini değiştir (staffId: null = yönetici yok).
+ */
+export function assignUnitManager(unitId, staffId) {
+  if (!_state) return { success: false, message: 'Oyun başlatılmamış.' };
+  const unit = _state.adminUnits?.[unitId];
+  if (!unit) return { success: false, message: 'Birim bulunamadı.' };
+  if (!staffId) {
+    unit.managerId = null; unit.managerName = null; unit.managerLeadership = 0;
+    return { success: true };
+  }
+  const staff = (_state.adminStaff || []).find(s => s.id === staffId);
+  if (!staff) return { success: false, message: 'Personel bulunamadı.' };
+  if (staff.title !== 'Müdür' && staff.title !== 'Müdür Yrd.') {
+    return { success: false, message: 'Sadece Müdür veya Müdür Yrd. yönetici atanabilir.' };
+  }
+  unit.managerId         = staff.id;
+  unit.managerName       = staff.name;
+  unit.managerLeadership = safeNum(staff.leadership);
+  return { success: true };
 }
 
 // İdari personel adayı üret (işe alma modalı için)
@@ -426,6 +726,13 @@ function buildDepartmentState(deptId) {
     turnsOpen:           0,
     accreditationStatus: 'pending',    // pending | provisional | full | suspended
     accreditationScore:  0,
+
+    // Akreditasyon sistemi (MÜDEK/ABET/THEQA)
+    accreditation: {
+      mudek: { status: 'none', appliedAt: null, grantedAt: null, expiresAt: null, processTime: null },
+      abet:  { status: 'none', appliedAt: null, grantedAt: null, expiresAt: null, processTime: null },
+      theqa: { status: 'none', appliedAt: null, grantedAt: null, expiresAt: null, processTime: null },
+    },
 
     // Opsiyonel özellikler (bölüme özgü)
     requiresHospital:    template.requiresHospital    || false,
@@ -785,6 +1092,26 @@ export function initGame(playerName, universityName, universityType, difficulty,
 
     // ── Mezunlar ───────────────────────────────────────────────────────────
     alumni: [],
+
+    // ── Mezun Sistemi (v0.2) ───────────────────────────────────────────────
+    alumniData: {
+      totalGraduates: 0,
+      notableAlumni: [],
+      alumniByDecade: {},
+      annualDonations: 0,
+      alumniPrestigeBonus: 0,
+      alumniNetwork: 0,
+      totalDonations: 0,
+    },
+
+    // ── Başarımlar (v0.2) ──────────────────────────────────────────────────
+    achievements: {},
+
+    // ── Rastgele Olay Geçmişi (v0.2) ──────────────────────────────────────
+    _randomEventsState: { history: [], pendingEvents: [] },
+
+    // ── Bekleyen Rastgele Olaylar (v0.2) ───────────────────────────────────
+    pendingRandomEvents: [],
 
     // ── Binalar ────────────────────────────────────────────────────────────
     buildings: _buildInitialBuildings(),
@@ -1636,7 +1963,7 @@ function _advanceActiveProjects(state, results) {
 
         results.events.push({
           type: 'project_completed',
-          description: `${proj.callIcon || '📋'} ${proj.projectName} projesi başarıyla tamamlandı! +${proj.prestigeReward || 0} prestij, ${formatMoneyShort(proj.requestedFunding || 0)} kazanıldı.${proj.generatedPatent ? ' 🏅 Patent alındı!' : ''}`,
+          description: `${proj.callIcon || '📋'} ${proj.projectName} projesi başarıyla tamamlandı! +${proj.prestigeReward || 0} saygınlık, ${formatMoneyShort(proj.requestedFunding || 0)} kazanıldı.${proj.generatedPatent ? ' 🏅 Patent alındı!' : ''}`,
           prestigeBonus: proj.prestigeReward || 0,
         });
       } else {
@@ -1683,69 +2010,83 @@ function generateSemesterEvents(state) {
   const faculty  = state.faculty || [];
   const avgSatisfaction = state.students?.overallSatisfaction ?? 60;
 
+  // Zorluk ayarlarını al — olay sıklığı ve şiddeti için
+  const diffKey      = state.meta?.difficulty || 'normal';
+  const diffSettings = DIFFICULTY_SETTINGS[diffKey] || DIFFICULTY_SETTINGS.normal;
+  const eventFreq    = diffSettings.eventFrequency ?? 1.0;
+  const eventSev     = diffSettings.eventSeverity  ?? 1.0;
+
+  // Olay şiddeti uygulayan yardımcı (prestij bonuslarını ölçekler)
+  const scaledPrestige = (base) => Math.round(base * eventSev);
+
   // 1. Araştırma atılımı (en iyi araştırmacı)
-  if (Math.random() < 0.15 && faculty.length > 0) {
+  if (Math.random() < 0.15 * eventFreq && faculty.length > 0) {
     const sorted = [...faculty].sort((a, b) =>
       ((b.stats?.research || b.researchScore || 40)) - ((a.stats?.research || a.researchScore || 40))
     );
     const top = sorted[0];
     const titleMap = { argö: 'ArGö', dr_ogr_uyesi: 'Dr.Öğr.Üyesi', docent: 'Doç.', profesor: 'Prof. Dr.' };
     const titleStr = titleMap[top.title] || top.title || '';
+    const bonus2 = scaledPrestige(2);
     events.push({
       type: 'research_breakthrough',
-      description: `${titleStr} ${top.name} önemli bir araştırma yayınladı. (+2 prestij)`,
-      prestigeBonus: 2,
+      description: `${titleStr} ${top.name} önemli bir araştırma yayınladı. (+${bonus2} saygınlık)`,
+      prestigeBonus: bonus2,
     });
-    state.university.prestige = Math.min(MAX_PRESTIGE, prestige + 2);
+    state.university.prestige = Math.min(MAX_PRESTIGE, prestige + bonus2);
   }
 
   // 2. Öğrenci başarısı — ulusal yarışma
-  if (Math.random() < 0.10) {
+  if (Math.random() < 0.10 * eventFreq) {
+    const bonus3 = scaledPrestige(3);
     events.push({
       type: 'student_achievement',
-      description: 'Öğrencileriniz ulusal yarışmada derece aldı. (+3 prestij)',
-      prestigeBonus: 3,
+      description: `Öğrencileriniz ulusal yarışmada derece aldı. (+${bonus3} saygınlık)`,
+      prestigeBonus: bonus3,
     });
-    state.university.prestige = Math.min(MAX_PRESTIGE, (state.university.prestige || prestige) + 3);
+    state.university.prestige = Math.min(MAX_PRESTIGE, (state.university.prestige || prestige) + bonus3);
   }
 
   // 3. TÜBİTAK burs haberi
-  if (Math.random() < 0.12) {
+  if (Math.random() < 0.12 * eventFreq) {
     const count = Math.floor(Math.random() * 4) + 2;
+    const bonus1 = scaledPrestige(1);
     events.push({
       type: 'tubitak_scholarship',
-      description: `${count} öğrenciniz TÜBİTAK bursu kazandı. (+1 prestij)`,
-      prestigeBonus: 1,
+      description: `${count} öğrenciniz TÜBİTAK bursu kazandı. (+${bonus1} saygınlık)`,
+      prestigeBonus: bonus1,
     });
-    state.university.prestige = Math.min(MAX_PRESTIGE, (state.university.prestige || prestige) + 1);
+    state.university.prestige = Math.min(MAX_PRESTIGE, (state.university.prestige || prestige) + bonus1);
   }
 
   // 4. Akreditasyon haberi
-  if (Math.random() < 0.08 && state.departments?.length > 0) {
+  if (Math.random() < 0.08 * eventFreq && state.departments?.length > 0) {
     const openDepts = state.departments.filter(d => d.isOpen);
     if (openDepts.length > 0) {
       const randDept = openDepts[Math.floor(Math.random() * openDepts.length)];
+      const bonus4 = scaledPrestige(2);
       events.push({
         type: 'accreditation',
-        description: `${randDept.shortName || randDept.name} bölümü akreditasyon başvurusunda ilerledi. (+2 prestij)`,
-        prestigeBonus: 2,
+        description: `${randDept.shortName || randDept.name} bölümü akreditasyon başvurusunda ilerledi. (+${bonus4} saygınlık)`,
+        prestigeBonus: bonus4,
       });
-      state.university.prestige = Math.min(MAX_PRESTIGE, (state.university.prestige || prestige) + 2);
+      state.university.prestige = Math.min(MAX_PRESTIGE, (state.university.prestige || prestige) + bonus4);
     }
   }
 
   // 5. Olumsuz: öğrenci memnuniyetsizliği basına yansıdı
-  if (avgSatisfaction < 50 && Math.random() < 0.20) {
+  if (avgSatisfaction < 50 && Math.random() < 0.20 * eventFreq) {
+    const penalty = scaledPrestige(2);
     events.push({
       type: 'negative_press',
-      description: 'Öğrenci memnuniyetsizliği basına yansıdı. (-2 prestij)',
-      prestigeBonus: -2,
+      description: `Öğrenci memnuniyetsizliği basına yansıdı. (-${penalty} saygınlık)`,
+      prestigeBonus: -penalty,
     });
-    state.university.prestige = Math.max(0, (state.university.prestige || prestige) - 2);
+    state.university.prestige = Math.max(0, (state.university.prestige || prestige) - penalty);
   }
 
   // 6. Hoca kaçırma teklifi
-  if (Math.random() < 0.10 && faculty.length > 5) {
+  if (Math.random() < 0.10 * eventFreq && faculty.length > 5) {
     const unhappy = faculty.filter(f => (f.happiness || 70) < 50);
     if (unhappy.length > 0) {
       const target = unhappy[Math.floor(Math.random() * unhappy.length)];
@@ -1760,13 +2101,14 @@ function generateSemesterEvents(state) {
   }
 
   // 7. Patent haberi
-  if (Math.random() < 0.07 && (state.research?.publications ?? 0) > 20) {
+  if (Math.random() < 0.07 * eventFreq && (state.research?.publications ?? 0) > 20) {
+    const bonus7 = scaledPrestige(1);
     events.push({
       type: 'patent',
-      description: 'Araştırma merkezi yeni bir patent başvurusu yaptı. (+1 prestij)',
-      prestigeBonus: 1,
+      description: `Araştırma merkezi yeni bir patent başvurusu yaptı. (+${bonus7} saygınlık)`,
+      prestigeBonus: bonus7,
     });
-    state.university.prestige = Math.min(MAX_PRESTIGE, (state.university.prestige || prestige) + 1);
+    state.university.prestige = Math.min(MAX_PRESTIGE, (state.university.prestige || prestige) + bonus7);
   }
 
   // 8. Altyapı sorunu
@@ -1789,7 +2131,7 @@ function generateSemesterEvents(state) {
     const amount = Math.floor(Math.random() * 5 + 1);
     events.push({
       type: 'donation',
-      description: `Hayırsever mezundan ${amount}M ₺ bağış alındı. (+1 prestij)`,
+      description: `Hayırsever mezundan ${amount}M ₺ bağış alındı. (+1 saygınlık)`,
       prestigeBonus: 1,
     });
     state.university.prestige = Math.min(MAX_PRESTIGE, (state.university.prestige || prestige) + 1);
@@ -1800,7 +2142,7 @@ function generateSemesterEvents(state) {
   if (Math.random() < 0.06 && prestige > 50) {
     events.push({
       type: 'international_cooperation',
-      description: 'Yabancı üniversiteyle ortak araştırma anlaşması imzalandı. (+2 prestij)',
+      description: 'Yabancı üniversiteyle ortak araştırma anlaşması imzalandı. (+2 saygınlık)',
       prestigeBonus: 2,
     });
     state.university.prestige = Math.min(MAX_PRESTIGE, (state.university.prestige || prestige) + 2);
@@ -1927,6 +2269,13 @@ function runSimulation() {
   results.newAlumni = graduationResult.newAlumni;
   results.admissions = admissionsResult;
 
+  // ── 3e. MEZUN SİSTEMİ (v0.2) ────────────────────────────────────────────
+  if (isSpring && graduationResult.totalGraduates > 0) {
+    processGraduatesForAlumni(_state, graduationResult.totalGraduates);
+  }
+  const alumniEvents = advanceAlumniCareers(_state);
+  alumniEvents.forEach(ev => results.events.push({ type: ev.type, message: ev.message, alumniId: ev.alumniId }));
+
   // 3f. Yıldız öğrenci keşfi
   const newStars = discoverStarStudents(_state);
   results.newStarStudents = newStars;
@@ -1951,6 +2300,45 @@ function runSimulation() {
     syncAdminUnitStats(_state.adminUnits, _state.adminStaff || []);
   }
 
+  // ── 3i. İDARİ PERSONEL KARİYER SİMÜLASYONU ────────────────────────────────
+  if (_state.adminStaff && _state.adminUnits) {
+    // 1. Deneyim, performans ve mutluluk güncelle
+    for (const staff of _state.adminStaff) {
+      _updateAdminStaffPerformance(staff);
+      _checkPromotionEligibility(staff);
+      // Terfi uygunsa sayacı artır
+      if (staff.promotionEligible) {
+        staff.semestersSinceEligible = safeNum(staff.semestersSinceEligible) + 1;
+        // Uzun süredir terfi edilmeyenlerin mutluluğu düşer
+        if (staff.semestersSinceEligible > 3) {
+          staff.happiness = Math.max(0, safeNum(staff.happiness) - 5);
+        }
+      }
+    }
+
+    // 2. Birim yöneticileri ata
+    _assignUnitManagers(_state.adminUnits, _state.adminStaff);
+
+    // 3. Yönetici bonusunu uygula
+    _applyManagerBonus(_state.adminUnits);
+
+    // 4. Devir-daim: ayrılan personel
+    const departures = _calculateAdminTurnover(_state.adminStaff);
+    for (const departed of departures) {
+      const unitTemplate = ADMIN_UNITS[departed.unit];
+      const unitName = unitTemplate ? unitTemplate.name : departed.unit;
+      results.events.push({
+        type: 'admin_departure',
+        message: `${departed.title} ${departed.name} (${unitName}) görevden ayrıldı.`,
+      });
+      const dIdx = _state.adminStaff.indexOf(departed);
+      if (dIdx !== -1) _state.adminStaff.splice(dIdx, 1);
+    }
+
+    // 5. Birim istatistiklerini güncelle
+    syncAdminUnitStats(_state.adminUnits, _state.adminStaff);
+  }
+
   // ── 4. ARAŞTIRMA İLERLEMESİ ────────────────────────────────────────────────
   // Her hoca için araştırma puanı ve bölüm potansiyeline göre yayın üret
   let newPubs = 0;
@@ -1971,7 +2359,7 @@ function runSimulation() {
       const starBonus     = researchStatVal >= 80 ? 0.30 : researchStatVal >= 70 ? 0.15 : 0;
       const pubChance     = Math.min(0.95, baseChance * (1 + starBonus));
       if (Math.random() < pubChance) {
-        f.publications++;
+        f.publications = (f.publications || 0) + 1;
         newPubs++;
         _state.research.publications++;
       }
@@ -2027,14 +2415,14 @@ function runSimulation() {
     if (Math.random() < compChance) {
       const presBonus = Math.max(1, Math.round((Math.max(academic, creativity, leadership) - 60) / 8));
       _state.university.prestige = Math.min(MAX_PRESTIGE, (_state.university.prestige || 0) + presBonus);
-      const eventDesc = `Yıldız öğrenci ${star.name} ulusal yarışma kazandı! Prestij +${presBonus}`;
+      const eventDesc = `Yıldız öğrenci ${star.name} ulusal yarışma kazandı! Saygınlık +${presBonus}`;
       results.events.push({
         type: 'star_student_competition',
         studentId: star.id,
         description: eventDesc,
         prestigeBonus: presBonus,
       });
-      star.events.push({ type: 'competition_win', description: `Bu dönem yarışma kazandı! +${presBonus} prestij`, turn: _state.meta.turn });
+      star.events.push({ type: 'competition_win', description: `Bu dönem yarışma kazandı! +${presBonus} saygınlık`, turn: _state.meta.turn });
     }
 
     // ── Yayın işbirliği: yüksek akademik + araştırma hocası varsa ──
@@ -2071,7 +2459,7 @@ function runSimulation() {
       alumni._prestigeApplied = true;
       results.events.push({
         type: 'star_student_graduated',
-        description: `Mezun ${alumni.name || 'yıldız öğrenci'} kariyer başarısıyla üniversiteye prestij kattı! +${presBonus} prestij`,
+        description: `Mezun ${alumni.name || 'yıldız öğrenci'} kariyer başarısıyla üniversiteye saygınlık kattı! +${presBonus} saygınlık`,
         prestigeBonus: presBonus,
       });
     }
@@ -2162,8 +2550,23 @@ function runSimulation() {
   const targetPrestige = Math.round((isNaN(prestigeContrib) ? currentPrestige : prestigeContrib) * 0.4 + currentPrestige * 0.6);
   let prestigeDelta  = Math.sign(targetPrestige - currentPrestige) || 0;
 
-  // Yıldız hoca prestij bonusunu ekle (simülasyon sırasında zaten kısmen eklendi; burada kümülatif delta'ya yansıt)
-  prestigeDelta += Math.min(3, starFacultyPrestigeBonus);  // dönem başına maks +3 ek yıldız hoca bonusu
+  // Yatırım yapılmadığında prestij durgunlaşır veya geriler
+  // Araştırma yatırımı yoksa ve memnuniyet düşükse negatif etki
+  const researchInvesting = (_state.research?.activeResearchProjects?.length || 0) > 0
+    || (_state.research?.publications || 0) > 0;
+  const budgetHealthy = _state.university.budget > 0;
+  if (!researchInvesting && !budgetHealthy) {
+    prestigeDelta = Math.min(prestigeDelta, -1);  // yatırım yok + bütçe açık → prestij düşer
+  } else if (!researchInvesting && avgFacultyHappy < 50) {
+    prestigeDelta = Math.min(prestigeDelta, 0);   // yatırım yok + mutsuz hocalar → prestij stagnate
+  }
+
+  // Yıldız hoca prestij bonusunu ekle (dönem başına maks +3)
+  prestigeDelta += Math.min(3, starFacultyPrestigeBonus);
+
+  // Dönem başına maks +3 / maks -3 ile sınırla (çok ani değişimleri önle)
+  prestigeDelta = Math.max(-3, Math.min(3, prestigeDelta));
+
   _state.university.prestige = Math.max(0, Math.min(MAX_PRESTIGE,
     currentPrestige + prestigeDelta));
 
@@ -2250,6 +2653,22 @@ function runSimulation() {
   // ── Feature 2: YÖK Onay Süreci İlerlet ────────────────────────────────────
   _processYokApplications(_state, results);
 
+  // ── v0.3 Feature: AKREDİTASYON İŞLEME ────────────────────────────────────
+  _processAccreditations(_state, results);
+
+  // ── v0.2 Feature: RASTGELE OLAYLAR ────────────────────────────────────────
+  const rolledEvents = rollRandomEvents(_state);
+  if (rolledEvents.length > 0) {
+    // Bekleyen olayları state'e kaydet (UI'da modal gösterilecek)
+    if (!_state.pendingRandomEvents) _state.pendingRandomEvents = [];
+    _state.pendingRandomEvents.push(...rolledEvents);
+    results.pendingRandomEvents = rolledEvents;
+  }
+
+  // ── v0.2 Feature: BAŞARIMLAR ───────────────────────────────────────────────
+  const newAchievements = checkAchievements(_state);
+  results.newAchievements = newAchievements;
+
   return results;
 }
 
@@ -2314,7 +2733,8 @@ function _simulateGradPrograms(state, results) {
         // Yeni alım (Güz'de olur, Bahar'da yoktur — ama sonraki Güz için sıfırla)
         const newStudents = Math.min(yl.quota, advisorCapacity.yl);
         const prestige = state.university.prestige || 20;
-        const newGPA   = Math.min(4.0, 2.5 + (prestige / 100) * 1.5);
+        // YL öğrencileri lisans mezunları — baz GPA daha yüksek
+        const newGPA   = Math.min(4.0, 3.2 + (prestige / 100) * 0.7);
         yl.students.year1 = { count: newStudents, avgGPA: parseFloat(newGPA.toFixed(2)) };
       }
 
@@ -2354,7 +2774,8 @@ function _simulateGradPrograms(state, results) {
         // Yeni Güz alımı
         const newPhD    = Math.min(phd.quota, advisorCapacity.phd);
         const prestige  = state.university.prestige || 20;
-        const newGPAPhD = Math.min(4.0, 3.0 + (prestige / 100) * 1.0);
+        // Doktora öğrencileri YL mezunları — baz GPA çok yüksek
+        const newGPAPhD = Math.min(4.0, 3.5 + (prestige / 100) * 0.5);
         phdYrs.year1 = { count: newPhD, avgGPA: parseFloat(newGPAPhD.toFixed(2)) };
 
         phd.dissertationStudents = (phdYrs.year3?.count || 0) + (phdYrs.year4?.count || 0);
@@ -2449,6 +2870,11 @@ function _processYokApplications(state, results) {
               turnsOpen:           0,
               accreditationStatus: 'pending',
               accreditationScore:  0,
+              accreditation: {
+                mudek: { status: 'none', appliedAt: null, grantedAt: null, expiresAt: null, processTime: null },
+                abet:  { status: 'none', appliedAt: null, grantedAt: null, expiresAt: null, processTime: null },
+                theqa: { status: 'none', appliedAt: null, grantedAt: null, expiresAt: null, processTime: null },
+              },
               requiresHospital:    template.category === 'saglik' && template.id === 'tip',
               requiresClinic:      false,
               donerSermayeMultiplier: 1.0,
@@ -2701,6 +3127,263 @@ function _saveStats(simResults) {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+// AKREDİTASYON — Yardımcı Fonksiyonlar
+// ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * Bir bölümün akreditasyon gereksinimlerini kontrol eder.
+ * @returns {{ allMet: boolean, checks: object[] }}
+ */
+export function checkAccreditationRequirements(state, dept, body) {
+  const req = body.requirements;
+  const deptFaculty = state.faculty.filter(f =>
+    (f.department || f.departmentId) === dept.id
+  );
+  const profOrDoc = deptFaculty.filter(f =>
+    f.title === 'profesor' || f.title === 'docent'
+  ).length;
+  const avgResearch = deptFaculty.length > 0
+    ? deptFaculty.reduce((s, f) => s + (f.stats?.research ?? 0), 0) / deptFaculty.length
+    : 0;
+  const avgTeaching = deptFaculty.length > 0
+    ? deptFaculty.reduce((s, f) => s + (f.stats?.teaching ?? 0), 0) / deptFaculty.length
+    : 0;
+
+  // Laboratuvar sayısı: labScore üzerinden tahmin (veya labRequirement)
+  const labCount = Math.floor((dept.labScore ?? 0) / 25);
+
+  // Müfredat kapsaması: assignCourses sonuçlarından veya educationQuality'den türet
+  const curriculumCoverage = Math.min(1, (dept.educationQuality ?? 50) / 100 + 0.2);
+
+  const avgPubPerFaculty = deptFaculty.length > 0
+    ? (dept.avgPublicationPerFaculty ?? 0)
+    : 0;
+
+  const checks = [
+    {
+      key: 'minFaculty',
+      label: 'Öğretim üyesi sayısı',
+      current: deptFaculty.length,
+      required: req.minFaculty,
+      met: deptFaculty.length >= (req.minFaculty || 0),
+    },
+    {
+      key: 'minProfOrDoc',
+      label: 'Prof/Doç sayısı',
+      current: profOrDoc,
+      required: req.minProfOrDoc,
+      met: profOrDoc >= (req.minProfOrDoc || 0),
+    },
+    {
+      key: 'minAvgResearch',
+      label: 'Ort. araştırma puanı',
+      current: Math.round(avgResearch),
+      required: req.minAvgResearch,
+      met: avgResearch >= (req.minAvgResearch || 0),
+    },
+    {
+      key: 'minAvgTeaching',
+      label: 'Ort. eğitim puanı',
+      current: Math.round(avgTeaching),
+      required: req.minAvgTeaching,
+      met: avgTeaching >= (req.minAvgTeaching || 0),
+    },
+    {
+      key: 'minLabCount',
+      label: 'Laboratuvar sayısı',
+      current: labCount,
+      required: req.minLabCount,
+      met: req.minLabCount == null || labCount >= req.minLabCount,
+    },
+    {
+      key: 'minCurriculumCoverage',
+      label: 'Müfredat kapsaması',
+      current: `%${Math.round(curriculumCoverage * 100)}`,
+      required: `%${Math.round((req.minCurriculumCoverage || 0) * 100)}`,
+      met: curriculumCoverage >= (req.minCurriculumCoverage || 0),
+    },
+    {
+      key: 'minStudentSatisfaction',
+      label: 'Öğrenci memnuniyeti',
+      current: dept.studentSatisfaction ?? 50,
+      required: req.minStudentSatisfaction,
+      met: (dept.studentSatisfaction ?? 50) >= (req.minStudentSatisfaction || 0),
+    },
+    {
+      key: 'hasDeptHead',
+      label: 'Bölüm başkanı',
+      current: dept.headId ? 'Atanmış' : 'Atanmamış',
+      required: 'Atanmış',
+      met: req.hasDeptHead ? !!dept.headId : true,
+    },
+  ];
+
+  if (req.minPublicationsPerFaculty != null) {
+    checks.push({
+      key: 'minPublicationsPerFaculty',
+      label: 'Yayın / öğretim üyesi',
+      current: avgPubPerFaculty.toFixed(1),
+      required: req.minPublicationsPerFaculty,
+      met: avgPubPerFaculty >= req.minPublicationsPerFaculty,
+    });
+  }
+
+  // Yalnızca tanımlı gereksinimleri dahil et
+  const relevantChecks = checks.filter(c => c.required != null);
+  const allMet = relevantChecks.every(c => c.met);
+  return { allMet, checks: relevantChecks };
+}
+
+/**
+ * Akreditasyon başvurusu yap.
+ * @returns {{ success: boolean, message: string }}
+ */
+export function applyForAccreditation(deptId, bodyId) {
+  if (!_state) return { success: false, message: 'Oyun başlatılmamış.' };
+  const dept = _state.departments.find(d => d.id === deptId);
+  if (!dept) return { success: false, message: 'Bölüm bulunamadı.' };
+  const body = ACCREDITATION_BODIES[bodyId];
+  if (!body) return { success: false, message: 'Akreditasyon kuruluşu bulunamadı.' };
+
+  // Bölüm kategorisi kontrolü
+  if (!body.applicableTo.includes('all') && !body.applicableTo.includes(dept.category)) {
+    return { success: false, message: `${body.name} akreditasyonu bu bölüm kategorisi için uygulanamaz.` };
+  }
+
+  // accreditation alanı yoksa başlat
+  if (!dept.accreditation) {
+    dept.accreditation = {
+      mudek: { status: 'none', appliedAt: null, grantedAt: null, expiresAt: null, processTime: null },
+      abet:  { status: 'none', appliedAt: null, grantedAt: null, expiresAt: null, processTime: null },
+      theqa: { status: 'none', appliedAt: null, grantedAt: null, expiresAt: null, processTime: null },
+    };
+  }
+
+  const acc = dept.accreditation[bodyId];
+  if (!acc) return { success: false, message: 'Akreditasyon verisi bulunamadı.' };
+
+  if (acc.status === 'applied' || acc.status === 'under_review') {
+    return { success: false, message: `${body.name} başvurusu zaten devam ediyor.` };
+  }
+  if (acc.status === 'granted') {
+    return { success: false, message: `${body.name} akreditasyonu zaten mevcut.` };
+  }
+
+  const cost = (acc.status === 'expired') ? body.renewalCost : body.cost;
+  if (_state.university.budget < cost) {
+    return { success: false, message: `Yetersiz bütçe. Gerekli: ${cost.toLocaleString('tr-TR')} ₺` };
+  }
+
+  _state.university.budget -= cost;
+  acc.status = 'applied';
+  acc.appliedAt = _state.meta.turn;
+  acc.processTime = body.processingTime.min +
+    Math.floor(Math.random() * (body.processingTime.max - body.processingTime.min + 1));
+
+  return {
+    success: true,
+    message: `${dept.name} bölümü için ${body.name} başvurusu yapıldı. Değerlendirme ${acc.processTime} dönem sürecek.`,
+  };
+}
+
+/**
+ * Her dönem akreditasyon durumlarını işler (runSimulation içinden çağrılır).
+ */
+function _processAccreditations(state, results) {
+  const MAX_P = MAX_PRESTIGE;
+  state.departments.forEach(dept => {
+    if (!dept.isOpen) return;
+    if (!dept.accreditation) return;
+
+    Object.entries(dept.accreditation).forEach(([bodyId, acc]) => {
+      const body = ACCREDITATION_BODIES[bodyId];
+      if (!body) return;
+
+      // Başvuru değerlendirme
+      if (acc.status === 'applied') {
+        const elapsed = state.meta.turn - acc.appliedAt;
+        const pt = acc.processTime || body.processingTime.min;
+        if (elapsed >= pt) {
+          const reqResult = checkAccreditationRequirements(state, dept, body);
+          if (reqResult.allMet) {
+            acc.status = 'granted';
+            acc.grantedAt = state.meta.turn;
+            acc.expiresAt = state.meta.turn + body.duration;
+            state.university.prestige = Math.min(MAX_P,
+              (state.university.prestige || 0) + body.prestigeBonus
+            );
+            results.events.push({
+              type: 'accreditation_granted',
+              description: `🏅 ${dept.name} bölümü ${body.name} akreditasyonu aldı! (+${body.prestigeBonus} saygınlık)`,
+            });
+          } else {
+            acc.status = 'rejected';
+            results.events.push({
+              type: 'accreditation_rejected',
+              description: `⚠️ ${dept.name} bölümünün ${body.name} başvurusu reddedildi.`,
+            });
+          }
+        }
+      }
+
+      // Süre dolumu kontrolü
+      if (acc.status === 'granted' && acc.expiresAt != null && state.meta.turn >= acc.expiresAt) {
+        acc.status = 'expired';
+        const penalty = Math.floor(body.prestigeBonus / 2);
+        state.university.prestige = Math.max(0, (state.university.prestige || 0) - penalty);
+        results.events.push({
+          type: 'accreditation_expired',
+          description: `⏰ ${dept.name} bölümünün ${body.name} akreditasyonu süresi doldu! (-${penalty} saygınlık)`,
+        });
+      }
+
+      // Yaklaşan süre uyarısı (2 dönem kala)
+      if (acc.status === 'granted' && acc.expiresAt != null &&
+          (acc.expiresAt - state.meta.turn) === 2) {
+        results.events.push({
+          type: 'accreditation_expiring_soon',
+          description: `⚠️ ${dept.name} bölümünün ${body.name} akreditasyonu 2 dönem sonra sona eriyor! Yenilemeyi unutmayın.`,
+        });
+      }
+    });
+  });
+}
+
+/**
+ * Akreditasyonun YKS etkisini hesapla (öğrenci kayıt kalitesi için).
+ * @param {object} dept
+ * @returns {number} YKS sıralama düzeltmesi (negatif = daha iyi öğrenci)
+ */
+export function getAccreditationYKSBonus(dept) {
+  if (!dept.accreditation) return 0;
+  let bonus = 0;
+  Object.entries(dept.accreditation).forEach(([bodyId, acc]) => {
+    if (acc.status === 'granted') {
+      const body = ACCREDITATION_BODIES[bodyId];
+      if (body) bonus += (body.yksBonus || 0);
+    }
+  });
+  return bonus;
+}
+
+/**
+ * Bir bölümün akreditasyon saygınlık bonusunu döndürür (ranking için).
+ * @param {object} dept
+ * @returns {number}
+ */
+export function getAccreditationPrestigeBonus(dept) {
+  if (!dept.accreditation) return 0;
+  let bonus = 0;
+  Object.entries(dept.accreditation).forEach(([bodyId, acc]) => {
+    if (acc.status === 'granted') {
+      const body = ACCREDITATION_BODIES[bodyId];
+      if (body) bonus += (body.prestigeBonus || 0);
+    }
+  });
+  return bonus;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 // checkWinLose — Kazanma / kaybetme koşulları
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -2768,7 +3451,7 @@ export function checkWinLose() {
         gameOver: false,
         gameWon:  true,
         reason:   'prestige_max',
-        message:  `Tebrikler! Üniversitenizin prestij puanı ${_state.university.prestige}'e ulaştı.`,
+        message:  `Tebrikler! Üniversitenizin saygınlık puanı ${_state.university.prestige}'e ulaştı.`,
       };
     }
 
@@ -2894,6 +3577,18 @@ export function getTurnSummary(simResults = {}) {
 
     // Proje başvuru sonuçları (bu dönem otomatik işlendi)
     projectApplications: _state.research.lastApplicationResults || null,
+
+    // v0.2: Yeni başarımlar ve bekleyen olaylar
+    newAchievements: simResults.newAchievements || [],
+    pendingRandomEvents: simResults.pendingRandomEvents || [],
+
+    // v0.2: Mezun özeti
+    alumni: {
+      totalGraduates: _state.alumniData?.totalGraduates || 0,
+      notableCount: (_state.alumniData?.notableAlumni || []).length,
+      alumniNetwork: _state.alumniData?.alumniNetwork || 0,
+      annualDonations: _state.alumniData?.annualDonations || 0,
+    },
   };
 }
 
@@ -2910,6 +3605,100 @@ export function getTurnSummary(simResults = {}) {
 export function getState() {
   if (!_state) return null;
   return deepClone(_state);
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// setState — Yüklenen state'i doğrudan uygula (kayıt yükleme için)
+// ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * Kaydedilmiş bir state'i doğrudan oyun state'i olarak ayarlar.
+ * Yüklenen state eksik alanlar içeriyorsa varsayılan değerler eklenir.
+ *
+ * @param {object} loadedState — Yüklenen oyun durumu
+ * @returns {boolean} Başarılı mı?
+ */
+export function setState(loadedState) {
+  if (!loadedState || typeof loadedState !== 'object') {
+    console.error('[game] setState: geçersiz state');
+    return false;
+  }
+
+  try {
+    // Derin kopya al (referans sorunlarını önle)
+    const s = deepClone(loadedState);
+
+    // Eksik üst düzey alanları varsayılanlarla tamamla
+    if (!s.meta)         s.meta         = { turn: 1, year: 1, semester: 'güz', difficulty: 'normal' };
+    if (s.meta.semester === 'guz') s.meta.semester = 'güz'; // eski kayıtları düzelt
+    if (!s.university)   s.university   = {};
+    if (!s.departments)  s.departments  = [];
+    if (!s.faculty)      s.faculty      = [];
+    if (!s.buildings)    s.buildings    = [];
+    if (!s.students)     s.students     = { byDepartment: {}, cohorts: [], totalEnrolled: 0, quotas: {}, starStudents: [], overallSatisfaction: 70 };
+    else {
+      if (s.students.totalEnrolled    === undefined) s.students.totalEnrolled    = 0;
+      if (s.students.quotas           === undefined) s.students.quotas           = {};
+      if (s.students.starStudents     === undefined) s.students.starStudents     = [];
+      if (s.students.overallSatisfaction === undefined) s.students.overallSatisfaction = 70;
+    }
+    if (!s.economy)      s.economy      = {};
+    if (!s.research)     s.research     = { activeProjects: [], completedProjects: [], budget: 0 };
+    if (!s.rankings)     s.rankings     = { national: 999, international: null };
+    if (!s.rivals)       s.rivals       = [];
+    if (!s.events)       s.events       = { history: [], pending: [] };
+    if (!s.adminUnits)   s.adminUnits   = {};
+    else if (Array.isArray(s.adminUnits)) s.adminUnits = {}; // eski dizi kayıtlarını düzelt
+    if (!s.adminStaff)   s.adminStaff   = [];
+    if (!s.openPositions)  s.openPositions  = [];
+    if (!s.applicants)     s.applicants     = [];
+    if (!s.trendHeats)     s.trendHeats     = {};
+    if (!s.budgetAllocation) s.budgetAllocation = {};
+    if (s.university.budget === undefined || s.university.budget === null) {
+      s.university.budget = 0;
+    }
+
+    // v0.2: Eksik alumni/başarım alanlarını tamamla
+    if (!s.alumniData) s.alumniData = {
+      totalGraduates: 0, notableAlumni: [], alumniByDecade: {},
+      annualDonations: 0, alumniPrestigeBonus: 0, alumniNetwork: 0, totalDonations: 0,
+    };
+    if (!s.achievements) s.achievements = {};
+    if (!s._randomEventsState) s._randomEventsState = { history: [], pendingEvents: [] };
+    if (!s.pendingRandomEvents) s.pendingRandomEvents = [];
+    if (!s.stats) s.stats = {};
+    if (s.stats.crisesHandled === undefined) s.stats.crisesHandled = 0;
+
+    // v0.3: Akreditasyon alanlarını tamamla (eski kayıtlar için)
+    (s.departments || []).forEach(dept => {
+      if (!dept.accreditation) {
+        dept.accreditation = {
+          mudek: { status: 'none', appliedAt: null, grantedAt: null, expiresAt: null, processTime: null },
+          abet:  { status: 'none', appliedAt: null, grantedAt: null, expiresAt: null, processTime: null },
+          theqa: { status: 'none', appliedAt: null, grantedAt: null, expiresAt: null, processTime: null },
+        };
+      } else {
+        ['mudek', 'abet', 'theqa'].forEach(bid => {
+          if (!dept.accreditation[bid]) {
+            dept.accreditation[bid] = { status: 'none', appliedAt: null, grantedAt: null, expiresAt: null, processTime: null };
+          }
+        });
+      }
+    });
+
+    // Yükleme sonrası sayaçları sıfırla
+    _bankruptcyTurns = 0;
+    _lowStudentTurns = 0;
+    _gameOver        = false;
+    _gameWon         = false;
+
+    _state = s;
+    console.log(`[game] setState() tamamlandı → ${s.university?.name}, Tur ${s.meta?.turn}`);
+    return true;
+  } catch (err) {
+    console.error('[game] setState hatası:', err);
+    return false;
+  }
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -3482,9 +4271,14 @@ export function applyDecision(decision) {
       if (!position) return { success: false, message: 'position verisi eksik.' };
       if (!_state.openPositions) _state.openPositions = [];
       _state.openPositions.push(position);
+      const _alanMesaj = position.allFields
+        ? 'Tüm alanlarda'
+        : (Array.isArray(position.fields) && position.fields.length > 0
+            ? position.fields.join(', ') + ' alanında'
+            : (position.field ? position.field + ' alanında' : 'Belirtilen alanda'));
       return {
         success: true,
-        message: `${position.field} alanında kadro ilanı verildi.`,
+        message: `${_alanMesaj} kadro ilanı verildi.`,
       };
     }
 
@@ -4110,11 +4904,27 @@ export function applyDecision(decision) {
       return { success: true, message: `BAP başvurusu reddedildi: "${app.projectName}"` };
     }
 
+    // ── v0.2: Alumni Etkinliği ────────────────────────────────────────────────
+    case 'organize_alumni_event': {
+      const result = organizeAlumniEvent(_state, decision.eventType);
+      return result;
+    }
+
+    // ── v0.2: Rastgele Olay Seçimi ─────────────────────────────────────────
+    case 'apply_random_event': {
+      const result = applyRandomEventChoice(_state, decision.eventId, decision.choiceIndex);
+      // Bekleyen listeden bu olayı kaldır
+      if (_state.pendingRandomEvents) {
+        _state.pendingRandomEvents = _state.pendingRandomEvents.filter(e => e.id !== decision.eventId);
+      }
+      return result;
+    }
+
     // ── Bilinmeyen Karar Tipi ─────────────────────────────────────────────────
     default:
       return {
         success: false,
-        message: `Bilinmeyen karar tipi: ${decision.type}. Desteklenen tipler: hire_faculty, fire_faculty, set_tuition, start_construction, set_budget_allocation, open_department, close_department, set_scholarship_policy, post_open_position, accept_applicant, reject_applicant, approve_project_application, reject_project_application, open_bap_call, approve_bap_application, reject_bap_application, set_overhead_rate`,
+        message: `Bilinmeyen karar tipi: ${decision.type}. Desteklenen tipler: hire_faculty, fire_faculty, set_tuition, start_construction, set_budget_allocation, open_department, close_department, set_scholarship_policy, post_open_position, accept_applicant, reject_applicant, approve_project_application, reject_project_application, open_bap_call, approve_bap_applications, reject_bap_application, set_overhead_rate, organize_alumni_event, apply_random_event`,
       };
   }
 }

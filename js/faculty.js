@@ -1004,6 +1004,13 @@ export function generateApplicants(position, state) {
   const scale      = getSalaryScale(uniType);
   const range      = scale[position.title] || scale['dr_ogr_uyesi'];
 
+  // Çoklu alan desteği: position.allFields veya position.fields dizisi
+  // Geriye dönük uyumluluk: eski kayıtlarda sadece position.field olabilir
+  const posAllFields = position.allFields === true;
+  const posFields    = Array.isArray(position.fields) && position.fields.length > 0
+    ? position.fields
+    : (position.field && position.field !== 'Tüm Alanlar' ? [position.field] : []);
+
   // Kaç başvuran?
   // Maaş -> pazar oranına göre
   const midSalary    = (range.min + range.max) / 2;
@@ -1034,6 +1041,24 @@ export function generateApplicants(position, state) {
       currentTurn:    state.meta?.turn ?? 1,
       universityType: uniType,
     });
+
+    // Belirli alanlar istendiyse adayın uzmanlıklarını o alanlara yönlendir
+    // (Tüm Alanlar seçiliyse herhangi bir müdahale yapma)
+    if (!posAllFields && posFields.length > 0) {
+      // %70 ihtimalle adayın en az bir uzmanlığı istenen alanlardan olsun
+      if (Math.random() < 0.70) {
+        const targetField = posFields[Math.floor(Math.random() * posFields.length)];
+        if (!(fac.specializations || []).includes(targetField)) {
+          if (!fac.specializations) fac.specializations = [];
+          // Listedeki son uzmanlığı istenen alanla değiştir veya ekle
+          if (fac.specializations.length > 0) {
+            fac.specializations[fac.specializations.length - 1] = targetField;
+          } else {
+            fac.specializations.push(targetField);
+          }
+        }
+      }
+    }
 
     // Başvuranın maaş beklentisi: ilan maaşı ± %15
     const salaryExpectation = Math.round(

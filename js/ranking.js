@@ -7,6 +7,7 @@ import {
   RANKING_WEIGHTS,
   MAX_PRESTIGE,
   INITIAL_RIVAL_UNIVERSITIES,
+  DIFFICULTY_SETTINGS,
 } from './data.js';
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -40,7 +41,7 @@ export function calculateEducationScore(state) {
   if (!state.faculty || state.faculty.length === 0) return 0;
 
   // Hoca ortalama öğretim puanı
-  const avgTeaching = state.faculty.reduce((s, f) => s + (f.teachingScore || 50), 0) / state.faculty.length;
+  const avgTeaching = state.faculty.reduce((s, f) => s + (f.stats?.teaching || f.teachingScore || 50), 0) / state.faculty.length;
 
   // Sınıf büyüklüğü çarpanı: öğrenci/hoca oranına bakılır
   // İdeal oran ≤ 20; 40'ın üzerinde ciddi düşüş
@@ -242,6 +243,11 @@ export function calculatePrestige(state) {
 export function updateRivals(state) {
   const changes = [];
 
+  // Zorluk çarpanını al
+  const diffKey      = state.meta?.difficulty || 'normal';
+  const diffSettings = DIFFICULTY_SETTINGS[diffKey] || DIFFICULTY_SETTINGS.normal;
+  const growthRate   = diffSettings.rivalGrowthRate ?? 1.0;
+
   // Oyuncunun en güçlü bölümü: en yüksek araştırma puanına sahip bölüm
   const strongestDept = state.departments.length > 0
     ? state.departments.reduce((best, d) =>
@@ -253,16 +259,16 @@ export function updateRivals(state) {
     const change = { rivalId: rival.id, prestigeDelta: 0, budgetDelta: 0, actions: [] };
     const agg = rival.aggressiveness || 0.5;
 
-    // Prestij büyümesi: agresifliğe bağlı şans
-    if (Math.random() < agg) {
-      const prestigeGain = randInt(1, 3);
+    // Prestij büyümesi: agresifliğe ve zorluk büyüme oranına bağlı şans
+    if (Math.random() < agg * growthRate) {
+      const prestigeGain = Math.round(randInt(1, 3) * growthRate);
       rival.prestige     = clamp(rival.prestige + prestigeGain, 0, 98);
       change.prestigeDelta += prestigeGain;
     }
 
     // Rastgele prestij dalgalanması: hem yukarı hem aşağı (rakipler statik değil)
     if (Math.random() < 0.45) {
-      const delta = randInt(-3, 2);
+      const delta = randInt(-3, Math.ceil(2 * growthRate));
       rival.prestige = clamp(rival.prestige + delta, 0, 98);
       change.prestigeDelta += delta;
     }

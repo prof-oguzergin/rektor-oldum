@@ -16,6 +16,7 @@ import {
   TUITION_MULTIPLIER_HUK,
   TUITION_MULTIPLIER_FEN,
   TUITION_MULTIPLIER_SOS,
+  DIFFICULTY_SETTINGS,
 } from './data.js';
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -931,8 +932,30 @@ function _calculateNewScholarshipCost(state) {
  * }}
  */
 export function calculateEconomy(state) {
-  const income      = calculateIncome(state);
-  const expenses    = calculateExpenses(state);
+  // Zorluk çarpanlarını uygula
+  const diffKey      = state.meta?.difficulty || 'normal';
+  const diffSettings = DIFFICULTY_SETTINGS[diffKey] || DIFFICULTY_SETTINGS.normal;
+  const incMult      = safeNum(diffSettings.incomeMultiplier  ?? 1.0);
+  const expMult      = safeNum(diffSettings.expenseMultiplier ?? 1.0);
+
+  const rawIncome   = calculateIncome(state);
+  const rawExpenses = calculateExpenses(state);
+
+  // Zorluk çarpanlarını tüm gelir/gider kalemlerine uygula
+  const income = {};
+  for (const [k, v] of Object.entries(rawIncome)) {
+    if (k.startsWith('_') || k === 'total') { income[k] = v; continue; }
+    income[k] = typeof v === 'number' ? Math.round(v * incMult) : v;
+  }
+  income.total = Math.round(safeNum(rawIncome.total) * incMult);
+
+  const expenses = {};
+  for (const [k, v] of Object.entries(rawExpenses)) {
+    if (k === 'total') { expenses[k] = v; continue; }
+    expenses[k] = typeof v === 'number' ? Math.round(v * expMult) : v;
+  }
+  expenses.total = Math.round(safeNum(rawExpenses.total) * expMult);
+
   const budget      = applyBudget(state, income, expenses);
   const report      = getFinancialReport(state, income, expenses, budget);
 

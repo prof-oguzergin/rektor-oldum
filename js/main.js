@@ -8,7 +8,7 @@ console.log('[main] main.js modülü yükleniyor...');
 // IMPORT
 // ─────────────────────────────────────────────────────────────────────────────
 
-import { initGame, nextTurn, getState, applyDecision, assignCourses, applyQuotas, assignDeptHead, reassignFacultyToDept, generateAdminCandidates, hireAdminStaff, upgradeAdminUnit } from './game.js';
+import { initGame, nextTurn, getState, setState, applyDecision, assignCourses, applyQuotas, assignDeptHead, reassignFacultyToDept, generateAdminCandidates, hireAdminStaff, upgradeAdminUnit, promoteAdminStaff, fireAdminStaff, updateAdminStaffSalary, assignUnitManager, RANDOM_EVENTS, ACHIEVEMENTS, getAchievementStats, organizeAlumniEvent, applyRandomEventChoice, ACCREDITATION_BODIES, applyForAccreditation, checkAccreditationRequirements } from './game.js';
 
 import {
   showScreen,
@@ -35,11 +35,17 @@ import {
   renderQuotaModal,
   renderAdminPanel,
   renderAdminHireModal,
+  renderAlumniPanel,
+  renderAchievementsPanel,
+  showAchievementNotification,
+  renderRandomEventModal,
+  showAccreditationModal,
   el,
   on,
 } from './ui.js';
 
-import { saveGame, loadGame, autoSave, getSaveSlots } from './save.js';
+import { saveGame, loadGame, autoSave, getSaveSlots, deleteSave, exportSave, importSave, sanitizeForSave } from './save.js';
+import { showTutorialIfNeeded, replayTutorial } from './tutorial.js';
 
 import { generateTransferMarket, renderFacultyAvatar, calculateOverallRating, getFacultyRatingTrend } from './faculty.js';
 import { resolveDecision } from './events.js';
@@ -99,7 +105,34 @@ function init() {
   // Klavye kısayolları
   _bindKeyboardShortcuts();
 
+  // Sayfa yüklendiğinde kayıt varlığını kontrol et
+  _checkSaveOnLoad();
+
   console.log('[main] Başlangıç tamamlandı.');
+}
+
+/**
+ * Sayfa ilk açıldığında otomatik kayıt veya slot kaydı varsa
+ * ana menüde "Kayıtlı oyun bulundu" bildirimi gösterir.
+ */
+function _checkSaveOnLoad() {
+  const slots = getSaveSlots();
+  const hasAny = slots.some(s => !s.isEmpty);
+  if (!hasAny) return;
+
+  // "Kayıt Yükle" butonunu vurgula
+  const loadBtn = el('btn-load-game');
+  if (loadBtn) {
+    loadBtn.classList.add('btn-has-save');
+    loadBtn.innerHTML = '<span class="btn-icon">💾</span> Kayıtlı Oyunu Yükle';
+  }
+
+  // Kısa bildirim — bildirim sistemi henüz DOM'a bağlanmadıysa gecikmeli göster
+  setTimeout(() => {
+    showNotification('Kayıtlı oyun bulundu. Devam etmek için "Kayıtlı Oyunu Yükle" butonuna basın.', 'info', 5000);
+  }, 300);
+
+  console.log('[main] Kayıtlı oyun bulundu:', slots.filter(s => !s.isEmpty).map(s => s.slotName).join(', '));
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -123,7 +156,7 @@ function _onLoadGameMenu() {
 
   const state = loadGame('autosave');
   if (state) {
-    _startGameWithState(state);
+    _applyLoadedState(state);
     showNotification('Oyun kaldığı yerden devam ediyor.', 'success');
   } else {
     console.log('[main] Otomatik kayıt bulunamadı, slot listesi gösteriliyor.');
@@ -153,6 +186,9 @@ function _onSetupComplete(setup) {
   console.log('[main] initGame() tamamlandı, oyun ekranına geçiliyor.');
   _startGameWithState(state);
   showNotification(`${setup.uniName} kuruldu! İyi yönetimler, Rektör ${setup.playerName}.`, 'success');
+
+  // İlk oyun başlangıcında rehberi göster
+  setTimeout(() => showTutorialIfNeeded(), 600);
 }
 
 /**
@@ -162,6 +198,8 @@ function _onSetupComplete(setup) {
 function _startGameWithState(state) {
   showScreen('screen-game');
   _bindGameScreenEvents();
+  // Akreditasyon modal callback'ini global alana kaydet (ui.js butonları için)
+  window._onShowAccreditationModal = _onShowAccreditationModal;
   refreshGameUI();
   console.log('[main] Oyun ekranı hazır. Dönem:', state?.meta?.turn, '| Bütçe:', state?.university?.budget);
 }
@@ -225,6 +263,12 @@ function refreshGameUI() {
     case 'admin':
       renderAdminPanel(state, _onHireAdminStaff, _onUpgradeAdminUnit);
       break;
+    case 'alumni':
+      renderAlumniPanel(state, _onAlumniEvent);
+      break;
+    case 'achievements':
+      renderAchievementsPanel(state, ACHIEVEMENTS, getAchievementStats(state));
+      break;
     default:
       console.warn(`[main] Bilinmeyen sekme: ${_activeTab}`);
       renderDashboard(state);
@@ -234,6 +278,30 @@ function refreshGameUI() {
 // ─────────────────────────────────────────────────────────────────────────────
 // OYUN EKRANI — EVENT LISTENER'LAR
 // ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * Akreditasyon modalını göster ve başvuru işlemini yönet.
+ * ui.js içindeki butonların window._onShowAccreditationModal üzerinden çağırdığı callback.
+ */
+function _onShowAccreditationModal(deptId, bodyId) {
+  const state = getState();
+  if (!state) return;
+  const dept = state.departments.find(d => d.id === deptId);
+  const body = ACCREDITATION_BODIES[bodyId];
+  if (!dept || !body) return;
+
+  const reqResult = checkAccreditationRequirements(state, dept, body);
+
+  showAccreditationModal(state, deptId, bodyId, reqResult, (dId, bId) => {
+    const result = applyForAccreditation(dId, bId);
+    if (result.success) {
+      showNotification(result.message, 'success');
+      refreshGameUI();
+    } else {
+      showNotification(result.message, 'error');
+    }
+  });
+}
 
 /** Oyun ekranına ait tüm event listener'ları bağla (bir kez çağrılır). */
 function _bindGameScreenEvents() {
@@ -256,12 +324,31 @@ function _bindGameScreenEvents() {
   });
 
   // ── Modal kapat butonu ──────────────────────────────────────────────────
-  on(el('modal-close-btn'), 'click', hideModal);
+  // HTML'de id="btn-close-modal" (modal-close-btn değil)
+  on(el('btn-close-modal'), 'click', hideModal);
   on(el('modal-overlay'), 'click', (e) => {
-    if (e.target === el('modal-overlay')) hideModal();
+    if (e.target === el('modal-overlay') || e.target.id === 'modal-backdrop') hideModal();
   });
 
+  // ── ❓ Rehber butonu ────────────────────────────────────────────────────
+  _injectTutorialReplayButton();
+
   console.log('[main] Oyun ekranı event listener\'ları bağlandı.');
+}
+
+/**
+ * Oyun ekranına sabit "❓ Rehber" butonunu ekler.
+ * Zaten varsa tekrar eklenmez.
+ */
+function _injectTutorialReplayButton() {
+  if (document.getElementById('tutorial-replay-btn')) return;
+  const btn = document.createElement('button');
+  btn.id = 'tutorial-replay-btn';
+  btn.className = 'tutorial-replay-btn';
+  btn.innerHTML = '❓ Rehber';
+  btn.title = 'Rehberi yeniden başlat';
+  btn.addEventListener('click', () => replayTutorial());
+  document.getElementById('screen-game')?.appendChild(btn);
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -332,8 +419,29 @@ function _runTurnAfterQuotas() {
   console.log('[main] nextTurn() tamamlandı. Özet:', summary);
 
   // Otomatik kayıt
-  autoSave(state);
+  const safeStateForAuto = sanitizeForSave ? sanitizeForSave(state) : state;
+  autoSave(safeStateForAuto);
 
+  // v0.2: Yeni başarımları bildir
+  if (summary?.newAchievements?.length > 0) {
+    for (const ach of summary.newAchievements) {
+      showAchievementNotification(ach);
+    }
+  }
+
+  // v0.2: Bekleyen rastgele olaylar varsa işle
+  if (summary?.pendingRandomEvents?.length > 0) {
+    console.log('[main] Bekleyen rastgele olaylar:', summary.pendingRandomEvents.length);
+    _processNextRandomEvent(summary.pendingRandomEvents, 0, () => {
+      _continueAfterEvents(summary, state);
+    });
+    return;
+  }
+
+  _continueAfterEvents(summary, state);
+}
+
+function _continueAfterEvents(summary, state) {
   // Eğer tur sonu olayı varsa → olay ekranı göster
   if (summary?.event) {
     console.log('[main] Tur olayı tespit edildi:', summary.event?.id);
@@ -347,7 +455,6 @@ function _runTurnAfterQuotas() {
       hideModal();
       refreshGameUI();
     });
-    // Özeti modal içinde göster
     const panel = el('tab-dashboard');
     if (panel) {
       showModal('Dönem Özeti', panel.innerHTML);
@@ -356,6 +463,48 @@ function _runTurnAfterQuotas() {
 
   refreshGameUI();
   console.log(`[main] Tur tamamlandı → Tur ${state?.meta?.turn}`);
+}
+
+/**
+ * v0.2: Rastgele olayları sırayla göster.
+ */
+function _processNextRandomEvent(events, index, onAllDone) {
+  if (index >= events.length) {
+    onAllDone();
+    return;
+  }
+
+  const event = events[index];
+  console.log(`[main] Rastgele olay gösteriliyor (${index + 1}/${events.length}):`, event.id);
+
+  renderRandomEventModal(event, (choiceIndex) => {
+    // applyDecision çağrısı game.js içindeki _state'e doğrudan etki eder
+    const result = applyDecision({ type: 'apply_random_event', eventId: event.id, choiceIndex });
+    if (result?.success && result?.effects) {
+      const effects = result.effects;
+      const parts = [];
+      if (effects.budgetDelta) parts.push(`Bütçe ${effects.budgetDelta > 0 ? '+' : ''}${(effects.budgetDelta/1e6).toFixed(1)}M ₺`);
+      if (effects.prestigeDelta) parts.push(`Saygınlık ${effects.prestigeDelta > 0 ? '+' : ''}${effects.prestigeDelta}`);
+      if (effects.satisfactionDelta) parts.push(`Memnuniyet ${effects.satisfactionDelta > 0 ? '+' : ''}${effects.satisfactionDelta}`);
+      if (parts.length > 0) showNotification(parts.join(', '), effects.budgetDelta >= 0 ? 'info' : 'warning');
+    }
+    hideModal();
+    // Sonraki olaya geç
+    _processNextRandomEvent(events, index + 1, onAllDone);
+  });
+}
+
+/**
+ * v0.2: Alumni etkinliği düzenle.
+ */
+function _onAlumniEvent(type) {
+  const result = applyDecision({ type: 'organize_alumni_event', eventType: type });
+  if (result?.success) {
+    showNotification(result.message, 'success');
+  } else {
+    showNotification(result?.message || 'İşlem başarısız.', 'danger');
+  }
+  refreshGameUI();
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -505,7 +654,12 @@ function _onOpenPositionModal() {
 function _onSubmitOpenPosition(position) {
   const result = applyDecision({ type: 'post_open_position', position });
   if (result && result.success) {
-    showNotification(`${position.field} alanında kadro ilanı verildi!`, 'success');
+    const alanLabel = position.allFields
+      ? 'Tüm alanlarda'
+      : (Array.isArray(position.fields) && position.fields.length > 0
+          ? position.fields.join(', ') + ' alanında'
+          : (position.field ? position.field + ' alanında' : 'Belirtilen alanda'));
+    showNotification(`${alanLabel} kadro ilanı verildi!`, 'success');
   } else {
     showNotification(result?.message || 'İlan verilemedi.', 'danger');
   }
@@ -822,7 +976,7 @@ function _onFacultyDetail(facultyId) {
         <button class="btn btn-secondary" id="btn-award-yilin-${f.id}" data-faculty-id="${f.id}" data-award="yilin"
                 style="font-size:11px;justify-content:space-between;">
           <span>Yılın Hocası</span>
-          <span style="color:var(--text-muted);">+10 moral &nbsp;·&nbsp; +3 prestij &nbsp;·&nbsp; 100.000 ₺ prim</span>
+          <span style="color:var(--text-muted);">+10 moral &nbsp;·&nbsp; +3 saygınlık &nbsp;·&nbsp; 100.000 ₺ prim</span>
         </button>
       </div>
       ${awardHistory.length > 0 ? `
@@ -1146,9 +1300,11 @@ function _showSaveModal() {
     btn.addEventListener('click', () => {
       const slotName = btn.dataset.slot;
       console.log(`[main] Kaydet butonuna basıldı → ${slotName}`);
-      const ok = saveGame(getState(), slotName);
+      const rawState  = getState();
+      const safeState = sanitizeForSave ? sanitizeForSave(rawState) : rawState;
+      const ok = saveGame(safeState, slotName);
       if (ok) {
-        showNotification(`Oyun ${slotName}'e kaydedildi.`, 'success');
+        showNotification('✅ Oyun kaydedildi.', 'success');
         hideModal();
       } else {
         showNotification('Kayıt başarısız.', 'error');
@@ -1161,21 +1317,18 @@ function _showSaveModal() {
     btn.addEventListener('click', () => {
       const slotName = btn.dataset.slot;
       console.log(`[main] Slot siliniyor → ${slotName}`);
-      // TODO: onay dialogu eklenebilir
-      const { deleteSave } = _getSaveModule();
-      if (deleteSave) {
-        deleteSave(slotName);
-        showNotification(`${slotName} silindi.`, 'info');
-        _showSaveModal(); // Modalı yenile
-      }
+      deleteSave(slotName);
+      showNotification('Kayıt silindi.', 'info');
+      _showSaveModal(); // Modalı yenile
     });
   });
 
   // Dışa aktar
   on(el('btn-export-save'), 'click', () => {
     console.log('[main] JSON dışa aktarma başlatılıyor...');
-    const { exportSave } = _getSaveModule();
-    if (exportSave) exportSave(getState());
+    const rawState  = getState();
+    const safeState = sanitizeForSave ? sanitizeForSave(rawState) : rawState;
+    exportSave(safeState);
   });
 }
 
@@ -1247,8 +1400,6 @@ function _showLoadModal() {
       console.log(`[main] JSON dosyası seçildi: ${file.name}`);
       const reader = new FileReader();
       reader.onload = (ev) => {
-        const { importSave } = _getSaveModule();
-        if (!importSave) return;
         const state = importSave(ev.target.result);
         if (state) {
           hideModal();
@@ -1265,60 +1416,30 @@ function _showLoadModal() {
 
 /**
  * Yüklenen state'i oyuna uygula.
- * game.js'in setState fonksiyonu olmadığından initGame'i state parametresiyle çağırıyoruz.
- * TODO: game.js'e setState(state) eklendiğinde bu fonksiyon güncellenmeli.
+ * game.js'in setState() fonksiyonu ile state doğrudan uygulanır.
  * @param {object} state — Yüklenen oyun durumu
  */
 function _applyLoadedState(state) {
   console.log('[main] Yüklenen state uygulanıyor:', state?.university?.name);
 
-  // game.js'in mevcut API'sinde doğrudan state set etme yoksa,
-  // mevcut state yeniden init ederek güncelliyoruz.
-  // NOT: game.js'e setState() eklenince bu satır değiştirilmeli.
-  const currentState = getState();
-  if (!currentState) {
-    // Henüz oyun başlatılmamışsa
-    initGame(
-      state.university.playerName || 'Rektör',
-      state.university.name,
-      state.university.type,
-      state.meta.difficulty || 'normal',
-      state.departments.map(d => d.id),
-    );
+  const ok = setState(state);
+  if (!ok) {
+    showNotification('Oyun durumu uygulanamadı.', 'error');
+    return;
   }
-
-  // TODO: game.js'e setState(state) eklenince burayı değiştir:
-  // setState(state);
 
   _startGameWithState(state);
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// YARDIMCI: save modülüne dinamik erişim (döngüsel import önleme)
+// YARDIMCI: save modülü fonksiyonları (direkt import)
 // ─────────────────────────────────────────────────────────────────────────────
 
 /**
- * save.js fonksiyonlarını döndür.
- * Tüm fonksiyonlar zaten modül düzeyinde import edildiğinden
- * bu yardımcı doğrudan onlara referans verir.
+ * save.js fonksiyonlarını döndür (direkt import edilmiş referanslar).
  */
 function _getSaveModule() {
-  return { deleteSave: _deleteSaveProxy, exportSave: _exportSaveProxy, importSave: _importSaveProxy };
-}
-
-// save.js'ten direkt import edilenler proxy olarak sarılır
-// (modül yüklenme sırası sorunlarına karşı güvenli)
-async function _deleteSaveProxy(slotName) {
-  const mod = await import('./save.js');
-  return mod.deleteSave(slotName);
-}
-async function _exportSaveProxy(state) {
-  const mod = await import('./save.js');
-  return mod.exportSave(state);
-}
-async function _importSaveProxy(jsonString) {
-  const mod = await import('./save.js');
-  return mod.importSave(jsonString);
+  return { deleteSave, exportSave, importSave };
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -1391,3 +1512,80 @@ window._onHireAdminCandidateByIdx = (idx) => {
 };
 window._onUpgradeAdminUnit        = _onUpgradeAdminUnit;
 window._onRefreshAdminCandidates  = _onRefreshAdminCandidates;
+
+/** Terfi et */
+window._onPromoteAdminStaff = function(staffId) {
+  const result = promoteAdminStaff(staffId);
+  if (result.success) {
+    showNotification(result.message, 'success');
+    refreshGameUI();
+  } else {
+    showNotification(result.message || 'Terfi başarısız.', 'warning');
+  }
+};
+
+/** İş akdi feshi modalı */
+window._onFireAdminStaff = function(staffId) {
+  const state = getState();
+  const staff = (state.adminStaff || []).find(s => s.id === staffId);
+  if (!staff) return;
+  const severance = staff.salary * 2;
+  if (!confirm(`${staff.name} adlı personelin iş akdi feshedilecek.\nKıdem tazminatı: ${severance.toLocaleString('tr-TR')} ₺\nOnaylıyor musunuz?`)) return;
+  const result = fireAdminStaff(staffId);
+  if (result.success) {
+    showNotification(`${result.staffName} iş akdi feshedildi. Tazminat: ${result.severance.toLocaleString('tr-TR')} ₺`, 'warning');
+    refreshGameUI();
+  } else {
+    showNotification(result.message || 'İşlem başarısız.', 'warning');
+  }
+};
+
+/** Maaş ayarla modalı */
+window._onAdjustAdminSalary = function(staffId) {
+  const state = getState();
+  const staff = (state.adminStaff || []).find(s => s.id === staffId);
+  if (!staff) return;
+  // Basit prompt ile maaş al
+  const newSalaryStr = prompt(
+    `${staff.name} — ${staff.title}\nMevcut maaş: ${staff.salary.toLocaleString('tr-TR')} ₺/ay\nYeni maaş girin (₺):`,
+    String(staff.salary)
+  );
+  if (!newSalaryStr) return;
+  const newSalary = parseInt(newSalaryStr.replace(/\D/g, ''), 10);
+  if (isNaN(newSalary) || newSalary <= 0) {
+    showNotification('Geçersiz maaş değeri.', 'warning');
+    return;
+  }
+  const result = updateAdminStaffSalary(staffId, newSalary);
+  if (result.success) {
+    showNotification(`${staff.name} maaşı güncellendi: ${newSalary.toLocaleString('tr-TR')} ₺/ay`, 'success');
+    refreshGameUI();
+  } else {
+    showNotification(result.message || 'Güncelleme başarısız.', 'warning');
+  }
+};
+
+/** Birim yöneticisi değiştir */
+window._onAssignUnitManager = function(unitId) {
+  const state = getState();
+  const eligible = (state.adminStaff || []).filter(
+    s => s.unit === unitId && (s.title === 'Müdür' || s.title === 'Müdür Yrd.')
+  );
+  if (eligible.length === 0) {
+    showNotification('Bu birimde Müdür veya Müdür Yrd. bulunmuyor.', 'warning');
+    return;
+  }
+  const options = eligible.map((s, i) => `${i + 1}. ${s.name} (${s.title}, Liderlik: ${s.leadership})`).join('\n');
+  const choice = prompt(`Yönetici seçin:\n${options}\n\nNumara girin (0 = yönetici kaldır):`);
+  if (choice === null) return;
+  const idx = parseInt(choice, 10);
+  if (idx === 0) {
+    assignUnitManager(unitId, null);
+    showNotification('Yönetici kaldırıldı.', 'info');
+  } else if (idx >= 1 && idx <= eligible.length) {
+    const result = assignUnitManager(unitId, eligible[idx - 1].id);
+    if (result.success) showNotification(`${eligible[idx - 1].name} birim yöneticisi atandı.`, 'success');
+    else showNotification(result.message, 'warning');
+  }
+  refreshGameUI();
+};

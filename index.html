@@ -91,11 +91,11 @@
                 <div class="type-card-icon">🏛️</div>
                 <div class="type-card-name">Devlet Üniversitesi</div>
                 <div class="type-card-desc">
-                  Sabit harç, kamu bütçesi, daha yüksek başlangıç prestiji.
+                  Sabit harç, kamu bütçesi, daha yüksek başlangıç saygınlığı.
                   YÖK denetimi güçlü.
                 </div>
                 <div class="type-card-stats">
-                  <span class="type-stat good">+ Yüksek prestij başlangıcı</span>
+                  <span class="type-stat good">+ Yüksek saygınlık başlangıcı</span>
                   <span class="type-stat good">+ Garantili öğrenci talebi</span>
                   <span class="type-stat bad">− Harç ayarlama yok</span>
                   <span class="type-stat bad">− Bütçe kısıtlı</span>
@@ -111,7 +111,7 @@
                 <div class="type-card-stats">
                   <span class="type-stat good">+ Harç kontrolü</span>
                   <span class="type-stat good">+ Esnek bütçe yönetimi</span>
-                  <span class="type-stat bad">− Düşük başlangıç prestiji</span>
+                  <span class="type-stat bad">− Düşük başlangıç saygınlığı</span>
                   <span class="type-stat bad">− Öğrenci talebi unstable</span>
                 </div>
               </div>
@@ -137,15 +137,15 @@
             <div class="difficulty-cards" id="difficulty-cards">
               <div class="difficulty-card selected" data-difficulty="kolay">
                 <div class="diff-name">Kolay</div>
-                <div class="diff-desc">Öğrenmek için ideal. Daha yüksek bütçe, pasif rakipler.</div>
+                <div class="diff-desc">Geniş bütçe, yavaş gider artışı. Öğrenmek için ideal.</div>
               </div>
               <div class="difficulty-card" data-difficulty="normal">
                 <div class="diff-name">Normal</div>
-                <div class="diff-desc">Dengeli deneyim. Rakipler aktif, bütçe sıkı.</div>
+                <div class="diff-desc">Dengeli ekonomi. Rakipler aktif, bütçe sıkı.</div>
               </div>
               <div class="difficulty-card" data-difficulty="zor">
                 <div class="diff-name">Zor</div>
-                <div class="diff-desc">Her karar kritik. Agresif rakipler, dar bütçe.</div>
+                <div class="diff-desc">Kısıtlı bütçe, agresif rakipler. Her karar kritik.</div>
               </div>
             </div>
           </div>
@@ -208,7 +208,7 @@
           <span class="top-stat-value budget-value">—</span>
         </div>
         <div class="top-stat" id="stat-prestige">
-          <span class="top-stat-label">Prestij</span>
+          <span class="top-stat-label">Saygınlık</span>
           <span class="top-stat-value prestige-value">—</span>
         </div>
         <div class="top-stat" id="stat-ranking">
@@ -238,7 +238,7 @@
         <div class="sidebar-inner">
           <button class="sidebar-tab active" data-tab="dashboard">
             <span class="tab-icon">📊</span>
-            <span class="tab-label">Dashboard</span>
+            <span class="tab-label">Genel Bakış</span>
           </button>
           <button class="sidebar-tab" data-tab="faculty">
             <span class="tab-icon">👩‍🏫</span>
@@ -276,6 +276,14 @@
             <span class="tab-icon">🏆</span>
             <span class="tab-label">Sıralama</span>
           </button>
+          <button class="sidebar-tab" data-tab="alumni">
+            <span class="tab-icon">🎓</span>
+            <span class="tab-label">Mezunlar</span>
+          </button>
+          <button class="sidebar-tab" data-tab="achievements">
+            <span class="tab-icon">🏅</span>
+            <span class="tab-label">Başarımlar</span>
+          </button>
         </div>
       </nav>
 
@@ -291,6 +299,8 @@
         <div id="tab-budget"      class="tab-panel"></div>
         <div id="tab-admin"       class="tab-panel"></div>
         <div id="tab-ranking"     class="tab-panel"></div>
+        <div id="tab-alumni"      class="tab-panel"></div>
+        <div id="tab-achievements" class="tab-panel"></div>
       </main>
 
     </div>

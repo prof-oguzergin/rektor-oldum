@@ -1274,7 +1274,7 @@ export const EVENTS_POOL = [
   {
     id:          'hoca_odulu',
     name:        'Uluslararası Hoca Ödülü',
-    description: 'Bir hocamız prestijli bir uluslararası araştırma ödülü aldı!',
+    description: 'Bir hocamız saygın bir uluslararası araştırma ödülü aldı!',
     type:        'positive',
     probability: 0.05,
     effects: {
@@ -1537,7 +1537,7 @@ export const BUILDINGS = {
     id:                    'konferans',
     name:                  'Konferans Merkezi',
     icon:                  '🎤',
-    description:           'Uluslararası etkinlikler ve konferanslar için. Prestij kazandırır.',
+    description:           'Uluslararası etkinlikler ve konferanslar için. Saygınlık kazandırır.',
     assignable:            false,
     benefitText:           'Etkinlik ve konferanslar için',
     baseCost:              10_000_000,
@@ -1691,30 +1691,42 @@ export const DIFFICULTY_SETTINGS = {
   kolay: {
     id:                    'kolay',
     label:                 'Kolay',
-    description:           'Öğrenci dostu mod. Hata affedilir, rakipler pasif.',
+    description:           'Geniş bütçe, yavaş gider artışı. Öğrenmek için ideal.',
     startBudgetMultiplier: 1.5,    // başlangıç bütçesi ×1.5
+    expenseMultiplier:     0.8,    // tüm giderler %20 azaltılır
+    incomeMultiplier:      1.2,    // tüm gelirler %20 artırılır
     eventFrequency:        0.6,    // olaylar %40 daha seyrek
+    eventSeverity:         0.5,    // olay etkileri yarı şiddetli
     rivalAggressiveness:   0.3,    // rakipler düşük agresiflik
+    rivalGrowthRate:       0.7,    // rakipler yavaş büyür
     economicPressure:      0.7,    // ekonomik kriz etkileri %30 azaltılır
     facultyMarketPressure: 0.6,    // hoca maaş talebi düşük
   },
   normal: {
     id:                    'normal',
     label:                 'Normal',
-    description:           'Dengeli deneyim. GDD değerlerini tam yansıtır.',
+    description:           'Dengeli ekonomi. GDD değerlerini tam yansıtır.',
     startBudgetMultiplier: 1.0,
+    expenseMultiplier:     1.0,
+    incomeMultiplier:      1.0,
     eventFrequency:        1.0,
+    eventSeverity:         1.0,
     rivalAggressiveness:   0.65,
+    rivalGrowthRate:       1.0,
     economicPressure:      1.0,
     facultyMarketPressure: 1.0,
   },
   zor: {
     id:                    'zor',
     label:                 'Zor',
-    description:           'Gerçekçi baskı. Rakipler agresif, krizler derin, bütçe kısıtlı.',
+    description:           'Kısıtlı bütçe, agresif rakipler. Her karar kritik.',
     startBudgetMultiplier: 0.7,
+    expenseMultiplier:     1.2,    // tüm giderler %20 artar
+    incomeMultiplier:      0.9,    // tüm gelirler %10 azalır
     eventFrequency:        1.4,    // olaylar daha sık
+    eventSeverity:         1.5,    // olay etkileri daha ağır
     rivalAggressiveness:   0.9,    // rakipler çok agresif
+    rivalGrowthRate:       1.3,    // rakipler hızlı büyür
     economicPressure:      1.4,
     facultyMarketPressure: 1.5,    // yıldız hocalar sürekli teklif alır
   },
@@ -2035,6 +2047,82 @@ export const ADMIN_UNITS = {
 };
 
 // İdari personel unvanları ve maaş aralıkları (₺/ay)
+// ─────────────────────────────────────────────────────────────────────────────
+// AKREDİTASYON KURULUŞLARI
+// ─────────────────────────────────────────────────────────────────────────────
+
+export const ACCREDITATION_BODIES = {
+  mudek: {
+    id: 'mudek',
+    name: 'MÜDEK',
+    fullName: 'Mühendislik Eğitim Programları Değerlendirme ve Akreditasyon Derneği',
+    icon: '🏅',
+    applicableTo: ['muhendislik'],
+    duration: 10,
+    processingTime: { min: 2, max: 4 },
+    cost: 500000,
+    renewalCost: 300000,
+    prestigeBonus: 8,
+    yksBonus: -5000,
+    requirements: {
+      minFaculty: 5,
+      minProfOrDoc: 2,
+      minAvgResearch: 50,
+      minAvgTeaching: 55,
+      minLabCount: 2,
+      minCurriculumCoverage: 0.8,
+      minStudentSatisfaction: 55,
+      hasDeptHead: true,
+    },
+  },
+  abet: {
+    id: 'abet',
+    name: 'ABET',
+    fullName: 'Accreditation Board for Engineering and Technology',
+    icon: '🌍',
+    applicableTo: ['muhendislik'],
+    duration: 12,
+    processingTime: { min: 3, max: 5 },
+    cost: 1000000,
+    renewalCost: 600000,
+    prestigeBonus: 15,
+    yksBonus: -8000,
+    requirements: {
+      minFaculty: 7,
+      minProfOrDoc: 3,
+      minAvgResearch: 60,
+      minAvgTeaching: 60,
+      minLabCount: 3,
+      minCurriculumCoverage: 0.85,
+      minStudentSatisfaction: 60,
+      hasDeptHead: true,
+      minPublicationsPerFaculty: 3,
+    },
+  },
+  theqa: {
+    id: 'theqa',
+    name: 'THEQA',
+    fullName: 'Türkiye Yükseköğretim Kalite Kurulu',
+    icon: '📋',
+    applicableTo: ['all'],
+    duration: 8,
+    processingTime: { min: 2, max: 3 },
+    cost: 300000,
+    renewalCost: 200000,
+    prestigeBonus: 5,
+    yksBonus: -3000,
+    requirements: {
+      minFaculty: 3,
+      minProfOrDoc: 1,
+      minAvgResearch: 40,
+      minAvgTeaching: 45,
+      minCurriculumCoverage: 0.7,
+      minStudentSatisfaction: 50,
+      hasDeptHead: true,
+    },
+  },
+};
+
 export const ADMIN_TITLES = {
   'Memur':      { min: 14_000, max: 18_000 },
   'Uzman':      { min: 18_000, max: 25_000 },
