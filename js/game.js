@@ -74,6 +74,8 @@ export { establishTTO, upgradeTTO, acceptDeal, rejectDeal, TTO_CONFIG };
 import { initClubsState, foundClub, upgradeClub, dissolveClub, processClubs, CLUB_TYPES, CLUB_CATEGORIES } from './clubs.js';
 export { foundClub, upgradeClub, dissolveClub, CLUB_TYPES, CLUB_CATEGORIES };
 
+import { initCampusState, assignBuildingPosition, BUILDING_FOOTPRINTS } from './campus-layout.js';
+
 // ─────────────────────────────────────────────────────────────────────────────
 // YARDİMCI: Derin kopya (state immutability için)
 // ─────────────────────────────────────────────────────────────────────────────
@@ -1240,6 +1242,13 @@ export function initGame(playerName, universityName, universityType, difficulty,
 
   // ── v0.3 Feature: Kulüpler state başlat ──────────────────────────────────
   initClubsState(_state);
+
+  // ── v0.4 Feature: Kampüs grid layout başlat ──────────────────────────────
+  try {
+    initCampusState(_state);
+  } catch (e) {
+    console.error('[game] initCampusState HATASI:', e.message, e.stack);
+  }
 
   // ── Senaryo kurallarını uygula ────────────────────────────────────────────
   if (scenarioId && SCENARIOS[scenarioId]) {
@@ -3758,6 +3767,11 @@ function migrateState(state) {
 
   // v0.3 Feature 3: TTO — initTTOState ayrıca çağrılıyor (setState içinde)
   // v0.3 Feature 4: Kulüpler — initClubsState ayrıca çağrılıyor (setState içinde)
+
+  // v0.4 Feature: Kampüs grid layout
+  if (!state.campus) {
+    initCampusState(state);
+  }
 }
 
 // setState — Yüklenen state'i doğrudan uygula (kayıt yükleme için)
@@ -3846,6 +3860,9 @@ export function setState(loadedState) {
 
     // v0.3: Kulüpler state'ini tamamla (eski kayıtlar için)
     initClubsState(s);
+
+    // v0.4: Kampüs grid layout'unu tamamla (eski kayıtlar için)
+    if (!s.campus) initCampusState(s);
 
     // Yükleme sonrası sayaçları sıfırla
     _bankruptcyTurns = 0;
@@ -4119,6 +4136,9 @@ export function applyDecision(decision) {
 
       _state.university.budget -= cost;
       _state.buildings.push(building);
+
+      // v0.4: Kampüs haritasına yerleştir
+      assignBuildingPosition(_state, building);
 
       return {
         success:    true,

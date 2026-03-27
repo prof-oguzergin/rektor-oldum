@@ -8,6 +8,7 @@ import { DEPARTMENTS, DEPARTMENT_CURRICULA, UNIVERSITY_TYPES, UNIVERSITY_MODELS,
 import { DEPARTMENT_FIELDS, getSalaryRange, renderFacultyAvatar, calculateOverallRating, getFacultyRatingTrend } from './faculty.js';
 import { AVAILABLE_NEW_DEPARTMENTS } from './game.js';
 import { calculateIncome, calculateExpenses } from './economy.js';
+import { renderCampusMap, handleCampusClick, handleCampusHover, clearHover } from './campus-renderer.js';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // DOM YARDIMCILARI
@@ -3166,6 +3167,12 @@ export function renderCampusPanel(state, onBuildStart, onDecision) {
       </div>
     </div>
 
+    <!-- Kampüs İzometrik Harita -->
+    <div class="campus-map-container" style="position:relative;">
+      <canvas id="campus-canvas"></canvas>
+      <div id="campus-tooltip" class="campus-tooltip" style="display:none;"></div>
+    </div>
+
     <!-- Yerleşke Özeti -->
     <div class="section-title">Yerleşke Özeti</div>
     <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:10px;margin-bottom:20px;">
@@ -3485,6 +3492,43 @@ export function renderCampusPanel(state, onBuildStart, onDecision) {
       }).join('')}
     </div>
   `;
+
+  // Kampüs haritası canvas — innerHTML her yenilendiğinde yeniden bağlanmalı
+  const campusCanvas = document.getElementById('campus-canvas');
+  if (campusCanvas) {
+    renderCampusMap(campusCanvas, state);
+
+    campusCanvas.addEventListener('click', (e) => {
+      const building = handleCampusClick(e, campusCanvas, state);
+      const tooltip = document.getElementById('campus-tooltip');
+      if (building && tooltip) {
+        tooltip.style.display = 'block';
+        tooltip.style.left = (e.offsetX + 12) + 'px';
+        tooltip.style.top = (e.offsetY - 12) + 'px';
+        const statusText = building.isCompleted ? '✅ Aktif' : `🔨 Yapım: %${Math.round(building.constructionProgress || 0)}`;
+        tooltip.innerHTML = `
+          <strong>${building.name || building.type}</strong><br>
+          Düzey ${building.level || 1} · ${(building.area || 0).toLocaleString('tr-TR')} m²<br>
+          ${statusText}
+        `;
+      } else if (tooltip) {
+        tooltip.style.display = 'none';
+      }
+      renderCampusMap(campusCanvas, state);
+    });
+
+    campusCanvas.addEventListener('mousemove', (e) => {
+      handleCampusHover(e, campusCanvas, state);
+      renderCampusMap(campusCanvas, state);
+    });
+
+    campusCanvas.addEventListener('mouseleave', () => {
+      clearHover();
+      renderCampusMap(campusCanvas, state);
+      const tooltip = document.getElementById('campus-tooltip');
+      if (tooltip) tooltip.style.display = 'none';
+    });
+  }
 
   // Olay dinleyicilerini yalnızca bir kez bağla (her render'da tekrar ekleme)
   if (!panel._campusListenersAttached) {
