@@ -2147,3 +2147,70 @@ export const ADMIN_INITIAL_STAFF = [
   { unit: 'temizlik_bakim',      title: 'Memur',       count: 1 },
   { unit: 'uluslararasi_ofis',   title: 'Uzman',       count: 1 },
 ];
+
+// ─────────────────────────────────────────────────────────────────────────────
+// SENARYOLAR (v0.3)
+// ─────────────────────────────────────────────────────────────────────────────
+
+export const SCENARIOS = {
+  yeni_kurulan: {
+    id: 'yeni_kurulan',
+    name: 'Yeni Kurulan Üniversite',
+    icon: '🌱',
+    subtitle: 'Küçük bütçe, büyük potansiyel',
+    description: 'Sıfırdan kurulan bir vakıf üniversitesini dünya sıralamasına taşıyın. Az bölümle başlayacak, hızlı büyümek zorunda kalacaksınız.',
+    difficulty: 'normal',
+    universityType: 'vakif',
+    startBudgetOverride: 60_000_000,
+    startPrestigeOverride: 10,
+    forcedDepartments: ['bilgisayar_muh', 'isletme'],
+    maxStartDepartments: 3,
+    specialRules: {
+      rapidGrowthBonus: 0.3,         // İlk 4 dönem öğrenci büyümesi +%30
+    },
+    winCondition: { type: 'prestige', target: 60, maxTurns: 20 },
+    flavorText: '"Her büyük yolculuk küçük bir adımla başlar."',
+  },
+
+  koklu_devlet: {
+    id: 'koklu_devlet',
+    name: 'Köklü Devlet Üniversitesi',
+    icon: '🏛️',
+    subtitle: 'Miras ve bürokratik zorluklar',
+    description: '50 yıllık geçmişi olan devlet üniversitesinin sıralama düşüşünü durdurun. Eski binalar ve bürokratik engeller sizi bekliyor.',
+    difficulty: 'normal',
+    universityType: 'devlet',
+    startBudgetOverride: null,      // UNIVERSITY_TYPES.devlet default
+    startPrestigeOverride: 45,
+    forcedDepartments: ['bilgisayar_muh', 'elektrik_elektronik', 'makine', 'isletme', 'iktisat', 'hukuk'],
+    maxStartDepartments: 6,
+    specialRules: {
+      legacyDebt: 15_000_000,
+      agingInfrastructure: true,    // Binalar %60 durumda başlar
+      bureaucracyPenalty: 0.15,     // İşlem gecikmesi +%15
+    },
+    winCondition: { type: 'ranking', target: 30, maxTurns: 25 },
+    flavorText: '"Geleneği korurken geleceği inşa et."',
+  },
+
+  vakif_kurtarma: {
+    id: 'vakif_kurtarma',
+    name: 'Vakıf Üniversitesi Kurtarma',
+    icon: '🆘',
+    subtitle: 'Borç, düşüş, son şans',
+    description: 'İflasın eşiğindeki vakıf üniversitesini kâra geçirin. 40 milyon borç, düşen kayıtlar ve alacaklı baskısıyla mücadele edin.',
+    difficulty: 'zor',
+    universityType: 'vakif',
+    startBudgetOverride: 20_000_000,
+    startPrestigeOverride: 15,
+    forcedDepartments: ['bilgisayar_muh', 'isletme', 'psikoloji'],
+    maxStartDepartments: 3,
+    specialRules: {
+      startingDebt: 40_000_000,
+      decliningEnrollment: true,
+      creditorPressure: 2_000_000,  // Her dönem min 2M₺ borç ödemesi
+    },
+    winCondition: { type: 'budget_positive', consecutiveTurns: 10 },
+    flavorText: '"Kriz fırsat içinde gizlidir."',
+  },
+};

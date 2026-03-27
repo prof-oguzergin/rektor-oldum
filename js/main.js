@@ -8,7 +8,7 @@ console.log('[main] main.js modülü yükleniyor...');
 // IMPORT
 // ─────────────────────────────────────────────────────────────────────────────
 
-import { initGame, nextTurn, getState, setState, applyDecision, assignCourses, applyQuotas, assignDeptHead, reassignFacultyToDept, generateAdminCandidates, hireAdminStaff, upgradeAdminUnit, promoteAdminStaff, fireAdminStaff, updateAdminStaffSalary, assignUnitManager, RANDOM_EVENTS, ACHIEVEMENTS, getAchievementStats, organizeAlumniEvent, applyRandomEventChoice, ACCREDITATION_BODIES, applyForAccreditation, checkAccreditationRequirements } from './game.js';
+import { initGame, nextTurn, getState, setState, applyDecision, assignCourses, applyQuotas, assignDeptHead, reassignFacultyToDept, generateAdminCandidates, hireAdminStaff, upgradeAdminUnit, promoteAdminStaff, fireAdminStaff, updateAdminStaffSalary, assignUnitManager, RANDOM_EVENTS, ACHIEVEMENTS, getAchievementStats, organizeAlumniEvent, applyRandomEventChoice, ACCREDITATION_BODIES, applyForAccreditation, checkAccreditationRequirements, establishTTO, upgradeTTO, acceptDeal, rejectDeal, foundClub, upgradeClub, dissolveClub, CLUB_TYPES, CLUB_CATEGORIES } from './game.js';
 
 import {
   showScreen,
@@ -37,6 +37,8 @@ import {
   renderAdminHireModal,
   renderAlumniPanel,
   renderAchievementsPanel,
+  renderAccreditationPanel,
+  renderClubsPanel,
   showAchievementNotification,
   renderRandomEventModal,
   showAccreditationModal,
@@ -46,6 +48,7 @@ import {
 
 import { saveGame, loadGame, autoSave, getSaveSlots, deleteSave, exportSave, importSave, sanitizeForSave } from './save.js';
 import { showTutorialIfNeeded, replayTutorial } from './tutorial.js';
+import { initAudio, playSound, toggleMute, isMuted, startMusic, stopMusic, setMusicVolume, setSFXVolume, getAudioSettings } from './audio.js';
 
 import { generateTransferMarket, renderFacultyAvatar, calculateOverallRating, getFacultyRatingTrend } from './faculty.js';
 import { resolveDecision } from './events.js';
@@ -86,6 +89,22 @@ if (document.readyState === 'loading') {
  */
 function init() {
   console.log('[main] init()');
+
+  // Ses modülünü başlat (AudioContext kullanıcı etkileşimine kadar bekler)
+  initAudio();
+
+  // Global ses callback'leri (HTML onclick ve settings modal için)
+  window._onToggleMute = () => {
+    const muted = toggleMute();
+    const btn = document.getElementById('btn-toggle-mute');
+    if (btn) btn.textContent = muted ? '🔇' : '🔊';
+    if (!muted) startMusic();
+  };
+  window._onMusicVolChange = (val) => setMusicVolume(Number(val) / 100);
+  window._onSFXVolChange   = (val) => setSFXVolume(Number(val) / 100);
+  // Durum sorgulama (ui.js settings modal için)
+  window.isMuted          = isMuted;
+  window.getAudioSettings = getAudioSettings;
 
   showScreen('screen-menu');
 
@@ -181,6 +200,7 @@ function _onSetupComplete(setup) {
     setup.uniType,
     setup.difficulty,
     setup.departments,
+    setup.scenarioId || null,
   );
 
   console.log('[main] initGame() tamamlandı, oyun ekranına geçiliyor.');
@@ -198,9 +218,33 @@ function _onSetupComplete(setup) {
 function _startGameWithState(state) {
   showScreen('screen-game');
   _bindGameScreenEvents();
-  // Akreditasyon modal callback'ini global alana kaydet (ui.js butonları için)
+  // Akreditasyon callback'lerini global alana kaydet (ui.js butonları için)
   window._onShowAccreditationModal = _onShowAccreditationModal;
+  window._checkAccreditationRequirements = checkAccreditationRequirements;
+
+  // Kulüp verilerini ve callback'lerini global alana kaydet (ui.js butonları için)
+  window._CLUB_TYPES      = CLUB_TYPES;
+  window._CLUB_CATEGORIES = CLUB_CATEGORIES;
+  window._onFoundClub = (typeId) => {
+    const result = foundClub(getState(), typeId);
+    showNotification(result.message, result.success ? 'success' : 'error');
+    refreshGameUI();
+  };
+  window._onUpgradeClub = (clubId) => {
+    const result = upgradeClub(getState(), clubId);
+    showNotification(result.message, result.success ? 'success' : 'error');
+    refreshGameUI();
+  };
+  window._onDissolveClub = (clubId) => {
+    if (!confirm('Bu kulübü kapatmak istediğinize emin misiniz?')) return;
+    const result = dissolveClub(getState(), clubId);
+    showNotification(result.message, result.success ? 'success' : 'error');
+    refreshGameUI();
+  };
+
   refreshGameUI();
+  // Ambient müziği başlat (mute değilse)
+  if (!isMuted()) startMusic();
   console.log('[main] Oyun ekranı hazır. Dönem:', state?.meta?.turn, '| Bütçe:', state?.university?.budget);
 }
 
@@ -266,6 +310,12 @@ function refreshGameUI() {
     case 'alumni':
       renderAlumniPanel(state, _onAlumniEvent);
       break;
+    case 'clubs':
+      renderClubsPanel(state);
+      break;
+    case 'accreditation':
+      renderAccreditationPanel(state, _onApplyAccreditation, _onRenewAccreditation);
+      break;
     case 'achievements':
       renderAchievementsPanel(state, ACHIEVEMENTS, getAchievementStats(state));
       break;
@@ -303,6 +353,21 @@ function _onShowAccreditationModal(deptId, bodyId) {
   });
 }
 
+/**
+ * Akreditasyon panelinden "Başvur" butonuna basıldığında çağrılır.
+ */
+function _onApplyAccreditation(deptId, bodyId) {
+  _onShowAccreditationModal(deptId, bodyId);
+}
+
+/**
+ * Akreditasyon panelinden "Yenile" butonuna basıldığında çağrılır.
+ * Motor, süresi dolmuş akreditasyonlar için renewal maliyetini otomatik uygular.
+ */
+function _onRenewAccreditation(deptId, bodyId) {
+  _onShowAccreditationModal(deptId, bodyId);
+}
+
 /** Oyun ekranına ait tüm event listener'ları bağla (bir kez çağrılır). */
 function _bindGameScreenEvents() {
   console.log('[main] Oyun ekranı event listener\'ları bağlanıyor...');
@@ -311,6 +376,7 @@ function _bindGameScreenEvents() {
   initTabNavigation((tabId) => {
     console.log(`[main] Sekme değişti → ${tabId}`);
     _activeTab = tabId;
+    playSound('click');
     refreshGameUI();
   });
 
@@ -418,6 +484,9 @@ function _runTurnAfterQuotas() {
 
   console.log('[main] nextTurn() tamamlandı. Özet:', summary);
 
+  // Ses: dönem geçiş sesi
+  playSound('semester_change');
+
   // Otomatik kayıt
   const safeStateForAuto = sanitizeForSave ? sanitizeForSave(state) : state;
   autoSave(safeStateForAuto);
@@ -426,7 +495,13 @@ function _runTurnAfterQuotas() {
   if (summary?.newAchievements?.length > 0) {
     for (const ach of summary.newAchievements) {
       showAchievementNotification(ach);
+      playSound('achievement');
     }
+  }
+
+  // Tamamlanan inşaatları kontrol et
+  if (summary?.events?.some(e => e.type === 'construction_complete')) {
+    playSound('build_complete');
   }
 
   // v0.2: Bekleyen rastgele olaylar varsa işle
@@ -476,6 +551,7 @@ function _processNextRandomEvent(events, index, onAllDone) {
 
   const event = events[index];
   console.log(`[main] Rastgele olay gösteriliyor (${index + 1}/${events.length}):`, event.id);
+  playSound('event_popup');
 
   renderRandomEventModal(event, (choiceIndex) => {
     // applyDecision çağrısı game.js içindeki _state'e doğrudan etki eder
@@ -1166,8 +1242,10 @@ function _onCampusDecision(decision) {
   const result = applyDecision(decision);
   if (result && !result.success) {
     showNotification(result.message || 'İşlem başarısız.', 'danger');
+    playSound('error');
   } else if (result && result.message) {
     showNotification(result.message, 'success');
+    playSound('success');
   }
   refreshGameUI();
 }
@@ -1587,5 +1665,33 @@ window._onAssignUnitManager = function(unitId) {
     if (result.success) showNotification(`${eligible[idx - 1].name} birim yöneticisi atandı.`, 'success');
     else showNotification(result.message, 'warning');
   }
+  refreshGameUI();
+};
+
+// ─────────────────────────────────────────────────────────────────────────────
+// v0.3: TEKNOLOJİ TRANSFER OFİSİ — Global callback'ler
+// ─────────────────────────────────────────────────────────────────────────────
+
+window._onEstablishTTO = function() {
+  const result = establishTTO(getState());
+  showNotification(result.message, result.success ? 'success' : 'error');
+  refreshGameUI();
+};
+
+window._onUpgradeTTO = function() {
+  const result = upgradeTTO(getState());
+  showNotification(result.message, result.success ? 'success' : 'error');
+  refreshGameUI();
+};
+
+window._onAcceptDeal = function(dealId) {
+  const result = acceptDeal(getState(), Number(dealId));
+  showNotification(result.message, result.success ? 'success' : 'error');
+  refreshGameUI();
+};
+
+window._onRejectDeal = function(dealId) {
+  const result = rejectDeal(getState(), Number(dealId));
+  showNotification(result.message, result.success ? 'success' : 'error');
   refreshGameUI();
 };

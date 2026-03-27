@@ -8,7 +8,7 @@
 // SABİTLER
 // ─────────────────────────────────────────────────────────────────────────────
 
-const SAVE_VERSION     = '0.1';
+const SAVE_VERSION     = '0.3';
 const SAVE_PREFIX      = 'university_tycoon_save_';
 const AUTOSAVE_KEY     = 'university_tycoon_autosave';
 const MANUAL_SLOTS     = ['slot1', 'slot2', 'slot3'];

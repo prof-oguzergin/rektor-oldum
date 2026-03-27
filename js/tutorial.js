@@ -59,6 +59,24 @@ Gideriniz maaşlar, bakım ve burslardan oluşur.<br><br>
     highlightSelector: '.sidebar-tab[data-tab="budget"]',
   },
   {
+    id: 'kulupler',
+    title: 'Öğrenci Kulüpleri',
+    content: 'Kulüpler sekmesinden öğrenci kulüpleri kurabilirsiniz. Kulüpler öğrenci memnuniyetini ve üniversitenin saygınlığını artırır. Her kulüp kurulduktan sonra seviye yükseltilebilir.',
+    highlightSelector: '.sidebar-tab[data-tab="clubs"]',
+  },
+  {
+    id: 'akreditasyon',
+    title: 'Akreditasyon',
+    content: 'Akreditasyon sekmesinden bölümleriniz için MÜDEK, ABET veya THEQA akreditasyonu başvurusu yapabilirsiniz. Akredite bölümler daha iyi öğrenci çeker ve saygınlık kazandırır.',
+    highlightSelector: '.sidebar-tab[data-tab="accreditation"]',
+  },
+  {
+    id: 'tto',
+    title: 'Teknoloji Transfer Ofisi',
+    content: 'Araştırma sekmesindeki "Teknoloji Transfer" alt sekmesinden TTO kurabilirsiniz. TTO, patentlerinizden lisans geliri, spin-off şirketler ve sektör anlaşmaları sağlar.',
+    highlightSelector: '.sidebar-tab[data-tab="research"]',
+  },
+  {
     id: 'hedefler',
     title: '🏆 İlk Hedefiniz',
     content: `İlk 10 dönemde şunları hedefleyin:<br><br>

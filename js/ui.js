@@ -4,7 +4,7 @@
  * Vanilla JS, framework yok.
  */
 
-import { DEPARTMENTS, DEPARTMENT_CURRICULA, UNIVERSITY_TYPES, UNIVERSITY_MODELS, USD_TO_TL, DIFFICULTY_SETTINGS, BUILDINGS, SEMESTER_MONTHS, FACULTIES, DEPT_TO_FACULTY, SALARY_SCALES, ADMIN_UNITS, ADMIN_TITLES, ACCREDITATION_BODIES } from './data.js';
+import { DEPARTMENTS, DEPARTMENT_CURRICULA, UNIVERSITY_TYPES, UNIVERSITY_MODELS, USD_TO_TL, DIFFICULTY_SETTINGS, BUILDINGS, SEMESTER_MONTHS, FACULTIES, DEPT_TO_FACULTY, SALARY_SCALES, ADMIN_UNITS, ADMIN_TITLES, ACCREDITATION_BODIES, SCENARIOS } from './data.js';
 import { DEPARTMENT_FIELDS, getSalaryRange, renderFacultyAvatar, calculateOverallRating, getFacultyRatingTrend } from './faculty.js';
 import { AVAILABLE_NEW_DEPARTMENTS } from './game.js';
 import { calculateIncome, calculateExpenses } from './economy.js';
@@ -302,7 +302,79 @@ export function showAccreditationModal(state, deptId, bodyId, reqResult, onApply
 export function initMenuScreen(onNewGame, onLoadGame) {
   on(el('btn-new-game'),  'click', onNewGame);
   on(el('btn-load-game'), 'click', onLoadGame || (() => showNotification('Kayıt bulunamadı.', 'warning')));
-  on(el('btn-settings'),  'click', () => showNotification('Ayarlar yakında eklenecek.', 'info'));
+  on(el('btn-settings'),  'click', () => _showSettingsModal());
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// AYARLAR MODALI (Ana Menü)
+// ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * Ses ayarlarını içeren ayarlar modalını göster.
+ * window._onMusicVolChange / _onSFXVolChange / _onToggleMute callback'lerine bağlanır.
+ */
+function _showSettingsModal() {
+  // Mevcut ses ayarlarını al (window üzerinden, yoksa varsayılan)
+  const audioSettings = (typeof window.getAudioSettings === 'function')
+    ? window.getAudioSettings()
+    : { musicVol: 0.3, sfxVol: 0.6, muted: false };
+
+  const musicPct = Math.round((audioSettings.musicVol ?? 0.3) * 100);
+  const sfxPct   = Math.round((audioSettings.sfxVol ?? 0.6) * 100);
+  const muteIcon = audioSettings.muted ? '🔇' : '🔊';
+
+  const body = `
+    <div class="settings-group" style="display:flex;flex-direction:column;gap:20px;padding:4px 0;">
+      <div>
+        <h4 style="margin:0 0 14px;font-size:15px;font-weight:700;">🔊 Ses Ayarları</h4>
+
+        <div style="display:flex;flex-direction:column;gap:14px;">
+          <div style="display:flex;align-items:center;gap:12px;">
+            <label style="min-width:100px;font-size:13px;color:var(--text-muted);">Müzik Sesi</label>
+            <input type="range" min="0" max="100" value="${musicPct}"
+                   style="flex:1;"
+                   oninput="window._onMusicVolChange && window._onMusicVolChange(this.value)">
+            <span style="min-width:36px;text-align:right;font-size:13px;font-weight:600;">${musicPct}%</span>
+          </div>
+          <div style="display:flex;align-items:center;gap:12px;">
+            <label style="min-width:100px;font-size:13px;color:var(--text-muted);">Efekt Sesi</label>
+            <input type="range" min="0" max="100" value="${sfxPct}"
+                   style="flex:1;"
+                   oninput="window._onSFXVolChange && window._onSFXVolChange(this.value)">
+            <span style="min-width:36px;text-align:right;font-size:13px;font-weight:600;">${sfxPct}%</span>
+          </div>
+          <div style="display:flex;align-items:center;gap:12px;margin-top:4px;">
+            <label style="min-width:100px;font-size:13px;color:var(--text-muted);">Ses Durumu</label>
+            <button class="btn btn-secondary btn-sm" id="settings-mute-btn"
+                    onclick="window._onToggleMute && window._onToggleMute(); this.textContent = (window.isMuted && window.isMuted()) ? '🔇 Sessiz' : '🔊 Açık';"
+                    style="min-width:90px;">
+              ${audioSettings.muted ? '🔇 Sessiz' : '🔊 Açık'}
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <hr style="border:none;border-top:1px solid var(--border-color);margin:0;">
+
+      <div style="font-size:12px;color:var(--text-muted);text-align:center;">
+        Ses ayarları otomatik kaydedilir.
+      </div>
+    </div>
+  `;
+
+  // Range slider'larının canlı değer güncellenmesi için oninput kullan
+  showModal('Ayarlar', body);
+
+  // Slider değer etiketlerini canlı güncelle
+  const modalBody = el('general-modal-body') || el('modal-body');
+  if (modalBody) {
+    modalBody.querySelectorAll('input[type="range"]').forEach(slider => {
+      slider.addEventListener('input', () => {
+        const span = slider.nextElementSibling;
+        if (span) span.textContent = slider.value + '%';
+      });
+    });
+  }
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -316,6 +388,7 @@ const _setup = {
   uniType:      'devlet',
   difficulty:   'kolay',   // HTML'de "kolay" kartı varsayılan seçili
   departments:  new Set(),
+  scenarioId:   null,       // seçilen senaryo id'si (null = serbest oyun)
 };
 
 /**
@@ -325,6 +398,23 @@ const _setup = {
 export function initSetupScreen(onStart) {
   // Geri butonu
   on(el('btn-back-menu'), 'click', () => showScreen('screen-menu'));
+
+  // ── ADIM 0: Senaryo seçimi ────────────────────────────────────────────────
+  _renderScenarioCards();
+
+  on(el('btn-skip-scenario'), 'click', () => {
+    _setup.scenarioId = null;
+    _showSetupStep(1);
+  });
+
+  on(el('btn-scenario-next'), 'click', () => {
+    if (!_setup.scenarioId) return;
+    _applyScenarioToSetup(_setup.scenarioId);
+    _showSetupStep(1);
+  });
+
+  // ── ADIM 1 ← 0 ──────────────────────────────────────────────────────────
+  on(el('btn-step1-back'), 'click', () => _showSetupStep(0));
 
   // ── ADIM 1 → 2 ──────────────────────────────────────────────────────────
   on(el('btn-step1-next'), 'click', () => {
@@ -358,6 +448,12 @@ export function initSetupScreen(onStart) {
   on(el('btn-step2-next'), 'click', () => {
     _showSetupStep(3);
     _renderDeptSelection();
+    // Senaryo seçildiyse zorunlu bölümleri önceden seç
+    if (_setup.scenarioId && SCENARIOS[_setup.scenarioId]) {
+      const scenario = SCENARIOS[_setup.scenarioId];
+      _setup.departments = new Set(scenario.forcedDepartments || []);
+      _renderDeptSelection();
+    }
   });
 
   // ── ADIM 3: Bölüm filtreleri ─────────────────────────────────────────────
@@ -378,10 +474,77 @@ export function initSetupScreen(onStart) {
   });
 }
 
+/** Senaryo kartlarını render et */
+function _renderScenarioCards() {
+  const container = el('scenario-cards');
+  if (!container) return;
+
+  const diffLabels = { kolay: 'Kolay', normal: 'Normal', zor: 'Zor' };
+  const diffClass  = { kolay: 'easy', normal: 'normal', zor: 'hard' };
+
+  container.innerHTML = Object.values(SCENARIOS).map(s => `
+    <div class="scenario-card" data-scenario-id="${s.id}">
+      <div class="scenario-card-header">
+        <span class="scenario-card-icon">${s.icon}</span>
+        <div class="scenario-card-title-block">
+          <div class="scenario-card-name">${s.name}</div>
+          <div class="scenario-card-subtitle">${s.subtitle}</div>
+        </div>
+        <span class="scenario-diff-badge scenario-diff-${diffClass[s.difficulty] || 'normal'}">${diffLabels[s.difficulty] || s.difficulty}</span>
+      </div>
+      <div class="scenario-card-desc">${s.description}</div>
+      <div class="scenario-card-footer">
+        <span class="scenario-flavor">${s.flavorText}</span>
+      </div>
+    </div>
+  `).join('');
+
+  delegate(container, '.scenario-card', 'click', (e, card) => {
+    const id = card.dataset.scenarioId;
+    if (_setup.scenarioId === id) {
+      // Deselect
+      _setup.scenarioId = null;
+      card.classList.remove('selected');
+      const nextBtn = el('btn-scenario-next');
+      if (nextBtn) nextBtn.disabled = true;
+    } else {
+      qsa('#scenario-cards .scenario-card').forEach(c => c.classList.remove('selected'));
+      card.classList.add('selected');
+      _setup.scenarioId = id;
+      const nextBtn = el('btn-scenario-next');
+      if (nextBtn) nextBtn.disabled = false;
+    }
+  });
+}
+
+/** Senaryo seçimini _setup state'ine uygula (uni tipi, zorluk) */
+function _applyScenarioToSetup(scenarioId) {
+  const scenario = SCENARIOS[scenarioId];
+  if (!scenario) return;
+
+  // Uni tipi
+  _setup.uniType = scenario.universityType || 'devlet';
+
+  // Zorluk
+  _setup.difficulty = scenario.difficulty || 'normal';
+
+  // Adım 2'deki type kartını seç
+  qsa('#type-cards .type-card').forEach(c => {
+    c.classList.toggle('selected', c.dataset.type === _setup.uniType);
+  });
+
+  // Adım 2'deki zorluk kartını seç
+  qsa('#difficulty-cards .difficulty-card').forEach(c => {
+    c.classList.toggle('selected', c.dataset.difficulty === _setup.difficulty);
+  });
+}
+
 /** Adım göster */
 function _showSetupStep(step) {
   qsa('.setup-step').forEach(s => s.classList.add('hidden'));
-  const target = el(`setup-step-${step}`);
+  // Adım 0 için özel id kullan
+  const targetId = step === 0 ? 'setup-step-scenario' : `setup-step-${step}`;
+  const target = el(targetId);
   if (target) target.classList.remove('hidden');
 
   // Step indikatör güncelle
@@ -407,15 +570,21 @@ function _renderDeptSelection(filter = 'hepsi') {
     return d.category === filter;
   });
 
+  // Senaryo seçildiyse maxStartDepartments uygula
+  const activeScenario = _setup.scenarioId ? SCENARIOS[_setup.scenarioId] : null;
+  const maxDepts = activeScenario?.maxStartDepartments ?? 6;
+  const forcedDepts = new Set(activeScenario?.forcedDepartments || []);
+
   grid.innerHTML = items.map(d => {
-    const sel = _setup.departments.has(d.id);
-    const dis = !sel && _setup.departments.size >= 6;
+    const sel    = _setup.departments.has(d.id);
+    const forced = forcedDepts.has(d.id);
+    const dis    = !sel && _setup.departments.size >= maxDepts;
     return `
-      <div class="dept-option${sel ? ' selected' : ''}${dis ? ' disabled' : ''}"
+      <div class="dept-option${sel ? ' selected' : ''}${dis ? ' disabled' : ''}${forced ? ' forced' : ''}"
            data-dept-id="${d.id}">
         <span class="dept-option-icon">${d.icon || '🏫'}</span>
         <div class="dept-option-info">
-          <div class="dept-option-name">${d.name}</div>
+          <div class="dept-option-name">${d.name}${forced ? ' <span class="forced-badge">Zorunlu</span>' : ''}</div>
           <div class="dept-option-cat">${catLabels[d.category] || d.category}</div>
         </div>
       </div>`;
@@ -425,13 +594,18 @@ function _renderDeptSelection(filter = 'hepsi') {
   delegate(grid, '.dept-option', 'click', (e, card) => {
     const id = card.dataset.deptId;
     if (card.classList.contains('disabled')) return;
+    // Zorunlu bölümler kaldırılamaz
+    if (forcedDepts.has(id) && _setup.departments.has(id)) {
+      showNotification('Bu bölüm senaryo için zorunludur, kaldırılamaz.', 'warning');
+      return;
+    }
 
     if (_setup.departments.has(id)) {
       _setup.departments.delete(id);
       card.classList.remove('selected');
     } else {
-      if (_setup.departments.size >= 6) {
-        showNotification('En fazla 6 bölüm seçilebilir.', 'warning');
+      if (_setup.departments.size >= maxDepts) {
+        showNotification(`Bu senaryo için en fazla ${maxDepts} bölüm seçilebilir.`, 'warning');
         return;
       }
       _setup.departments.add(id);
@@ -845,6 +1019,23 @@ export function renderDepartmentsPanel(state) {
                 <div style="font-size:10px;color:var(--text-muted);">Kapsama</div>
               </div>
             </div>
+            <!-- Akreditasyon rozetleri -->
+            ${(() => {
+              const acc = dept.accreditation;
+              if (!acc) return '';
+              const badges = [];
+              if (acc.mudek?.status === 'granted') badges.push('<span style="font-size:10px;padding:2px 6px;border-radius:10px;background:rgba(56,161,105,0.15);color:var(--accent-green);border:1px solid var(--accent-green);" title="MÜDEK Akredite">MÜDEK ✓</span>');
+              else if (acc.mudek?.status === 'applied') badges.push('<span style="font-size:10px;padding:2px 6px;border-radius:10px;background:rgba(245,166,35,0.15);color:var(--accent-yellow,#f5a623);border:1px solid var(--accent-yellow,#f5a623);" title="MÜDEK Başvuruda">MÜDEK ⏳</span>');
+              else if (acc.mudek?.status === 'expired') badges.push('<span style="font-size:10px;padding:2px 6px;border-radius:10px;background:rgba(229,62,62,0.15);color:var(--accent-red,#e53e3e);border:1px solid var(--accent-red,#e53e3e);" title="MÜDEK Süresi Doldu">MÜDEK !</span>');
+              if (acc.abet?.status === 'granted') badges.push('<span style="font-size:10px;padding:2px 6px;border-radius:10px;background:rgba(66,153,225,0.15);color:#4299e1;border:1px solid #4299e1;" title="ABET Akredite">ABET ✓</span>');
+              else if (acc.abet?.status === 'applied') badges.push('<span style="font-size:10px;padding:2px 6px;border-radius:10px;background:rgba(245,166,35,0.15);color:var(--accent-yellow,#f5a623);border:1px solid var(--accent-yellow,#f5a623);" title="ABET Başvuruda">ABET ⏳</span>');
+              else if (acc.abet?.status === 'expired') badges.push('<span style="font-size:10px;padding:2px 6px;border-radius:10px;background:rgba(229,62,62,0.15);color:var(--accent-red,#e53e3e);border:1px solid var(--accent-red,#e53e3e);" title="ABET Süresi Doldu">ABET !</span>');
+              if (acc.theqa?.status === 'granted') badges.push('<span style="font-size:10px;padding:2px 6px;border-radius:10px;background:rgba(214,158,46,0.15);color:#d69e2e;border:1px solid #d69e2e;" title="THEQA Akredite">THEQA ✓</span>');
+              else if (acc.theqa?.status === 'applied') badges.push('<span style="font-size:10px;padding:2px 6px;border-radius:10px;background:rgba(245,166,35,0.15);color:var(--accent-yellow,#f5a623);border:1px solid var(--accent-yellow,#f5a623);" title="THEQA Başvuruda">THEQA ⏳</span>');
+              else if (acc.theqa?.status === 'expired') badges.push('<span style="font-size:10px;padding:2px 6px;border-radius:10px;background:rgba(229,62,62,0.15);color:var(--accent-red,#e53e3e);border:1px solid var(--accent-red,#e53e3e);" title="THEQA Süresi Doldu">THEQA !</span>');
+              if (badges.length === 0) return '';
+              return `<div style="display:flex;gap:4px;flex-wrap:wrap;padding:4px 16px 8px;background:var(--bg-secondary);">${badges.join('')}</div>`;
+            })()}
 
             <!-- İstatistik kartları -->
             <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:0;border-bottom:1px solid var(--border);">
@@ -3987,7 +4178,163 @@ export function renderResearchPanel(state, onResearchBudget, onProjectDecision) 
     return s + semFund * rate;
   }, 0);
 
+  // TTO verileri
+  const tto = state.tto || {};
+
   const _probColor = (p) => p >= 0.5 ? 'var(--accent-green)' : p >= 0.25 ? 'var(--accent-yellow,#f5a623)' : 'var(--accent-red,#e53e3e)';
+
+  // TTO alt panel HTML üretici
+  function _renderTTOPanel() {
+    if (!tto.established) {
+      return `
+        <div class="card" style="padding:20px;margin-bottom:16px;border-left:3px solid var(--accent-blue,#3182ce);">
+          <div style="font-size:15px;font-weight:700;margin-bottom:8px;">🏢 Teknoloji Transfer Ofisi</div>
+          <div style="font-size:13px;color:var(--text-muted);margin-bottom:12px;">
+            Patent lisanslama, spin-off şirketler ve sektör anlaşmalarıyla üniversitenizin araştırma çıktısını gelire dönüştürün.
+          </div>
+          <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:16px;font-size:12px;">
+            <div class="card" style="padding:10px;text-align:center;">
+              <div style="font-size:18px;margin-bottom:4px;">📜</div>
+              <div style="font-weight:700;">Patent Lisans</div>
+              <div style="color:var(--text-muted);font-size:11px;">Patent başına 400K ₺/dönem</div>
+            </div>
+            <div class="card" style="padding:10px;text-align:center;">
+              <div style="font-size:18px;margin-bottom:4px;">🚀</div>
+              <div style="font-weight:700;">Spin-off Şirket</div>
+              <div style="color:var(--text-muted);font-size:11px;">500K–1M ₺ yıllık gelir</div>
+            </div>
+            <div class="card" style="padding:10px;text-align:center;">
+              <div style="font-size:18px;margin-bottom:4px;">🤝</div>
+              <div style="font-weight:700;">Sektör Anlaşması</div>
+              <div style="color:var(--text-muted);font-size:11px;">1M–20M ₺ toplam değer</div>
+            </div>
+          </div>
+          <div style="display:flex;align-items:center;gap:16px;">
+            <button class="btn btn-primary" onclick="window._onEstablishTTO && window._onEstablishTTO()" style="padding:10px 20px;font-size:13px;">
+              🏢 TTO Kur (5M ₺)
+            </button>
+            <div style="font-size:12px;color:var(--text-muted);">
+              Mevcut bütçe: <strong style="color:${(state.university?.budget || 0) >= 5_000_000 ? 'var(--accent-green)' : 'var(--accent-red,#e53e3e)'};">${formatMoney(state.university?.budget || 0)}</strong>
+            </div>
+          </div>
+        </div>
+      `;
+    }
+
+    // TTO kurulu ise detay paneli
+    const ttoLevel = tto.level || 1;
+    const upgradeCosts = [0, 3_000_000, 6_000_000, 10_000_000];
+    const levelNames = { 1: 'Temel', 2: 'Gelişmiş', 3: 'Uluslararası' };
+    const levelMaxDeals = { 1: 2, 2: 4, 3: 6 };
+    const lastRev = tto.lastTurnRevenue || { patents: 0, spinoffs: 0, deals: 0, total: 0 };
+    const spinoffs = tto.spinoffs || [];
+    const activeDeals = tto.industryDeals || [];
+    const pendingDeals = tto.pendingDeals || [];
+
+    const upgradeBtn = ttoLevel < 3
+      ? `<button class="btn btn-success btn-sm" onclick="window._onUpgradeTTO && window._onUpgradeTTO()" style="margin-left:10px;">
+           ⬆️ Seviye ${ttoLevel + 1}'e Yükselt (${formatMoney(upgradeCosts[ttoLevel])})
+         </button>`
+      : `<span class="badge badge-green" style="margin-left:10px;">Maksimum Seviye</span>`;
+
+    return `
+      <!-- TTO Başlık / Durum -->
+      <div class="card" style="padding:14px;margin-bottom:12px;border-left:3px solid var(--accent-blue,#3182ce);">
+        <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;">
+          <div>
+            <span style="font-size:14px;font-weight:700;">🏢 Teknoloji Transfer Ofisi</span>
+            <span class="badge badge-blue" style="margin-left:8px;">Seviye ${ttoLevel} — ${levelNames[ttoLevel] || ''}</span>
+          </div>
+          <div style="display:flex;align-items:center;gap:8px;">
+            <span style="font-size:12px;color:var(--text-muted);">Maks. anlaşma: ${levelMaxDeals[ttoLevel]}</span>
+            ${upgradeBtn}
+          </div>
+        </div>
+        <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-top:12px;">
+          ${_statCardHtml('Dönem Geliri', formatMoney(lastRev.total), null, 'TTO toplamı')}
+          ${_statCardHtml('Patent Lisans', formatMoney(lastRev.patents), null, 'bu dönem')}
+          ${_statCardHtml('Spin-off', formatMoney(lastRev.spinoffs), null, 'bu dönem')}
+          ${_statCardHtml('Toplam Gelir', formatMoney(tto.totalRevenueGenerated || 0), null, 'tüm zamanlar')}
+        </div>
+      </div>
+
+      <!-- Bekleyen Teklifler -->
+      ${pendingDeals.length > 0 ? `
+        <div class="section-title" style="margin-bottom:8px;">📨 Bekleyen Sektör Teklifleri (${pendingDeals.length})</div>
+        <div style="display:flex;flex-direction:column;gap:8px;margin-bottom:16px;">
+          ${pendingDeals.map(deal => `
+            <div class="card" style="padding:12px 14px;border-left:3px solid var(--accent-yellow,#f5a623);">
+              <div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:8px;">
+                <div>
+                  <div style="font-size:13px;font-weight:700;">${deal.icon || '🤝'} ${deal.company}</div>
+                  <div style="font-size:12px;color:var(--text-muted);margin-top:2px;">${deal.typeName} · ${deal.duration} dönem · Toplam: ${formatMoney(deal.totalValue)} · Dönem başına: ${formatMoney(deal.perTurnRevenue)}</div>
+                </div>
+                <div style="display:flex;gap:6px;flex-shrink:0;">
+                  <button class="btn btn-success btn-sm" onclick="window._onAcceptDeal && window._onAcceptDeal(${deal.id})" style="font-size:11px;">✅ Kabul</button>
+                  <button class="btn btn-danger btn-sm" onclick="window._onRejectDeal && window._onRejectDeal(${deal.id})" style="font-size:11px;background:var(--accent-red,#e53e3e);border-color:var(--accent-red,#e53e3e);">❌ Reddet</button>
+                </div>
+              </div>
+            </div>
+          `).join('')}
+        </div>
+      ` : ''}
+
+      <!-- Aktif Anlaşmalar -->
+      <div class="section-title" style="margin-bottom:8px;">📋 Aktif Anlaşmalar (${activeDeals.length}/${levelMaxDeals[ttoLevel]})</div>
+      ${activeDeals.length > 0 ? `
+        <div style="display:flex;flex-direction:column;gap:6px;margin-bottom:16px;">
+          ${activeDeals.map(deal => `
+            <div class="card" style="padding:10px 14px;border-left:3px solid var(--accent-green,#48bb78);">
+              <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:6px;">
+                <div>
+                  <span style="font-size:13px;font-weight:700;">${deal.icon || '🤝'} ${deal.company}</span>
+                  <span style="font-size:11px;color:var(--text-muted);margin-left:8px;">${deal.typeName}</span>
+                </div>
+                <div style="font-size:12px;color:var(--text-muted);">
+                  ${formatMoney(deal.perTurnRevenue)}/dönem · <strong style="color:var(--accent-green,#48bb78);">${deal.turnsRemaining} dönem kaldı</strong>
+                </div>
+              </div>
+            </div>
+          `).join('')}
+        </div>
+      ` : `
+        <div style="font-size:12px;color:var(--text-faint);padding:8px 0;margin-bottom:16px;">Aktif anlaşma yok. Dönem sonunda sektör teklifleri gelebilir.</div>
+      `}
+
+      <!-- Spin-off Şirketler -->
+      <div class="section-title" style="margin-bottom:8px;">🚀 Spin-off Şirketler (${spinoffs.length})</div>
+      ${spinoffs.length > 0 ? `
+        <div style="display:flex;flex-direction:column;gap:6px;margin-bottom:16px;">
+          ${spinoffs.map(sof => `
+            <div class="card" style="padding:10px 14px;border-left:3px solid var(--accent-purple,#9b59b6);">
+              <div style="display:flex;justify-content:space-between;align-items:center;">
+                <div>
+                  <span style="font-size:13px;font-weight:700;">🏭 ${sof.name}</span>
+                  <span style="font-size:11px;color:var(--text-muted);margin-left:8px;">Tur ${sof.foundedAt || '?'}'de kuruldu</span>
+                </div>
+                <div style="font-size:12px;">Yıllık: <strong style="color:var(--accent-green,#48bb78);">${formatMoney(sof.annualRevenue)}</strong></div>
+              </div>
+            </div>
+          `).join('')}
+        </div>
+      ` : `
+        <div style="font-size:12px;color:var(--text-faint);padding:8px 0;margin-bottom:16px;">Henüz spin-off şirket yok. Patentleriniz arttıkça spin-off kurulabilir.</div>
+      `}
+
+      <!-- Özet İstatistikler -->
+      <div class="card" style="padding:12px 14px;font-size:12px;color:var(--text-muted);">
+        <div style="font-size:12px;font-weight:700;margin-bottom:8px;">📊 TTO Özet</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;">
+          <div>Toplam patent: <strong>${research.patents || 0}</strong></div>
+          <div>Spin-off şirket: <strong>${spinoffs.length}</strong></div>
+          <div>Aktif anlaşma: <strong>${activeDeals.length}</strong></div>
+          <div>Bekleyen teklif: <strong>${pendingDeals.length}</strong></div>
+          <div>TTO seviyesi: <strong>${ttoLevel}/3</strong></div>
+          <div>Op. gider/dönem: <strong style="color:var(--accent-red,#e53e3e);">-${formatMoney(800_000)}</strong></div>
+        </div>
+      </div>
+    `;
+  }
 
   // Başvuru kartı HTML üret
   const _appCard = (app, type) => {
@@ -4033,6 +4380,21 @@ export function renderResearchPanel(state, onResearchBudget, onProjectDecision) 
         <div class="panel-subtitle">${activeProjects.length} aktif proje · Üniversite payı: ${formatMoney(estimatedOverheadIncome)}/dönem · ${lastApps ? `${(lastApps.accepted || []).length} kabul, ${(lastApps.rejected || []).length} red (son dönem)` : 'henüz başvuru yok'}</div>
       </div>
     </div>
+
+    <!-- Araştırma Alt Sekmeleri -->
+    <div class="research-subtabs" style="display:flex;gap:8px;margin-bottom:16px;border-bottom:2px solid var(--border-light);padding-bottom:0;">
+      <button class="research-subtab active" data-subtab="projects"
+        style="padding:8px 16px;font-size:13px;font-weight:600;border:none;background:none;cursor:pointer;border-bottom:2px solid var(--accent-blue,#3182ce);margin-bottom:-2px;color:var(--accent-blue,#3182ce);">
+        📋 Projeler
+      </button>
+      <button class="research-subtab" data-subtab="tto"
+        style="padding:8px 16px;font-size:13px;font-weight:600;border:none;background:none;cursor:pointer;border-bottom:2px solid transparent;margin-bottom:-2px;color:var(--text-muted);">
+        🏢 Teknoloji Transfer${tto.established && (tto.pendingDeals || []).length > 0 ? ` <span style="background:var(--accent-red,#e53e3e);color:#fff;border-radius:9px;padding:1px 6px;font-size:11px;margin-left:4px;">${(tto.pendingDeals || []).length}</span>` : ''}
+      </button>
+    </div>
+
+    <!-- Alt Sekme: Projeler -->
+    <div id="research-subtab-projects">
 
     <div style="display:grid;grid-template-columns:repeat(5,1fr);gap:12px;margin-bottom:20px;">
       ${_statCardHtml('Toplam Yayın',       formatNumber(research.publications ?? 0), null, 'makale')}
@@ -4260,7 +4622,31 @@ export function renderResearchPanel(state, onResearchBudget, onProjectDecision) 
       </div>
 
     </div>
+    </div><!-- /research-subtab-projects -->
+
+    <!-- Alt Sekme: TTO -->
+    <div id="research-subtab-tto" style="display:none;">
+      ${_renderTTOPanel()}
+    </div>
+
   `;
+
+  // ── Alt sekme geçişi ────────────────────────────────────────────────────────
+  panel.querySelectorAll('.research-subtab').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const target = btn.dataset.subtab;
+      panel.querySelectorAll('.research-subtab').forEach(b => {
+        b.style.borderBottomColor = 'transparent';
+        b.style.color = 'var(--text-muted)';
+      });
+      btn.style.borderBottomColor = 'var(--accent-blue,#3182ce)';
+      btn.style.color = 'var(--accent-blue,#3182ce)';
+      const projectsDiv = panel.querySelector('#research-subtab-projects');
+      const ttoDiv = panel.querySelector('#research-subtab-tto');
+      if (projectsDiv) projectsDiv.style.display = target === 'projects' ? '' : 'none';
+      if (ttoDiv) ttoDiv.style.display = target === 'tto' ? '' : 'none';
+    });
+  });
 
   // ── Olay bağlantıları ──────────────────────────────────────────────────────
 
@@ -6964,15 +7350,16 @@ export function renderAchievementsPanel(state, achievements, stats) {
 
   const unlocked = state.achievements || {};
   const categories = {
-    kadro:     '👨‍🏫 Kadro',
-    ogrenci:   '🎓 Öğrenciler',
-    prestij:   '⭐ Saygınlık',
-    siralama:  '📊 Sıralama',
-    arastirma: '🔬 Araştırma',
-    finans:    '💰 Finansal',
-    kampus:    '🏛️ Yerleşke',
-    bolum:     '📋 Bölüm',
-    ozel:      '🌟 Özel',
+    kadro:        '👨‍🏫 Kadro',
+    ogrenci:      '🎓 Öğrenciler',
+    prestij:      '⭐ Saygınlık',
+    siralama:     '📊 Sıralama',
+    arastirma:    '🔬 Araştırma',
+    finans:       '💰 Finansal',
+    kampus:       '🏛️ Yerleşke',
+    bolum:        '📋 Bölüm',
+    akreditasyon: '🏅 Akreditasyon',
+    ozel:         '🌟 Özel',
   };
 
   // Kategorilere göre grupla
@@ -7131,4 +7518,384 @@ export function renderRandomEventModal(event, onChoice) {
       });
     });
   }, 50);
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// AKREDİTASYON PANELİ
+// ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * Akreditasyon sekmesi: tüm bölümlerin akreditasyon durumu, başvuru ve yenileme.
+ * @param {object}   state    — Oyun durumu
+ * @param {Function} onApply  — Başvur callback (deptId, bodyId)
+ * @param {Function} onRenew  — Yenile callback (deptId, bodyId)
+ */
+export function renderAccreditationPanel(state, onApply, onRenew) {
+  const panel = el('tab-accreditation');
+  if (!panel) return;
+
+  const depts = state.departments || [];
+  const turn  = state?.meta?.turn || 1;
+
+  function turnToLabel(t) {
+    const y = Math.ceil(t / 2);
+    const s = (t % 2 === 1) ? 'Güz' : 'Bahar';
+    return `${y}. Yıl ${s}`;
+  }
+
+  // Özet istatistikler
+  let totalAccredited = 0;
+  let totalPending    = 0;
+  let totalExpired    = 0;
+  for (const dept of depts) {
+    if (!dept.accreditation) continue;
+    for (const acc of Object.values(dept.accreditation)) {
+      if (acc.status === 'granted')  totalAccredited++;
+      if (acc.status === 'applied' || acc.status === 'under_review') totalPending++;
+      if (acc.status === 'expired')  totalExpired++;
+    }
+  }
+
+  // Bölüm satırları
+  const deptRows = depts.filter(d => d.isOpen && d.accreditation).map(dept => {
+    const bodies = Object.entries(ACCREDITATION_BODIES);
+
+    const bodyColumns = bodies.map(([bodyId, body]) => {
+      // Bu bölüme uygulanabilir mi?
+      const applicable = body.applicableTo.includes('all') ||
+                         body.applicableTo.includes(dept.category || '');
+
+      if (!applicable) {
+        return `<td style="padding:10px 12px;text-align:center;color:var(--text-faint);font-size:11px;">—</td>`;
+      }
+
+      const acc = dept.accreditation?.[bodyId];
+      if (!acc) {
+        return `<td style="padding:10px 12px;text-align:center;color:var(--text-faint);font-size:11px;">—</td>`;
+      }
+
+      let cellContent = '';
+
+      if (acc.status === 'granted') {
+        const remaining = acc.expiresAt != null ? (acc.expiresAt - turn) : '?';
+        const expLabel  = acc.expiresAt != null ? turnToLabel(acc.expiresAt) : '—';
+        const urgent    = typeof remaining === 'number' && remaining <= 2;
+        const color     = urgent ? 'var(--accent-red,#e53e3e)' : 'var(--accent-green)';
+        cellContent = `
+          <div style="display:flex;flex-direction:column;align-items:center;gap:3px;">
+            <span style="font-size:11px;font-weight:700;color:${color};">✓ Akredite</span>
+            <span style="font-size:10px;color:var(--text-muted);">Bitiş: ${expLabel}</span>
+            <span style="font-size:10px;color:${color};">${remaining} dönem kaldı</span>
+            ${urgent ? `<button class="btn btn-xs btn-warning" onclick="window._onShowAccreditationModal('${dept.id}','${bodyId}')">🔄 Yenile</button>` : ''}
+          </div>`;
+      } else if (acc.status === 'applied' || acc.status === 'under_review') {
+        const elapsed = turn - (acc.appliedAt || turn);
+        const pt      = acc.processTime || body.processingTime.max;
+        cellContent = `
+          <div style="display:flex;flex-direction:column;align-items:center;gap:3px;">
+            <span style="font-size:11px;font-weight:700;color:var(--accent-yellow,#f5a623);">⏳ İnceleniyor</span>
+            <span style="font-size:10px;color:var(--text-muted);">${elapsed}/${pt} dönem</span>
+          </div>`;
+      } else if (acc.status === 'expired') {
+        cellContent = `
+          <div style="display:flex;flex-direction:column;align-items:center;gap:3px;">
+            <span style="font-size:11px;font-weight:700;color:var(--accent-red,#e53e3e);">✗ Süresi Doldu</span>
+            <button class="btn btn-xs btn-warning" onclick="window._onShowAccreditationModal('${dept.id}','${bodyId}')">🔄 Yenile (${(body.renewalCost/1000).toFixed(0)}K ₺)</button>
+          </div>`;
+      } else if (acc.status === 'rejected') {
+        cellContent = `
+          <div style="display:flex;flex-direction:column;align-items:center;gap:3px;">
+            <span style="font-size:11px;color:var(--accent-red,#e53e3e);">✗ Reddedildi</span>
+            <button class="btn btn-xs btn-secondary" onclick="window._onShowAccreditationModal('${dept.id}','${bodyId}')">Tekrar Başvur</button>
+          </div>`;
+      } else {
+        // none — gereksinimler kontrol et
+        const reqResult = (() => {
+          try {
+            if (window._checkAccreditationRequirements) {
+              return window._checkAccreditationRequirements(state, dept, body);
+            }
+          } catch(e) {}
+          return null;
+        })();
+        const canApply = !reqResult || reqResult.allMet;
+        cellContent = `
+          <div style="display:flex;flex-direction:column;align-items:center;gap:3px;">
+            <span style="font-size:10px;color:var(--text-faint);">Yok</span>
+            <button class="btn btn-xs btn-secondary" onclick="window._onShowAccreditationModal('${dept.id}','${bodyId}')">+ Başvur (${(body.cost/1000).toFixed(0)}K ₺)</button>
+          </div>`;
+      }
+
+      return `<td style="padding:10px 12px;text-align:center;">${cellContent}</td>`;
+    }).join('');
+
+    // Akredite sayısı
+    const accCount = Object.values(dept.accreditation).filter(a => a.status === 'granted').length;
+    const accBadge = accCount > 0
+      ? `<span style="font-size:10px;padding:1px 5px;border-radius:8px;background:rgba(56,161,105,0.15);color:var(--accent-green);">✓ ${accCount} aktif</span>`
+      : '';
+
+    return `
+      <tr style="border-bottom:1px solid var(--border);">
+        <td style="padding:10px 12px;">
+          <div style="display:flex;align-items:center;gap:8px;">
+            <span style="font-size:20px;">${dept.icon || '🏫'}</span>
+            <div>
+              <div style="font-size:13px;font-weight:600;">${dept.name}</div>
+              <div style="font-size:11px;color:var(--text-muted);">${dept.shortName || ''} ${accBadge}</div>
+            </div>
+          </div>
+        </td>
+        ${bodyColumns}
+      </tr>`;
+  }).join('');
+
+  // Tablo başlıkları
+  const headerCols = Object.values(ACCREDITATION_BODIES).map(body =>
+    `<th style="padding:8px 12px;font-size:11px;font-weight:700;text-align:center;text-transform:uppercase;color:var(--text-muted);">${body.icon} ${body.name}</th>`
+  ).join('');
+
+  panel.innerHTML = `
+    <div class="panel-header">
+      <div>
+        <div class="panel-title">🏅 Akreditasyon Yönetimi</div>
+        <div class="panel-subtitle">MÜDEK, ABET ve THEQA akreditasyonlarını yönetin</div>
+      </div>
+    </div>
+
+    <!-- Özet kartlar -->
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin-bottom:20px;">
+      <div class="card" style="padding:16px;text-align:center;">
+        <div style="font-size:28px;font-weight:700;color:var(--accent-green);">${totalAccredited}</div>
+        <div style="font-size:12px;color:var(--text-muted);">Aktif Akreditasyon</div>
+      </div>
+      <div class="card" style="padding:16px;text-align:center;">
+        <div style="font-size:28px;font-weight:700;color:var(--accent-yellow,#f5a623);">${totalPending}</div>
+        <div style="font-size:12px;color:var(--text-muted);">Değerlendirmedeki Başvuru</div>
+      </div>
+      <div class="card" style="padding:16px;text-align:center;">
+        <div style="font-size:28px;font-weight:700;color:${totalExpired > 0 ? 'var(--accent-red,#e53e3e)' : 'var(--text-muted)'};">${totalExpired}</div>
+        <div style="font-size:12px;color:var(--text-muted);">Süresi Dolan</div>
+      </div>
+      <div class="card" style="padding:16px;text-align:center;">
+        <div style="font-size:28px;font-weight:700;color:var(--accent);">${depts.filter(d => d.isOpen && d.accreditation).length}</div>
+        <div style="font-size:12px;color:var(--text-muted);">Başvurabilir Bölüm</div>
+      </div>
+    </div>
+
+    <!-- Akreditasyon açıklama kutusu -->
+    <div class="card" style="padding:12px 16px;margin-bottom:20px;border-left:3px solid var(--accent);background:rgba(var(--accent-rgb,66,153,225),0.05);">
+      <div style="font-size:12px;font-weight:700;margin-bottom:6px;">ℹ️ Akreditasyon Hakkında</div>
+      <div style="font-size:11px;color:var(--text-muted);line-height:1.6;">
+        <strong>MÜDEK:</strong> Türk mühendislik bölümleri için ulusal kalite güvencesi. Mühendislik kategorisi bölümlerine uygulanır.<br>
+        <strong>ABET:</strong> Uluslararası mühendislik akreditasyonu. YKS sıralamasını iyileştirir ve uluslararası tanınırlık sağlar.<br>
+        <strong>THEQA:</strong> Körfez bölgesi yükseköğretim akreditasyonu. Uluslararası öğrenci çekmeye yardımcı olur.<br>
+        Akreditasyon başvurusu için her kurumun belirli gereksinimleri vardır. "Başvur" butonuna tıklayarak gereksinimleri görebilirsiniz.
+      </div>
+    </div>
+
+    <!-- Bölüm akreditasyon tablosu -->
+    ${depts.filter(d => d.isOpen && d.accreditation).length === 0 ? `
+      <div class="empty-state">
+        <div class="empty-state-icon">🏅</div>
+        <div class="empty-state-title">Akreditasyon Yapısı Kurulmamış</div>
+        <div class="empty-state-desc">Mühendislik bölümleri açıldığında akreditasyon seçenekleri burada görünecek.</div>
+      </div>
+    ` : `
+      <div class="card" style="padding:0;overflow:hidden;">
+        <div style="overflow-x:auto;">
+          <table style="width:100%;border-collapse:collapse;">
+            <thead>
+              <tr style="border-bottom:2px solid var(--border);background:var(--bg-secondary);">
+                <th style="padding:8px 12px;font-size:11px;font-weight:700;text-align:left;text-transform:uppercase;color:var(--text-muted);">Bölüm</th>
+                ${headerCols}
+              </tr>
+            </thead>
+            <tbody>${deptRows}</tbody>
+          </table>
+        </div>
+      </div>
+    `}
+  `;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// KULÜPLER PANELİ
+// ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * Öğrenci Kulüpleri panelini render et.
+ * Callbacks: window._onFoundClub(typeId), window._onUpgradeClub(clubId), window._onDissolveClub(clubId)
+ */
+export function renderClubsPanel(state) {
+  const panel = el('tab-clubs');
+  if (!panel) return;
+
+  // Import CLUB_TYPES / CLUB_CATEGORIES from clubs module via game.js re-exports
+  // They are passed in via window globals set in main.js
+  const CLUB_TYPES      = window._CLUB_TYPES || {};
+  const CLUB_CATEGORIES = window._CLUB_CATEGORIES || {};
+
+  const clubs       = state.clubs?.active || [];
+  const budget      = state.university?.budget || 0;
+
+  // ── Özet ──────────────────────────────────────────────────────────────────
+  const totalSatBonus  = state.clubs?.totalSatisfactionBonus || 0;
+  const totalPresBonus = state.clubs?.totalPrestigeBonus     || 0;
+  const totalCost      = clubs.reduce((sum, c) => {
+    const t = CLUB_TYPES[c.typeId];
+    return sum + (t ? t.semesterCost : 0);
+  }, 0);
+
+  const summaryBar = `
+    <div class="clubs-summary-bar">
+      <div class="clubs-stat">
+        <span class="clubs-stat-icon">🎭</span>
+        <div>
+          <div class="clubs-stat-value">${clubs.length}</div>
+          <div class="clubs-stat-label">Aktif Kulüp</div>
+        </div>
+      </div>
+      <div class="clubs-stat">
+        <span class="clubs-stat-icon">😊</span>
+        <div>
+          <div class="clubs-stat-value">+${totalSatBonus.toFixed(1)}</div>
+          <div class="clubs-stat-label">Memnuniyet Bonusu</div>
+        </div>
+      </div>
+      <div class="clubs-stat">
+        <span class="clubs-stat-icon">⭐</span>
+        <div>
+          <div class="clubs-stat-value">+${totalPresBonus.toFixed(1)}</div>
+          <div class="clubs-stat-label">Saygınlık Bonusu</div>
+        </div>
+      </div>
+      <div class="clubs-stat">
+        <span class="clubs-stat-icon">💸</span>
+        <div>
+          <div class="clubs-stat-value">${formatMoney(totalCost)}</div>
+          <div class="clubs-stat-label">Dönemlik Gider</div>
+        </div>
+      </div>
+    </div>
+  `;
+
+  // ── Aktif Kulüpler ─────────────────────────────────────────────────────────
+  let activeSection = '';
+  if (clubs.length === 0) {
+    activeSection = `<div class="empty-state"><p>Henüz hiç kulüp kurulmadı. Aşağıdan bir kulüp kurun!</p></div>`;
+  } else {
+    const cards = clubs.map(club => {
+      const type  = CLUB_TYPES[club.typeId] || {};
+      const level = club.level || 1;
+      const stars = '★'.repeat(level) + '☆'.repeat((type.maxLevel || 3) - level);
+      const satB  = type.satisfactionBonus?.[level] || 0;
+      const presB = type.prestigeBonus?.[level]     || 0;
+      const canUpgrade    = level < (type.maxLevel || 3);
+      const upgradeCost   = canUpgrade ? (type.levelUpCost?.[level] || 0) : 0;
+      const canAffordUpg  = budget >= upgradeCost;
+
+      const upgradeBtn = canUpgrade
+        ? `<button class="btn btn-sm btn-primary" onclick="window._onUpgradeClub(${club.id})" ${canAffordUpg ? '' : 'disabled'} title="${canAffordUpg ? '' : 'Yetersiz bütçe'}">
+             Geliştir (${formatMoney(upgradeCost)})
+           </button>`
+        : `<span class="club-max-badge">Maks Seviye</span>`;
+
+      return `
+        <div class="club-card club-card-active">
+          <div class="club-card-header">
+            <span class="club-icon">${type.icon || '🎭'}</span>
+            <div class="club-card-title">
+              <div class="club-name">${club.name}</div>
+              <div class="club-stars">${stars}</div>
+            </div>
+            <button class="btn btn-sm btn-danger club-dissolve-btn"
+              onclick="window._onDissolveClub(${club.id})"
+              title="Kulübü kapat">✕</button>
+          </div>
+          <div class="club-card-body">
+            <div class="club-bonuses">
+              <span class="club-bonus-item">😊 +${satB} memnuniyet</span>
+              <span class="club-bonus-item">⭐ +${presB} saygınlık</span>
+              <span class="club-bonus-item">💸 ${formatMoney(type.semesterCost || 0)}/dönem</span>
+            </div>
+          </div>
+          <div class="club-card-footer">
+            ${upgradeBtn}
+          </div>
+        </div>
+      `;
+    }).join('');
+
+    activeSection = `<div class="clubs-active-grid">${cards}</div>`;
+  }
+
+  // ── Kulüp Kataloğu (kategoriye göre gruplu) ────────────────────────────────
+  const foundedTypeIds = new Set(clubs.map(c => c.typeId));
+
+  const catalogSections = Object.entries(CLUB_CATEGORIES).map(([catId, cat]) => {
+    const typeItems = Object.values(CLUB_TYPES).filter(t => t.category === catId);
+    if (!typeItems.length) return '';
+
+    const items = typeItems.map(type => {
+      const alreadyFounded = foundedTypeIds.has(type.id);
+      const canAfford      = budget >= type.foundingCost;
+      const disabled       = alreadyFounded || !canAfford;
+      const disabledReason = alreadyFounded ? 'Kurulu' : (!canAfford ? 'Yetersiz bütçe' : '');
+
+      const satBonus1  = type.satisfactionBonus?.[1] || 0;
+      const presBonus1 = type.prestigeBonus?.[1]     || 0;
+
+      return `
+        <div class="club-catalog-item ${alreadyFounded ? 'club-catalog-founded' : ''}">
+          <div class="club-catalog-icon">${type.icon}</div>
+          <div class="club-catalog-info">
+            <div class="club-catalog-name">${type.name}</div>
+            <div class="club-catalog-desc">${type.description}</div>
+            <div class="club-catalog-bonuses">
+              <span>😊 +${satBonus1}</span>
+              <span>⭐ +${presBonus1}</span>
+              <span>💸 ${formatMoney(type.semesterCost)}/dönem</span>
+            </div>
+          </div>
+          <div class="club-catalog-action">
+            <div class="club-catalog-cost">${formatMoney(type.foundingCost)}</div>
+            <button class="btn btn-sm ${alreadyFounded ? 'btn-ghost' : 'btn-success'}"
+              onclick="window._onFoundClub('${type.id}')"
+              ${disabled ? 'disabled' : ''}
+              title="${disabledReason}">
+              ${alreadyFounded ? '✓ Kurulu' : 'Kur'}
+            </button>
+          </div>
+        </div>
+      `;
+    }).join('');
+
+    return `
+      <div class="clubs-category-section">
+        <h4 class="clubs-category-title">${cat.icon} ${cat.name}</h4>
+        <div class="clubs-catalog-list">${items}</div>
+      </div>
+    `;
+  }).join('');
+
+  panel.innerHTML = `
+    <div class="panel-header">
+      <h2 class="panel-title">🎭 Öğrenci Kulüpleri</h2>
+      <p class="panel-subtitle">Kulüpler öğrenci memnuniyetini ve saygınlığı artırır.</p>
+    </div>
+
+    ${summaryBar}
+
+    <div class="panel-section">
+      <h3 class="section-title">Aktif Kulüpler</h3>
+      ${activeSection}
+    </div>
+
+    <div class="panel-section">
+      <h3 class="section-title">Kulüp Kataloğu</h3>
+      <p class="section-desc">Kurmak istediğiniz kulübü seçin. Her kulüp dönem başına gider gerektirir.</p>
+      ${catalogSections}
+    </div>
+  `;
 }

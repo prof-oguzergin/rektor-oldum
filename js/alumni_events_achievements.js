@@ -4,6 +4,7 @@
  */
 
 import { STUDENT_NAME_POOL } from './data.js';
+import { CLUB_TYPES } from './clubs.js';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // YARDIMCI
@@ -689,6 +690,182 @@ export const RANDOM_EVENTS = [
       },
     ],
   },
+  {
+    id: 'akreditasyon_denetimi',
+    name: '🔍 Akreditasyon Denetimi',
+    description: 'Akreditasyon denetçileri kampüsünüzü incelemeye geldi. Hazırlık durumunuz önemli.',
+    probability: 0.04,
+    isCrisis: false,
+    condition: (state) => state.departments?.some(d =>
+      d.accreditation && Object.values(d.accreditation).some(a => a.status === 'applied')
+    ),
+    choices: [
+      {
+        text: '🎯 Tam hazırlık yap',
+        description: 'Tüm bölümleri denetim için hazırla',
+        budgetDelta: -1_000_000,
+        satisfactionDelta: 2,
+        prestigeDelta: 3,
+      },
+      {
+        text: '📋 Standart karşılama',
+        description: 'Normal süreçle devam et',
+        prestigeDelta: 1,
+      },
+    ],
+  },
+  {
+    id: 'akreditasyon_firsat',
+    name: '🌐 Uluslararası Akreditasyon Fırsatı',
+    description: 'ABET akredite bölümleriniz uluslararası bir burs programına davet edildi.',
+    probability: 0.03,
+    isCrisis: false,
+    condition: (state) => state.departments?.some(d => d.accreditation?.abet?.status === 'granted'),
+    choices: [
+      {
+        text: '✅ Başvuru yap',
+        description: 'Burs programına katıl',
+        budgetDelta: 2_000_000,
+        prestigeDelta: 3,
+      },
+      {
+        text: '⏭️ Şimdilik pas geç',
+        description: 'Bu dönem odaklanmayı tercih et',
+      },
+    ],
+  },
+  // ── v0.3: TTO Olayları ───────────────────────────────────────────────────────
+  {
+    id: 'tto_buyuk_anlasma',
+    name: '🏭 Büyük Sanayi Anlaşması',
+    description: 'Köklü bir sanayi kuruluşu, üniversitenizin araştırma altyapısını kullanmak için kapsamlı bir ortaklık teklif ediyor.',
+    probability: 0.05,
+    isCrisis: false,
+    condition: (state) => state.tto?.established && safeNum(state.research?.patents) >= 3,
+    choices: [
+      {
+        text: '🤝 Tam kapsamlı ortaklık imzala',
+        description: 'Yüksek gelir, ama araştırma bağımsızlığından ödün verilir.',
+        budgetDelta: 8_000_000,
+        prestigeDelta: 4,
+      },
+      {
+        text: '📋 Sınırlı kapsamlı anlaşma yap',
+        description: 'Daha az gelir ama akademik özgürlük korunur.',
+        budgetDelta: 3_000_000,
+        prestigeDelta: 2,
+        researchBoostDelta: 100_000,
+      },
+      {
+        text: '🚫 Teklifi reddet',
+        description: 'Bağımsızlığı koru, gelirden vazgeç.',
+        budgetDelta: 0,
+        prestigeDelta: 1,
+        researchBoostDelta: 200_000,
+      },
+    ],
+  },
+  {
+    id: 'tto_patent_ihlali',
+    name: '⚖️ Patent İhlali Davası',
+    description: 'Bir şirket, üniversitenizin sahip olduğu patentlerden birini izinsiz kullandığı iddiasıyla karşı karşıya geldiniz.',
+    probability: 0.04,
+    isCrisis: true,
+    condition: (state) => state.tto?.established && safeNum(state.research?.patents) >= 5,
+    choices: [
+      {
+        text: '⚖️ Hukuki süreç başlat',
+        description: 'Uzun süreç ama tazminat alabilirsiniz.',
+        budgetDelta: -1_500_000,
+        prestigeDelta: 2,
+      },
+      {
+        text: '🤝 Uzlaşma anlaşması yap',
+        description: 'Hızlı çözüm ve lisans geliri.',
+        budgetDelta: 2_000_000,
+        prestigeDelta: -1,
+      },
+      {
+        text: '🔕 Görmezden gel',
+        description: 'Zaman ve enerji kaybetme, ama ihlal sürer.',
+        budgetDelta: 0,
+        prestigeDelta: -3,
+      },
+    ],
+  },
+  {
+    id: 'tto_uluslararasi_isbirligi',
+    name: '🌍 Uluslararası Ar-Ge İşbirliği',
+    description: 'Yabancı bir teknoloji şirketi, TTO üzerinden uluslararası ortak Ar-Ge projesi başlatmayı teklif ediyor.',
+    probability: 0.04,
+    isCrisis: false,
+    condition: (state) => state.tto?.established && safeNum(state.tto?.level) >= 2,
+    choices: [
+      {
+        text: '🚀 Büyük ölçekli ortaklık kur',
+        description: 'Yüksek yatırım ve prestij artışı.',
+        budgetDelta: -2_000_000,
+        prestigeDelta: 8,
+        researchBoostDelta: 500_000,
+      },
+      {
+        text: '📝 Pilot proje ile başla',
+        description: 'Düşük risk, orta kazanım.',
+        budgetDelta: 1_000_000,
+        prestigeDelta: 4,
+        researchBoostDelta: 200_000,
+      },
+    ],
+  },
+  // ── v0.3 Kulüp Olayları ──────────────────────────────────────────────────
+  {
+    id: 'kulup_yarismasi',
+    name: '🏆 Kulüp Yarışma Başarısı',
+    description: 'Kulüplerinizden biri ulusal yarışmada derece yaptı!',
+    probability: 0.05,
+    isCrisis: false,
+    condition: (state) => (state.clubs?.active?.length || 0) >= 3,
+    choices: [
+      { text: '📰 Basın açıklaması yap', description: 'Tanıtım fırsatını değerlendir', prestigeDelta: 3, satisfactionDelta: 2 },
+      { text: '🎁 Öğrencilere ödül ver', description: 'Maddi ödül ver', budgetDelta: -200_000, satisfactionDelta: 5 },
+    ],
+  },
+  {
+    id: 'kulup_sponsor',
+    name: '💰 Kulüp Sponsorluk Teklifi',
+    description: 'Bir şirket kulüplerinize sponsor olmak istiyor.',
+    probability: 0.04,
+    isCrisis: false,
+    condition: (state) => (state.clubs?.active?.length || 0) >= 5,
+    choices: [
+      { text: '✅ Kabul et', description: 'Sponsorluğu kabul et', budgetDelta: 1_500_000, satisfactionDelta: 2 },
+      { text: '❌ Reddet', description: 'Bağımsızlığı koru', prestigeDelta: 1 },
+    ],
+  },
+  {
+    id: 'kulup_krizi',
+    name: '😤 Kulüp İç Çatışması',
+    description: 'Bir kulübün yönetiminde iç çatışma çıktı.',
+    probability: 0.03,
+    isCrisis: true,
+    condition: (state) => (state.clubs?.active?.length || 0) >= 2,
+    choices: [
+      { text: '🤝 Arabuluculuk yap', description: 'Uzlaşma sağla', budgetDelta: -100_000, satisfactionDelta: -1 },
+      { text: '🔨 Yönetimi değiştir', description: 'Yeni yönetim ata', satisfactionDelta: -3 },
+    ],
+  },
+  {
+    id: 'kulup_festivali',
+    name: '🎉 Bahar Festivali',
+    description: 'Kulüpler birlikte büyük bir kampüs festivali düzenlemek istiyor.',
+    probability: 0.06,
+    isCrisis: false,
+    condition: (state) => (state.clubs?.active?.length || 0) >= 4,
+    choices: [
+      { text: '🎊 Tam destek ver', description: 'Büyük festival düzenle', budgetDelta: -500_000, satisfactionDelta: 8, prestigeDelta: 2 },
+      { text: '📋 Küçük etkinlik yap', description: 'Mütevazı bir etkinlik', budgetDelta: -100_000, satisfactionDelta: 3 },
+    ],
+  },
 ];
 
 /**
@@ -848,6 +1025,28 @@ export const ACHIEVEMENTS = [
   { id: 'first_accreditation', name: '🏅 İlk Akreditasyon', description: 'Bir bölüm akreditasyon alsın.',                  icon: '🏅', category: 'akreditasyon', check: (s) => (s.departments || []).some(d => d.accreditation && Object.values(d.accreditation).some(a => a.status === 'granted')) },
   { id: 'abet_accreditation',  name: '🌍 ABET Akredite',    description: 'Bir bölüm ABET akreditasyonu alsın.',              icon: '🌍', category: 'akreditasyon', check: (s) => (s.departments || []).some(d => d.accreditation?.abet?.status === 'granted') },
   { id: 'all_accreditations',  name: '🏆 Tam Akredite',     description: 'Aynı bölüm hem MÜDEK hem ABET akreditasyonu alsın.', icon: '🏆', category: 'akreditasyon', check: (s) => (s.departments || []).some(d => d.accreditation?.mudek?.status === 'granted' && d.accreditation?.abet?.status === 'granted') },
+  { id: 'akredite_universitesi', name: '🏅 Akredite Üniversite', description: 'En az 5 bölüm herhangi bir akreditasyon aldı.', icon: '🏅', category: 'akreditasyon', check: (s) => {
+    const accDepts = (s.departments || []).filter(d =>
+      d.accreditation && Object.values(d.accreditation).some(a => a.status === 'granted')
+    );
+    return accDepts.length >= 5;
+  } },
+  { id: 'uluslararasi_standart', name: '🌐 Uluslararası Standart', description: 'En az bir bölüm ABET akreditasyonu aldı.', icon: '🌐', category: 'akreditasyon', check: (s) => (s.departments || []).some(d => d.accreditation?.abet?.status === 'granted') },
+  // v0.3: TTO Başarımları
+  { id: 'teknoloji_uretici',  name: '📜 Teknoloji Üreticisi', description: '5 veya daha fazla patente sahip olun.',             icon: '📜', category: 'arastirma', check: (s) => safeNum(s.research?.patents) >= 5 },
+  { id: 'spin_off_fabrikasi', name: '🚀 Spin-off Fabrikası',  description: '3 veya daha fazla spin-off şirket kurun.',          icon: '🚀', category: 'arastirma', check: (s) => (s.tto?.spinoffs?.length || 0) >= 3 },
+  { id: 'sektor_ortagi',      name: '🤝 Sektör Ortağı',       description: "TTO üzerinden toplam 10M ₺ gelir elde edin.",       icon: '🤝', category: 'finans',    check: (s) => safeNum(s.tto?.totalRevenueGenerated) >= 10_000_000 },
+  // v0.3: Kulüp Başarımları
+  { id: 'kulup_kenti',    name: '🎭 Kulüp Kenti',    description: '8 veya daha fazla aktif kulüp kur.',                        icon: '🎭', category: 'ogrenci', check: (s) => (s.clubs?.active?.length || 0) >= 8 },
+  { id: 'kulup_ustasi',   name: '⭐ Kulüp Ustası',   description: 'Bir kulübü maksimum seviyeye yükselt.',                     icon: '⭐', category: 'ogrenci', check: (s) => (s.clubs?.active || []).some(c => c.level >= 3) },
+  { id: 'sosyal_kampus',  name: '🏫 Sosyal Kampüs',  description: 'Her kategoriden en az bir kulüp kur (5 kategori).',        icon: '🏫', category: 'ogrenci', check: (s) => {
+    const cats = new Set();
+    for (const club of (s.clubs?.active || [])) {
+      const type = CLUB_TYPES[club.typeId];
+      if (type) cats.add(type.category);
+    }
+    return cats.size >= 5;
+  } },
 ];
 
 /**

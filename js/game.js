@@ -29,6 +29,7 @@ import {
   ADMIN_INITIAL_STAFF,
   STUDENT_NAME_POOL,
   ACCREDITATION_BODIES,
+  SCENARIOS,
 } from './data.js';
 
 import { calculateEconomy, applyBudget } from './economy.js';
@@ -66,6 +67,12 @@ import {
 } from './alumni_events_achievements.js';
 
 export { RANDOM_EVENTS, ACHIEVEMENTS, getAchievementStats, organizeAlumniEvent, applyRandomEventChoice, ACCREDITATION_BODIES };
+
+import { initTTOState, establishTTO, upgradeTTO, processTTO, acceptDeal, rejectDeal, TTO_CONFIG } from './tto.js';
+export { establishTTO, upgradeTTO, acceptDeal, rejectDeal, TTO_CONFIG };
+
+import { initClubsState, foundClub, upgradeClub, dissolveClub, processClubs, CLUB_TYPES, CLUB_CATEGORIES } from './clubs.js';
+export { foundClub, upgradeClub, dissolveClub, CLUB_TYPES, CLUB_CATEGORIES };
 
 // ─────────────────────────────────────────────────────────────────────────────
 // YARDİMCI: Derin kopya (state immutability için)
@@ -953,7 +960,7 @@ let _gameWon           = false;
  * @param {string[]} selectedDepartments — Açılacak bölüm id'leri
  * @returns {object} Başlangıç state özeti
  */
-export function initGame(playerName, universityName, universityType, difficulty, selectedDepartments) {
+export function initGame(playerName, universityName, universityType, difficulty, selectedDepartments, scenarioId = null) {
   // Geçerlilik kontrolleri
   // us_private için UNIVERSITY_TYPES'ta doğrudan karşılık yok; vakif template'ini baz al
   const baseTypeKey  = universityType === 'us_private' ? 'vakif' : universityType;
@@ -1228,10 +1235,52 @@ export function initGame(playerName, universityName, universityType, difficulty,
   // Bölüm istatistiklerini senkronize et
   calculateDepartmentStats(_state);
 
+  // ── v0.3 Feature: TTO state başlat ───────────────────────────────────────
+  initTTOState(_state);
+
+  // ── v0.3 Feature: Kulüpler state başlat ──────────────────────────────────
+  initClubsState(_state);
+
+  // ── Senaryo kurallarını uygula ────────────────────────────────────────────
+  if (scenarioId && SCENARIOS[scenarioId]) {
+    const scenario = SCENARIOS[scenarioId];
+    _state.meta.scenarioId          = scenarioId;
+    _state.meta.scenarioRules       = scenario.specialRules || null;
+    _state.meta.scenarioWinCondition = scenario.winCondition || null;
+    _state.meta.scenarioPositiveTurns = 0; // budget_positive sayacı
+
+    // Başlangıç bütçe override
+    if (scenario.startBudgetOverride != null) {
+      _state.university.budget = scenario.startBudgetOverride;
+    }
+    // Başlangıç prestij override
+    if (scenario.startPrestigeOverride != null) {
+      _state.university.prestige = scenario.startPrestigeOverride;
+    }
+    // Borç (vakıf kurtarma veya köklü devlet)
+    if (scenario.specialRules?.startingDebt) {
+      _state.university.debt = scenario.specialRules.startingDebt;
+    }
+    if (scenario.specialRules?.legacyDebt) {
+      _state.university.debt = scenario.specialRules.legacyDebt;
+    }
+    // Yıpranmış binalar (agingInfrastructure)
+    if (scenario.specialRules?.agingInfrastructure) {
+      _state.buildings.forEach(b => {
+        if (b.condition != null) b.condition = Math.min(b.condition, 60);
+      });
+    }
+  } else {
+    _state.meta.scenarioId           = null;
+    _state.meta.scenarioRules        = null;
+    _state.meta.scenarioWinCondition = null;
+    _state.meta.scenarioPositiveTurns = 0;
+  }
+
   return {
     success: true,
     message: `${universityName} kuruldu! ${difficulty} modda oyun başlıyor.`,
-    initialBudget: startBudget,
+    initialBudget: _state.university.budget,
     departmentCount: departments.length,
     facultyCount: faculty.length,
     studentCount: _state.students.totalEnrolled,
@@ -2263,6 +2312,10 @@ function runSimulation() {
     // Yeni öğrenci alımı: sınıf ilerlemesinin ardından hemen yap,
     // böylece Güz dönemine geçildiğinde 1.sn görüntüde dolu görünür.
     // Oyuncu kontenjanları Bahar dönemi içinde (Sonraki Dönem öncesinde) belirler.
+    // Akreditasyon YKS bonusunu her bölüme geçici alan olarak ekle
+    for (const dept of _state.departments) {
+      dept._accreditationYKSBonus = getAccreditationYKSBonus(dept);
+    }
     admissionsResult = processNewEnrollment(_state);
   }
   results.graduates = graduationResult.totalGraduates;
@@ -2655,6 +2708,12 @@ function runSimulation() {
 
   // ── v0.3 Feature: AKREDİTASYON İŞLEME ────────────────────────────────────
   _processAccreditations(_state, results);
+
+  // ── v0.3 Feature: TEKNOLOJİ TRANSFER OFİSİ ────────────────────────────────
+  processTTO(_state, results);
+
+  // ── v0.3 Feature: ÖĞRENCİ KULÜPLERİ ────────────────────────────────────
+  processClubs(_state, results);
 
   // ── v0.2 Feature: RASTGELE OLAYLAR ────────────────────────────────────────
   const rolledEvents = rollRandomEvents(_state);
@@ -3443,28 +3502,91 @@ export function checkWinLose() {
 
   // ── KAZANMA KOŞULLARI (sandbox'ta aktif değil) ────────────────────────────
   if (!_state.meta.isSandbox) {
-    // Kazanma 1: Prestij 90+
-    if (_state.university.prestige >= 90) {
-      _gameWon = true;
-      _state._internal.gameWon = true;
-      return {
-        gameOver: false,
-        gameWon:  true,
-        reason:   'prestige_max',
-        message:  `Tebrikler! Üniversitenizin saygınlık puanı ${_state.university.prestige}'e ulaştı.`,
-      };
-    }
+    // ── Senaryo kazanma/kaybetme koşulları ──────────────────────────────────
+    const scenarioWin = _state.meta.scenarioWinCondition;
+    if (scenarioWin) {
+      const turn = _state.meta.turn;
 
-    // Kazanma 2: Sıralama 1. oldu
-    if (_state.university.ranking === 1) {
-      _gameWon = true;
-      _state._internal.gameWon = true;
-      return {
-        gameOver: false,
-        gameWon:  true,
-        reason:   'ranking_first',
-        message:  'Tebrikler! Üniversiteniz ulusal sıralamada 1. sıraya yükseldi!',
-      };
+      // Senaryo: prestij hedefi
+      if (scenarioWin.type === 'prestige' && _state.university.prestige >= scenarioWin.target) {
+        _gameWon = true;
+        _state._internal.gameWon = true;
+        return {
+          gameOver: false,
+          gameWon:  true,
+          reason:   'scenario_prestige',
+          message:  `Senaryo tamamlandı! Üniversitenizin saygınlığı ${_state.university.prestige}'e ulaştı. Hedef: ${scenarioWin.target}`,
+        };
+      }
+
+      // Senaryo: sıralama hedefi (düşük sayı daha iyi)
+      if (scenarioWin.type === 'ranking' && _state.university.ranking <= scenarioWin.target) {
+        _gameWon = true;
+        _state._internal.gameWon = true;
+        return {
+          gameOver: false,
+          gameWon:  true,
+          reason:   'scenario_ranking',
+          message:  `Senaryo tamamlandı! Üniversiteniz ${_state.university.ranking}. sıraya yükseldi. Hedef: İlk ${scenarioWin.target}`,
+        };
+      }
+
+      // Senaryo: ardışık pozitif bütçe dönemleri
+      if (scenarioWin.type === 'budget_positive') {
+        if (_state.university.budget > 0) {
+          _state.meta.scenarioPositiveTurns = (_state.meta.scenarioPositiveTurns || 0) + 1;
+        } else {
+          _state.meta.scenarioPositiveTurns = 0;
+        }
+        if (_state.meta.scenarioPositiveTurns >= (scenarioWin.consecutiveTurns || 10)) {
+          _gameWon = true;
+          _state._internal.gameWon = true;
+          return {
+            gameOver: false,
+            gameWon:  true,
+            reason:   'scenario_budget_positive',
+            message:  `Senaryo tamamlandı! Üniversite ${scenarioWin.consecutiveTurns} dönem boyunca pozitif bütçeyle yönetildi.`,
+          };
+        }
+      }
+
+      // Senaryo: maxTurns aşıldıysa başarısız
+      if (scenarioWin.maxTurns && turn > scenarioWin.maxTurns) {
+        _gameOver = true;
+        _state._internal.gameOver = true;
+        return {
+          gameOver: true,
+          gameWon:  false,
+          reason:   'scenario_timeout',
+          message:  `Senaryo başarısız! ${scenarioWin.maxTurns} dönem içinde hedefe ulaşılamadı.`,
+        };
+      }
+    } else {
+      // Standart kazanma koşulları (senaryo seçilmemişse)
+
+      // Kazanma 1: Prestij 90+
+      if (_state.university.prestige >= 90) {
+        _gameWon = true;
+        _state._internal.gameWon = true;
+        return {
+          gameOver: false,
+          gameWon:  true,
+          reason:   'prestige_max',
+          message:  `Tebrikler! Üniversitenizin saygınlık puanı ${_state.university.prestige}'e ulaştı.`,
+        };
+      }
+
+      // Kazanma 2: Sıralama 1. oldu
+      if (_state.university.ranking === 1) {
+        _gameWon = true;
+        _state._internal.gameWon = true;
+        return {
+          gameOver: false,
+          gameWon:  true,
+          reason:   'ranking_first',
+          message:  'Tebrikler! Üniversiteniz ulusal sıralamada 1. sıraya yükseldi!',
+        };
+      }
     }
   }
 
@@ -3608,6 +3730,36 @@ export function getState() {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+// migrateState — Eski kayıtlara v0.3 alanlarını ekler
+// ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * Yüklenen state'e eksik v0.3 alanlarını varsayılan değerlerle ekler.
+ * Tüm eski versiyon kayıtlarına karşı güvenlidir.
+ *
+ * @param {object} state — Düzenlenecek oyun durumu (in-place)
+ */
+function migrateState(state) {
+  // v0.3 Feature 1: Senaryolar
+  if (!state.meta.scenarioId) state.meta.scenarioId = null;
+  if (!state.meta.scenarioRules) state.meta.scenarioRules = null;
+  if (!state.meta.scenarioWinCondition) state.meta.scenarioWinCondition = null;
+
+  // v0.3 Feature 2: Akreditasyon (dept.accreditation eski kayıtlarda eksik olabilir)
+  for (const dept of (state.departments || [])) {
+    if (!dept.accreditation) {
+      dept.accreditation = {
+        mudek: { status: 'none', appliedAt: null, grantedAt: null, expiresAt: null, processTime: null },
+        abet:  { status: 'none', appliedAt: null, grantedAt: null, expiresAt: null, processTime: null },
+        theqa: { status: 'none', appliedAt: null, grantedAt: null, expiresAt: null, processTime: null },
+      };
+    }
+  }
+
+  // v0.3 Feature 3: TTO — initTTOState ayrıca çağrılıyor (setState içinde)
+  // v0.3 Feature 4: Kulüpler — initClubsState ayrıca çağrılıyor (setState içinde)
+}
+
 // setState — Yüklenen state'i doğrudan uygula (kayıt yükleme için)
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -3685,6 +3837,15 @@ export function setState(loadedState) {
         });
       }
     });
+
+    // v0.3: Eksik alanları tamamla (senaryo, akreditasyon vb.)
+    migrateState(s);
+
+    // v0.3: TTO state'ini tamamla (eski kayıtlar için)
+    initTTOState(s);
+
+    // v0.3: Kulüpler state'ini tamamla (eski kayıtlar için)
+    initClubsState(s);
 
     // Yükleme sonrası sayaçları sıfırla
     _bankruptcyTurns = 0;

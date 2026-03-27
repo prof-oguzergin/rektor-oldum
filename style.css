@@ -1426,3 +1426,132 @@ body {
   font-size: 11px;
   padding: 3px 8px;
 }
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   SENARYO KARTLARI (v0.3)
+───────────────────────────────────────────────────────────────────────────── */
+
+.scenario-cards {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-md);
+}
+
+.scenario-card {
+  background: var(--bg-card);
+  border: 2px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: var(--space-lg);
+  cursor: pointer;
+  transition: border-color var(--transition), background var(--transition);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+}
+
+.scenario-card:hover {
+  border-color: var(--border-light);
+  background: var(--bg-hover);
+}
+
+.scenario-card.selected {
+  border-color: var(--accent-green);
+  background: rgba(78, 204, 163, 0.08);
+}
+
+.scenario-card-header {
+  display: flex;
+  align-items: center;
+  gap: var(--space-md);
+}
+
+.scenario-card-icon {
+  font-size: 32px;
+  flex-shrink: 0;
+}
+
+.scenario-card-title-block {
+  flex: 1;
+}
+
+.scenario-card-name {
+  font-size: var(--font-size-md);
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+.scenario-card-subtitle {
+  font-size: var(--font-size-sm);
+  color: var(--text-muted);
+  margin-top: 2px;
+}
+
+.scenario-diff-badge {
+  font-size: var(--font-size-xs);
+  font-weight: 600;
+  padding: 3px 10px;
+  border-radius: var(--radius-sm);
+  flex-shrink: 0;
+}
+
+.scenario-diff-easy {
+  background: rgba(78, 204, 163, 0.15);
+  color: var(--accent-green);
+  border: 1px solid rgba(78, 204, 163, 0.3);
+}
+
+.scenario-diff-normal {
+  background: rgba(240, 165, 0, 0.15);
+  color: var(--accent-yellow);
+  border: 1px solid rgba(240, 165, 0, 0.3);
+}
+
+.scenario-diff-hard {
+  background: rgba(229, 62, 62, 0.15);
+  color: var(--accent);
+  border: 1px solid rgba(229, 62, 62, 0.3);
+}
+
+.scenario-card-desc {
+  font-size: var(--font-size-sm);
+  color: var(--text-secondary);
+  line-height: 1.6;
+}
+
+.scenario-card-footer {
+  border-top: 1px solid var(--border);
+  padding-top: var(--space-sm);
+}
+
+.scenario-flavor {
+  font-size: var(--font-size-xs);
+  color: var(--text-muted);
+  font-style: italic;
+}
+
+/* Zorunlu bölüm rozeti */
+.forced-badge {
+  font-size: 10px;
+  background: rgba(78, 204, 163, 0.15);
+  color: var(--accent-green);
+  border: 1px solid rgba(78, 204, 163, 0.3);
+  border-radius: 4px;
+  padding: 1px 5px;
+  margin-left: 4px;
+  font-weight: 600;
+  vertical-align: middle;
+}
+
+.dept-option.forced {
+  border-color: rgba(78, 204, 163, 0.4);
+}
+
+/* Responsive: senaryo kartları dar ekranda tek sütun (zaten flex-column) */
+@media (max-width: 600px) {
+  .scenario-card-header {
+    flex-wrap: wrap;
+  }
+  .scenario-diff-badge {
+    order: 3;
+  }
+}

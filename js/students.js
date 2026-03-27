@@ -516,11 +516,15 @@ export function processNewEnrollment(state) {
     const total      = tamBurslu + yariBurslu + ucretli;
     if (total === 0) return;
 
+    // Akreditasyon YKS bonusu (dept._accreditationYKSBonus: negatif değer → daha iyi sıralama)
+    const yksBonus = dept._accreditationYKSBonus || 0;
+
     // Ortalama YKS sıralaması (ağırlıklı)
     const sumYKS = tamBurslu  * generateYKSRanking('tam_burslu', prestige, demand)
                  + yariBurslu * generateYKSRanking('yari_burslu', prestige, demand)
                  + ucretli    * generateYKSRanking('ucretli', prestige, demand);
-    const avgYKS = Math.round(sumYKS / total);
+    // YKS bonusu uygula (negatif = sıralama iyileşir = daha yetenekli öğrenci)
+    const avgYKS = Math.round(Math.max(1, sumYKS / total + yksBonus));
 
     // Yüksek prestijli üniversite → yıldız öğrenci şansı
     if (prestige >= 40 && Math.random() < 0.10 + prestige * 0.002) {

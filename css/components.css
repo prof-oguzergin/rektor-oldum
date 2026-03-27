@@ -1480,3 +1480,219 @@ input[type="range"].budget-slider::-webkit-slider-thumb:hover {
   border-color: var(--accent) !important;
   background: rgba(var(--accent-rgb, 99, 179, 237), 0.08) !important;
 }
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   KULÜPLER PANELİ (v0.3)
+───────────────────────────────────────────────────────────────────────────── */
+
+.clubs-summary-bar {
+  display: flex;
+  gap: 16px;
+  flex-wrap: wrap;
+  background: var(--surface-2, #1e293b);
+  border-radius: 10px;
+  padding: 16px 20px;
+  margin-bottom: 20px;
+}
+
+.clubs-stat {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 120px;
+}
+
+.clubs-stat-icon {
+  font-size: 24px;
+}
+
+.clubs-stat-value {
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--text-primary, #f1f5f9);
+}
+
+.clubs-stat-label {
+  font-size: 11px;
+  color: var(--text-muted, #94a3b8);
+  margin-top: 2px;
+}
+
+/* Aktif kulüp kartları */
+.clubs-active-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 14px;
+  margin-bottom: 10px;
+}
+
+.club-card {
+  background: var(--surface-2, #1e293b);
+  border: 1px solid var(--border, #334155);
+  border-radius: 10px;
+  padding: 14px;
+  transition: border-color 0.2s;
+}
+
+.club-card:hover {
+  border-color: var(--accent, #63b3ed);
+}
+
+.club-card-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+
+.club-icon {
+  font-size: 28px;
+}
+
+.club-card-title {
+  flex: 1;
+}
+
+.club-name {
+  font-weight: 600;
+  font-size: 14px;
+  color: var(--text-primary, #f1f5f9);
+}
+
+.club-stars {
+  font-size: 13px;
+  color: #f59e0b;
+  letter-spacing: 2px;
+  margin-top: 2px;
+}
+
+.club-dissolve-btn {
+  color: var(--danger, #ef4444) !important;
+  border-color: transparent !important;
+  background: transparent !important;
+  padding: 2px 6px !important;
+  font-size: 12px !important;
+}
+
+.club-dissolve-btn:hover {
+  background: rgba(239, 68, 68, 0.1) !important;
+}
+
+.club-bonuses {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.club-bonus-item {
+  font-size: 11px;
+  background: var(--surface-3, #0f172a);
+  padding: 3px 8px;
+  border-radius: 20px;
+  color: var(--text-secondary, #cbd5e1);
+}
+
+.club-card-footer {
+  margin-top: 10px;
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  align-items: center;
+}
+
+.club-max-badge {
+  font-size: 11px;
+  color: #10b981;
+  font-weight: 600;
+  padding: 3px 8px;
+  background: rgba(16, 185, 129, 0.1);
+  border-radius: 20px;
+}
+
+/* Katalog */
+.clubs-category-section {
+  margin-bottom: 20px;
+}
+
+.clubs-category-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-secondary, #cbd5e1);
+  margin-bottom: 10px;
+  padding-bottom: 6px;
+  border-bottom: 1px solid var(--border, #334155);
+}
+
+.clubs-catalog-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.club-catalog-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  background: var(--surface-2, #1e293b);
+  border: 1px solid var(--border, #334155);
+  border-radius: 8px;
+  padding: 10px 14px;
+  transition: border-color 0.2s;
+}
+
+.club-catalog-item:hover {
+  border-color: var(--accent, #63b3ed);
+}
+
+.club-catalog-founded {
+  opacity: 0.6;
+}
+
+.club-catalog-icon {
+  font-size: 24px;
+  flex-shrink: 0;
+}
+
+.club-catalog-info {
+  flex: 1;
+}
+
+.club-catalog-name {
+  font-weight: 600;
+  font-size: 13px;
+  color: var(--text-primary, #f1f5f9);
+}
+
+.club-catalog-desc {
+  font-size: 11px;
+  color: var(--text-muted, #94a3b8);
+  margin-top: 2px;
+}
+
+.club-catalog-bonuses {
+  display: flex;
+  gap: 8px;
+  margin-top: 4px;
+  font-size: 11px;
+  color: var(--text-secondary, #cbd5e1);
+}
+
+.club-catalog-action {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 4px;
+  flex-shrink: 0;
+}
+
+.club-catalog-cost {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-primary, #f1f5f9);
+}
+
+.section-desc {
+  font-size: 13px;
+  color: var(--text-muted, #94a3b8);
+  margin-bottom: 16px;
+}

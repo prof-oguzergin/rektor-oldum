@@ -39,7 +39,7 @@
             <span class="btn-icon">⚙️</span> Ayarlar
           </button>
         </div>
-        <div class="menu-version">v0.1-alfa</div>
+        <div class="menu-version">v0.3</div>
       </div>
     </div>
   </div>
@@ -53,7 +53,9 @@
         <button id="btn-back-menu" class="btn btn-ghost btn-sm">← Geri</button>
         <h2>Yeni Oyun Kur</h2>
         <div class="setup-step-indicator">
-          <span class="step active" data-step="1">1. Profil</span>
+          <span class="step active" data-step="0">Senaryo</span>
+          <span class="step-sep">›</span>
+          <span class="step" data-step="1">1. Profil</span>
           <span class="step-sep">›</span>
           <span class="step" data-step="2">2. Üniversite</span>
           <span class="step-sep">›</span>
@@ -62,8 +64,23 @@
       </div>
 
       <div class="setup-body">
+        <!-- Adım 0: Senaryo Seçimi (isteğe bağlı) -->
+        <div class="setup-step" id="setup-step-scenario">
+          <div class="setup-section">
+            <h3>Senaryo Seç</h3>
+            <p class="setup-hint">Hazır bir senaryoyla başlayın veya serbest oyun oynayın.</p>
+            <div class="scenario-cards" id="scenario-cards">
+              <!-- JS tarafından doldurulacak -->
+            </div>
+          </div>
+          <div class="setup-nav">
+            <button class="btn btn-ghost" id="btn-skip-scenario">🎮 Senaryosuz Oyna →</button>
+            <button class="btn btn-primary" id="btn-scenario-next" disabled>Senaryoyla Başla →</button>
+          </div>
+        </div>
+
         <!-- Adım 1: Oyuncu Profili -->
-        <div class="setup-step" id="setup-step-1">
+        <div class="setup-step hidden" id="setup-step-1">
           <div class="setup-section">
             <h3>Oyuncu Bilgileri</h3>
             <div class="form-group">
@@ -78,6 +95,7 @@
             </div>
           </div>
           <div class="setup-nav">
+            <button class="btn btn-ghost" id="btn-step1-back">← Geri</button>
             <button class="btn btn-primary" id="btn-step1-next">İleri →</button>
           </div>
         </div>
@@ -225,6 +243,7 @@
         </div>
       </div>
       <div class="top-bar-right">
+        <button class="btn btn-ghost btn-sm" id="btn-toggle-mute" onclick="window._onToggleMute && window._onToggleMute()" title="Sesi Aç/Kapat">🔊</button>
         <button class="btn btn-ghost btn-sm" id="btn-save-game">💾</button>
         <button class="btn btn-ghost btn-sm" id="btn-main-menu">☰</button>
       </div>
@@ -280,8 +299,16 @@
             <span class="tab-icon">🎓</span>
             <span class="tab-label">Mezunlar</span>
           </button>
-          <button class="sidebar-tab" data-tab="achievements">
+          <button class="sidebar-tab" data-tab="clubs">
+            <span class="tab-icon">🎭</span>
+            <span class="tab-label">Kulüpler</span>
+          </button>
+          <button class="sidebar-tab" data-tab="accreditation">
             <span class="tab-icon">🏅</span>
+            <span class="tab-label">Akreditasyon</span>
+          </button>
+          <button class="sidebar-tab" data-tab="achievements">
+            <span class="tab-icon">🏆</span>
             <span class="tab-label">Başarımlar</span>
           </button>
         </div>
@@ -300,6 +327,8 @@
         <div id="tab-admin"       class="tab-panel"></div>
         <div id="tab-ranking"     class="tab-panel"></div>
         <div id="tab-alumni"      class="tab-panel"></div>
+        <div id="tab-clubs"       class="tab-panel"></div>
+        <div id="tab-accreditation" class="tab-panel"></div>
         <div id="tab-achievements" class="tab-panel"></div>
       </main>
 

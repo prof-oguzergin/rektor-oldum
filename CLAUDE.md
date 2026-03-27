@@ -1,7 +1,7 @@
 # Rektör Oldum — Üniversite Yönetim Oyunu
 
 - GitHub: https://github.com/prof-oguzergin/rektor-oldum (private)
-- Durum: v0.2 tamamlandı, v0.3 planlanıyor
+- Durum: v0.3 tamamlandı
 - Dizin: C:\Users\Z GAMES\Yapay Zeka\university-tycoon
 
 ## Teknik
@@ -17,8 +17,11 @@ GDD.md: 4300+ satırlık tasarım belgesi. README.md: genel açıklama.
 - `js/students.js` — Öğrenci memnuniyeti, kontenjan
 - `js/ranking.js` — Sıralama ve rakip üniversiteler
 - `js/save.js` — Kayıt/yükleme (localStorage, 3 slot + otosave)
-- `js/tutorial.js` — 8 adımlık interaktif rehber
+- `js/tutorial.js` — 11 adımlık interaktif rehber
 - `js/alumni_events_achievements.js` — Mezun, olay, başarım sistemleri
+- `js/clubs.js` — Öğrenci kulüpleri sistemi
+- `js/tto.js` — Teknoloji Transfer Ofisi
+- `js/audio.js` — Ses efektleri ve müzik
 - `js/main.js` — Event handler'lar, UI bağlantıları
 
 ### Çalıştırma
@@ -27,13 +30,12 @@ GDD.md: 4300+ satırlık tasarım belgesi. README.md: genel açıklama.
 ## Sürüm Geçmişi
 - v0.1: Hata temizliği, oyun dengesi, zorluk seçimi, tutorial
 - v0.2: Mezun sistemi, 16 rastgele olay, 25 başarım, idari birimler, proje sistemi
+- v0.3: Senaryolar, akreditasyon UI, TTO, öğrenci kulüpleri, ses efektleri
 
-## Sonraki Adımlar (v0.3)
-- Öğrenci kulüpleri
-- Teknoloji transfer ofisi
-- Akreditasyon (MÜDEK/ABET)
-- Senaryolar (3 farklı başlangıç)
-- Sesler/müzik
+## Sonraki Adımlar (v0.4)
+- Çok oyunculu skor tablosu
+- Ek senaryo paketleri
+- Mobil uyumluluk iyileştirmeleri
 
 ## Terminoloji
 - "Prestij" → "Saygınlık" kullanılıyor

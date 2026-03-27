@@ -336,7 +336,15 @@ export function calculateIncome(state) {
     ? 0
     : safeNum(state.research?.patents) * PATENT_LICENSE_FEE;
 
+  // ── 8. TTO GELİRİ (sadece görüntüleme — processTTO() bütçeye zaten ekledi) ──
+  // TTO geliri processTTO() tarafından doğrudan bütçeye yazılır.
+  // Burada yalnızca dönem özetinde görüntülenmesi için saklıyoruz.
+  const ttoRevenue = (state.tto?.established && state.tto?.lastTurnRevenue)
+    ? (state.tto.lastTurnRevenue.total || 0)
+    : 0;
+
   // ── TOPLAM ───────────────────────────────────────────────────────────────────
+  // NOT: ttoRevenue toplama dahil değil — çift sayım önlenir.
   const rawTotal = tuition + stateGrant + researchFunds + projectOverhead
     + revolving + donations + sponsorship + patents + patentRoyalties;
   const total = isFinite(rawTotal) ? rawTotal : 0;
@@ -351,6 +359,7 @@ export function calculateIncome(state) {
     donations:        Math.round(donations),
     sponsorship:      Math.round(sponsorship),
     patents:          Math.round(patents),
+    tto:              Math.round(ttoRevenue),
     total:            Math.round(total),
     // Etiket bilgisi (bütçe paneli için)
     _labels: uniModel.revenueLabels || {},
