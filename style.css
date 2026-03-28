@@ -1674,6 +1674,7 @@ body {
   flex-shrink: 0;
   position: sticky;
   top: 80px;
+  z-index: 10;
 }
 
 .campus-map-preview {
