@@ -8262,7 +8262,7 @@ export function renderClubsPanel(state) {
         <span class="clubs-stat-icon">🎭</span>
         <div>
           <div class="clubs-stat-value">${clubs.length}</div>
-          <div class="clubs-stat-label">Aktif Kulüp</div>
+          <div class="clubs-stat-label">Aktif Topluluk</div>
         </div>
       </div>
       <div class="clubs-stat">
@@ -8292,7 +8292,7 @@ export function renderClubsPanel(state) {
   // ── Aktif Kulüpler ─────────────────────────────────────────────────────────
   let activeSection = '';
   if (clubs.length === 0) {
-    activeSection = `<div class="empty-state"><p>Henüz hiç kulüp kurulmadı. Aşağıdan bir kulüp kurun!</p></div>`;
+    activeSection = `<div class="empty-state"><p>Henüz hiç topluluk kurulmadı. Aşağıdan bir topluluk kurun!</p></div>`;
   } else {
     const cards = clubs.map(club => {
       const type  = CLUB_TYPES[club.typeId] || {};
@@ -8320,7 +8320,7 @@ export function renderClubsPanel(state) {
             </div>
             <button class="btn btn-sm btn-danger club-dissolve-btn"
               onclick="window._onDissolveClub(${club.id})"
-              title="Kulübü kapat">✕</button>
+              title="Topluluğu kapat">✕</button>
           </div>
           <div class="club-card-body">
             <div class="club-bonuses">
@@ -8390,20 +8390,20 @@ export function renderClubsPanel(state) {
 
   panel.innerHTML = `
     <div class="panel-header">
-      <h2 class="panel-title">🎭 Öğrenci Kulüpleri</h2>
-      <p class="panel-subtitle">Kulüpler öğrenci memnuniyetini ve saygınlığı artırır.</p>
+      <h2 class="panel-title">🎭 Öğrenci Toplulukları</h2>
+      <p class="panel-subtitle">Topluluklar öğrenci memnuniyetini ve saygınlığı artırır.</p>
     </div>
 
     ${summaryBar}
 
     <div class="panel-section">
-      <h3 class="section-title">Aktif Kulüpler</h3>
+      <h3 class="section-title">Aktif Topluluklar</h3>
       ${activeSection}
     </div>
 
     <div class="panel-section">
-      <h3 class="section-title">Kulüp Kataloğu</h3>
-      <p class="section-desc">Kurmak istediğiniz kulübü seçin. Her kulüp dönem başına gider gerektirir.</p>
+      <h3 class="section-title">Topluluk Kataloğu</h3>
+      <p class="section-desc">Kurmak istediğiniz topluluğu seçin. Her topluluk dönem başına gider gerektirir.</p>
       ${catalogSections}
     </div>
   `;

@@ -820,8 +820,8 @@ export const RANDOM_EVENTS = [
   // ── v0.3 Kulüp Olayları ──────────────────────────────────────────────────
   {
     id: 'kulup_yarismasi',
-    name: '🏆 Kulüp Yarışma Başarısı',
-    description: 'Kulüplerinizden biri ulusal yarışmada derece yaptı!',
+    name: '🏆 Topluluk Yarışma Başarısı',
+    description: 'Topluluklarınızdan biri ulusal yarışmada derece yaptı!',
     probability: 0.05,
     isCrisis: false,
     condition: (state) => (state.clubs?.active?.length || 0) >= 3,
@@ -832,8 +832,8 @@ export const RANDOM_EVENTS = [
   },
   {
     id: 'kulup_sponsor',
-    name: '💰 Kulüp Sponsorluk Teklifi',
-    description: 'Bir şirket kulüplerinize sponsor olmak istiyor.',
+    name: '💰 Topluluk Sponsorluk Teklifi',
+    description: 'Bir şirket topluluklarınıza sponsor olmak istiyor.',
     probability: 0.04,
     isCrisis: false,
     condition: (state) => (state.clubs?.active?.length || 0) >= 5,
@@ -844,8 +844,8 @@ export const RANDOM_EVENTS = [
   },
   {
     id: 'kulup_krizi',
-    name: '😤 Kulüp İç Çatışması',
-    description: 'Bir kulübün yönetiminde iç çatışma çıktı.',
+    name: '😤 Topluluk İç Çatışması',
+    description: 'Bir topluluğun yönetiminde iç çatışma çıktı.',
     probability: 0.03,
     isCrisis: true,
     condition: (state) => (state.clubs?.active?.length || 0) >= 2,
@@ -857,7 +857,7 @@ export const RANDOM_EVENTS = [
   {
     id: 'kulup_festivali',
     name: '🎉 Bahar Festivali',
-    description: 'Kulüpler birlikte büyük bir kampüs festivali düzenlemek istiyor.',
+    description: 'Topluluklar birlikte büyük bir kampüs festivali düzenlemek istiyor.',
     probability: 0.06,
     isCrisis: false,
     condition: (state) => (state.clubs?.active?.length || 0) >= 4,
@@ -1037,9 +1037,9 @@ export const ACHIEVEMENTS = [
   { id: 'spin_off_fabrikasi', name: '🚀 Spin-off Fabrikası',  description: '3 veya daha fazla spin-off şirket kurun.',          icon: '🚀', category: 'arastirma', check: (s) => (s.tto?.spinoffs?.length || 0) >= 3 },
   { id: 'sektor_ortagi',      name: '🤝 Sektör Ortağı',       description: "TTO üzerinden toplam 10M ₺ gelir elde edin.",       icon: '🤝', category: 'finans',    check: (s) => safeNum(s.tto?.totalRevenueGenerated) >= 10_000_000 },
   // v0.3: Kulüp Başarımları
-  { id: 'kulup_kenti',    name: '🎭 Kulüp Kenti',    description: '8 veya daha fazla aktif kulüp kur.',                        icon: '🎭', category: 'ogrenci', check: (s) => (s.clubs?.active?.length || 0) >= 8 },
-  { id: 'kulup_ustasi',   name: '⭐ Kulüp Ustası',   description: 'Bir kulübü maksimum seviyeye yükselt.',                     icon: '⭐', category: 'ogrenci', check: (s) => (s.clubs?.active || []).some(c => c.level >= 3) },
-  { id: 'sosyal_kampus',  name: '🏫 Sosyal Kampüs',  description: 'Her kategoriden en az bir kulüp kur (5 kategori).',        icon: '🏫', category: 'ogrenci', check: (s) => {
+  { id: 'kulup_kenti',    name: '🎭 Topluluk Kenti',    description: '8 veya daha fazla aktif topluluk kur.',                        icon: '🎭', category: 'ogrenci', check: (s) => (s.clubs?.active?.length || 0) >= 8 },
+  { id: 'kulup_ustasi',   name: '⭐ Topluluk Ustası',   description: 'Bir topluluğu maksimum seviyeye yükselt.',                     icon: '⭐', category: 'ogrenci', check: (s) => (s.clubs?.active || []).some(c => c.level >= 3) },
+  { id: 'sosyal_kampus',  name: '🏫 Sosyal Kampüs',  description: 'Her kategoriden en az bir topluluk kur (5 kategori).',        icon: '🏫', category: 'ogrenci', check: (s) => {
     const cats = new Set();
     for (const club of (s.clubs?.active || [])) {
       const type = CLUB_TYPES[club.typeId];

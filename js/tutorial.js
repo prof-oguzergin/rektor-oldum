@@ -60,8 +60,8 @@ Gideriniz maaşlar, bakım ve burslardan oluşur.<br><br>
   },
   {
     id: 'kulupler',
-    title: 'Öğrenci Kulüpleri',
-    content: 'Kulüpler sekmesinden öğrenci kulüpleri kurabilirsiniz. Kulüpler öğrenci memnuniyetini ve üniversitenin saygınlığını artırır. Her kulüp kurulduktan sonra seviye yükseltilebilir.',
+    title: 'Öğrenci Toplulukları',
+    content: 'Topluluklar sekmesinden öğrenci toplulukları kurabilirsiniz. Topluluklar öğrenci memnuniyetini ve üniversitenin saygınlığını artırır. Her topluluk kurulduktan sonra seviye yükseltilebilir.',
     highlightSelector: '.sidebar-tab[data-tab="clubs"]',
   },
   {

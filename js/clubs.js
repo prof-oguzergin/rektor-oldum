@@ -10,45 +10,45 @@
 export const CLUB_TYPES = {
   // ── Teknoloji ──
   robotik: {
-    id: 'robotik', name: 'Robotik Kulübü', icon: '🤖', category: 'tech',
+    id: 'robotik', name: 'Robotik Topluluğu', icon: '🤖', category: 'tech',
     foundingCost: 500_000, semesterCost: 150_000, maxLevel: 3,
     levelUpCost: [0, 300_000, 700_000],
     satisfactionBonus: [0, 2, 4, 7],
     prestigeBonus: [0, 0, 1, 2],
-    description: 'Robot tasarım ve yarışma kulübü.',
+    description: 'Robot tasarım ve yarışma topluluğu.',
   },
   yazilim: {
-    id: 'yazilim', name: 'Yazılım Geliştirme Kulübü', icon: '💻', category: 'tech',
+    id: 'yazilim', name: 'Yazılım Geliştirme Topluluğu', icon: '💻', category: 'tech',
     foundingCost: 300_000, semesterCost: 100_000, maxLevel: 3,
     levelUpCost: [0, 200_000, 500_000],
     satisfactionBonus: [0, 3, 5, 8],
     prestigeBonus: [0, 0, 1, 2],
-    description: 'Hackathon ve açık kaynak proje kulübü.',
+    description: 'Hackathon ve açık kaynak proje topluluğu.',
   },
   yapay_zeka: {
-    id: 'yapay_zeka', name: 'Yapay Zeka Kulübü', icon: '🧠', category: 'tech',
+    id: 'yapay_zeka', name: 'Yapay Zeka Topluluğu', icon: '🧠', category: 'tech',
     foundingCost: 400_000, semesterCost: 120_000, maxLevel: 3,
     levelUpCost: [0, 250_000, 600_000],
     satisfactionBonus: [0, 2, 4, 6],
     prestigeBonus: [0, 1, 2, 3],
-    description: 'YZ araştırma ve uygulama kulübü.',
+    description: 'YZ araştırma ve uygulama topluluğu.',
   },
   girisimcilik: {
-    id: 'girisimcilik', name: 'Girişimcilik Kulübü', icon: '🚀', category: 'tech',
+    id: 'girisimcilik', name: 'Girişimcilik Topluluğu', icon: '🚀', category: 'tech',
     foundingCost: 350_000, semesterCost: 100_000, maxLevel: 3,
     levelUpCost: [0, 200_000, 500_000],
     satisfactionBonus: [0, 2, 3, 5],
     prestigeBonus: [0, 0, 1, 3],
-    description: 'Startup ve iş geliştirme kulübü.',
+    description: 'Startup ve iş geliştirme topluluğu.',
   },
   // ── Akademik ──
   munazara: {
-    id: 'munazara', name: 'Münazara Kulübü', icon: '🎙️', category: 'akademik',
+    id: 'munazara', name: 'Münazara Topluluğu', icon: '🎙️', category: 'akademik',
     foundingCost: 200_000, semesterCost: 80_000, maxLevel: 3,
     levelUpCost: [0, 150_000, 350_000],
     satisfactionBonus: [0, 2, 4, 6],
     prestigeBonus: [0, 1, 2, 3],
-    description: 'Tartışma ve hitabet kulübü.',
+    description: 'Tartışma ve hitabet topluluğu.',
   },
   model_bm: {
     id: 'model_bm', name: 'Model Birleşmiş Milletler', icon: '🌍', category: 'akademik',
@@ -56,7 +56,7 @@ export const CLUB_TYPES = {
     levelUpCost: [0, 200_000, 450_000],
     satisfactionBonus: [0, 2, 3, 5],
     prestigeBonus: [0, 1, 2, 4],
-    description: 'Uluslararası ilişkiler ve diplomasi kulübü.',
+    description: 'Uluslararası ilişkiler ve diplomasi topluluğu.',
   },
   bilim_olimpiyat: {
     id: 'bilim_olimpiyat', name: 'Bilim Olimpiyatları', icon: '🔬', category: 'akademik',
@@ -68,28 +68,28 @@ export const CLUB_TYPES = {
   },
   // ── Sanat ──
   tiyatro: {
-    id: 'tiyatro', name: 'Tiyatro Kulübü', icon: '🎭', category: 'sanat',
+    id: 'tiyatro', name: 'Tiyatro Topluluğu', icon: '🎭', category: 'sanat',
     foundingCost: 250_000, semesterCost: 80_000, maxLevel: 3,
     levelUpCost: [0, 150_000, 350_000],
     satisfactionBonus: [0, 3, 5, 8],
     prestigeBonus: [0, 0, 1, 1],
-    description: 'Sahne sanatları ve drama kulübü.',
+    description: 'Sahne sanatları ve drama topluluğu.',
   },
   muzik: {
-    id: 'muzik', name: 'Müzik Kulübü', icon: '🎵', category: 'sanat',
+    id: 'muzik', name: 'Müzik Topluluğu', icon: '🎵', category: 'sanat',
     foundingCost: 300_000, semesterCost: 100_000, maxLevel: 3,
     levelUpCost: [0, 200_000, 450_000],
     satisfactionBonus: [0, 3, 5, 7],
     prestigeBonus: [0, 0, 1, 2],
-    description: 'Koro, orkestra ve müzik etkinlikleri.',
+    description: 'Koro, orkestra ve müzik etkinlikleri topluluğu.',
   },
   fotograf: {
-    id: 'fotograf', name: 'Fotoğrafçılık Kulübü', icon: '📷', category: 'sanat',
+    id: 'fotograf', name: 'Fotoğrafçılık Topluluğu', icon: '📷', category: 'sanat',
     foundingCost: 200_000, semesterCost: 60_000, maxLevel: 3,
     levelUpCost: [0, 120_000, 280_000],
     satisfactionBonus: [0, 2, 3, 5],
     prestigeBonus: [0, 0, 0, 1],
-    description: 'Fotoğraf sergisi ve atölye kulübü.',
+    description: 'Fotoğraf sergisi ve atölye topluluğu.',
   },
   // ── Spor ──
   basketbol: {
@@ -118,7 +118,7 @@ export const CLUB_TYPES = {
   },
   // ── Sosyal ──
   cevre: {
-    id: 'cevre', name: 'Çevre Kulübü', icon: '🌿', category: 'sosyal',
+    id: 'cevre', name: 'Çevre Topluluğu', icon: '🌿', category: 'sosyal',
     foundingCost: 200_000, semesterCost: 60_000, maxLevel: 3,
     levelUpCost: [0, 120_000, 280_000],
     satisfactionBonus: [0, 2, 3, 5],
@@ -126,7 +126,7 @@ export const CLUB_TYPES = {
     description: 'Sürdürülebilirlik ve çevre bilinci.',
   },
   gonulluluk: {
-    id: 'gonulluluk', name: 'Gönüllülük Kulübü', icon: '❤️', category: 'sosyal',
+    id: 'gonulluluk', name: 'Gönüllülük Topluluğu', icon: '❤️', category: 'sosyal',
     foundingCost: 150_000, semesterCost: 50_000, maxLevel: 3,
     levelUpCost: [0, 100_000, 250_000],
     satisfactionBonus: [0, 3, 5, 7],
@@ -166,7 +166,7 @@ export function initClubsState(state) {
 
 export function foundClub(state, clubTypeId) {
   const type = CLUB_TYPES[clubTypeId];
-  if (!type) return { success: false, message: 'Bilinmeyen kulüp türü.' };
+  if (!type) return { success: false, message: 'Bilinmeyen topluluk türü.' };
 
   // Aynı türden zaten var mı?
   if (state.clubs.active.some(c => c.typeId === clubTypeId)) {
@@ -196,11 +196,11 @@ export function foundClub(state, clubTypeId) {
 
 export function upgradeClub(state, clubId) {
   const club = state.clubs.active.find(c => c.id === clubId);
-  if (!club) return { success: false, message: 'Kulüp bulunamadı.' };
+  if (!club) return { success: false, message: 'Topluluk bulunamadı.' };
 
   const type = CLUB_TYPES[club.typeId];
-  if (!type) return { success: false, message: 'Kulüp türü bulunamadı.' };
-  if (club.level >= type.maxLevel) return { success: false, message: 'Kulüp maksimum seviyede.' };
+  if (!type) return { success: false, message: 'Topluluk türü bulunamadı.' };
+  if (club.level >= type.maxLevel) return { success: false, message: 'Topluluk maksimum seviyede.' };
 
   const cost = type.levelUpCost[club.level];
   if (state.university.budget < cost) {
@@ -220,7 +220,7 @@ export function upgradeClub(state, clubId) {
 
 export function dissolveClub(state, clubId) {
   const idx = state.clubs.active.findIndex(c => c.id === clubId);
-  if (idx === -1) return { success: false, message: 'Kulüp bulunamadı.' };
+  if (idx === -1) return { success: false, message: 'Topluluk bulunamadı.' };
 
   const club = state.clubs.active[idx];
   state.clubs.active.splice(idx, 1);
