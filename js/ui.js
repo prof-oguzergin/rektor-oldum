@@ -3259,7 +3259,7 @@ export function renderCampusPanel(state, onBuildStart, onDecision) {
                 ? ((dDeptData.year1?.count || 0) + (dDeptData.year2?.count || 0) +
                    (dDeptData.year3?.count || 0) + (dDeptData.year4?.count || 0))
                 : 0;
-              const dFaculty    = (state.faculty || []).filter(f => f.departmentId === dId).length;
+              const dFaculty    = (state.faculty || []).filter(f => (f.department || f.departmentId) === dId).length;
               return `<div style="margin-top:3px;font-size:11px;color:#cbd5e1;">• ${d.shortName || d.name} (${dStudents} öğrenci, ${dFaculty} hoca)</div>`;
             }).filter(Boolean).join('');
 
@@ -3277,6 +3277,7 @@ export function renderCampusPanel(state, onBuildStart, onDecision) {
                 <div style="margin-bottom:6px;">
                   <div style="font-size:11px;font-weight:600;color:#94a3b8;margin-bottom:3px;">🏢 OFİSLER</div>
                   <div style="font-size:11px;color:#cbd5e1;">• ${cap.offices} adet ofis · Kullanılan: ${used.offices ?? 0} · Boş: ${Math.max(0, cap.offices - (used.offices ?? 0))}</div>
+                  <div style="font-size:10px;color:#64748b;margin-top:1px;">Prof/Doç: 1 ofis, Dr.Öğr.Üyesi: 2 kişi/ofis, ArGö: 3 kişi/ofis</div>
                   ${nextLevel <= maxLvl && nextLvlCap.offices ? `<div style="font-size:10px;color:#64748b;margin-top:1px;">Düzey ${nextLevel}'de: ${nextLvlCap.offices} ofis</div>` : ''}
                 </div>` : ''}
               ${cap.labs != null ? `
