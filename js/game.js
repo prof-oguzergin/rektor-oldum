@@ -140,6 +140,9 @@ function calculateBuildingUsage(building, state) {
   let usedClassrooms = 0;
   let usedOffices    = 0;
   let usedLabs       = 0;
+  let totalProf      = 0;  // Prof/Doç — her zaman 1 ofis
+  let totalDr        = 0;  // Dr.Öğr.Üyesi — boş ofis varsa 1, yoksa 2/ofis
+  let totalArgo      = 0;  // ArGö — boş ofis varsa 1, yoksa 3/ofis
 
   for (const deptId of (building.assignedDepartments || [])) {
     const dept = (state.departments || []).find(d => d.id === deptId);
@@ -166,12 +169,57 @@ function calculateBuildingUsage(building, state) {
       : (catalog?.classroomSize ?? 40);
     usedClassrooms     += classroomSize > 0 ? Math.ceil(studentCount / classroomSize) : 0;
 
-    // Profesör/doçent: 1 kişi = 1 ofis; Dr.Öğr.Üyesi: 2 kişi = 1 ofis; ArGö: 3 kişi = 1 ofis
-    usedOffices        += profCount + Math.ceil(drCount / 2) + Math.ceil(argoCount / 3);
+    // Ofis ataması: Boş ofis varken herkes tek ofis alır.
+    // Ofis yetersizse Dr.Öğr.Üyesi 2/ofis, ArGö 3/ofis olarak sıkıştırılır.
+    totalProf  += profCount;
+    totalDr    += drCount;
+    totalArgo  += argoCount;
 
     // Mühendislik/fen bölümleri: laboratuvar gerektirir (60 öğrenciye 1 lab)
     if (dept.category === 'muhendislik' || dept.category === 'fen') {
       usedLabs += Math.ceil(studentCount / 60);
+    }
+  }
+
+  // ── Akıllı ofis ataması ──────────────────────────────────────────────────
+  // Prof/Doç her zaman tek ofis alır.
+  // Kalan boş ofislere önce Dr.Öğr.Üyesi, sonra ArGö tek ofis alır.
+  // Ofis yetmezse: Dr.Öğr.Üyesi 2/ofis, ArGö 3/ofis olarak sıkıştırılır.
+  const bDef = BUILDINGS[building.type];
+  const baseCap = bDef?.capacity?.offices ?? 0;
+  const perLvl  = bDef?.capacityPerLevel?.offices ?? 0;
+  const lvl     = building.level || 1;
+  const availOffices = baseCap + (lvl - 1) * perLvl;
+
+  // 1) Prof/Doç: her zaman 1 ofis
+  usedOffices = totalProf;
+  let remaining = Math.max(0, availOffices - usedOffices);
+
+  // 2) Dr.Öğr.Üyesi: boş ofis varsa 1 kişi/ofis, yoksa 2 kişi/ofis
+  if (totalDr > 0) {
+    if (remaining >= totalDr) {
+      // Herkes tek ofis alır
+      usedOffices += totalDr;
+      remaining -= totalDr;
+    } else {
+      // Kalan boş ofislere tek, gerisine paylaşımlı
+      usedOffices += remaining; // boş olanlar tek
+      const crowdedDr = totalDr - remaining;
+      usedOffices += Math.ceil(crowdedDr / 2);
+      remaining = 0;
+    }
+  }
+
+  // 3) ArGö: boş ofis varsa 1 kişi/ofis, yoksa 3 kişi/ofis
+  if (totalArgo > 0) {
+    if (remaining >= totalArgo) {
+      usedOffices += totalArgo;
+      remaining -= totalArgo;
+    } else {
+      usedOffices += remaining;
+      const crowdedArgo = totalArgo - remaining;
+      usedOffices += Math.ceil(crowdedArgo / 3);
+      remaining = 0;
     }
   }
 

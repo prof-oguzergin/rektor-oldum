@@ -3277,7 +3277,7 @@ export function renderCampusPanel(state, onBuildStart, onDecision) {
                 <div style="margin-bottom:6px;">
                   <div style="font-size:11px;font-weight:600;color:#94a3b8;margin-bottom:3px;">🏢 OFİSLER</div>
                   <div style="font-size:11px;color:#cbd5e1;">• ${cap.offices} adet ofis · Kullanılan: ${used.offices ?? 0} · Boş: ${Math.max(0, cap.offices - (used.offices ?? 0))}</div>
-                  <div style="font-size:10px;color:#64748b;margin-top:1px;">Prof/Doç: 1 ofis, Dr.Öğr.Üyesi: 2 kişi/ofis, ArGö: 3 kişi/ofis</div>
+                  <div style="font-size:10px;color:#64748b;margin-top:1px;">Boş ofis varken herkes tek ofis alır. Yetersizse: Dr.Öğr.Üyesi 2/ofis, ArGö 3/ofis</div>
                   ${nextLevel <= maxLvl && nextLvlCap.offices ? `<div style="font-size:10px;color:#64748b;margin-top:1px;">Düzey ${nextLevel}'de: ${nextLvlCap.offices} ofis</div>` : ''}
                 </div>` : ''}
               ${cap.labs != null ? `
