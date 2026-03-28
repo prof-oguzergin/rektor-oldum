@@ -159,7 +159,7 @@ export function applyEventEffects(state, effects) {
   // Bütçe değişimi
   if (effects.budget) {
     state.university.budget += effects.budget;
-    log.push(`Bütçe: ${effects.budget > 0 ? '+' : ''}${effects.budget.toLocaleString('tr-TR')} ₺`);
+    log.push(`Kasa: ${effects.budget > 0 ? '+' : ''}${effects.budget.toLocaleString('tr-TR')} ₺`);
   }
 
   // Saygınlık değişimi

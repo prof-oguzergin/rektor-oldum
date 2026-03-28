@@ -628,7 +628,7 @@ export function applyBudget(state, income, expenses) {
     case 1:
       // Aşama 1 (0 ile -10M): Uyarı bildirimi
       warnings.push(
-        `Mali uyarı: Bütçe ₺${Math.abs(state.university.budget).toLocaleString('tr-TR')} açıkta. ` +
+        `Mali uyarı: Kasa ₺${Math.abs(state.university.budget).toLocaleString('tr-TR')} açıkta. ` +
         `Gelirlerinizi artırın veya giderlerinizi kısın.`
       );
       break;
@@ -663,7 +663,7 @@ export function applyBudget(state, income, expenses) {
       // Aşama 4 (-60M altı): İflas tetikle
       bankrupt = true;
       warnings.push(
-        `İFLAS: Bütçe ₺60M sınırının altına düştü! ` +
+        `İFLAS: Kasa ₺60M sınırının altına düştü! ` +
         `Üniversite kapatılma sürecine girdi.`
       );
       if (!state._internal) state._internal = {};

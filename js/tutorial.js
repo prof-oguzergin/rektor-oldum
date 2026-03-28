@@ -12,7 +12,7 @@ const TUTORIAL_STEPS = [
     id: 'hosgeldin',
     title: '🎓 Rektör Oldum\'a Hoş Geldiniz!',
     content: `Bir üniversite yönetiyorsunuz. Amacınız: saygın, başarılı bir üniversite inşa etmek.<br><br>
-Üst çubukta <strong>bütçenizi</strong>, <strong>saygınlığınızı</strong>, <strong>sıralamanızı</strong>, öğrenci ve kadro sayınızı görüyorsunuz.`,
+Üst çubukta <strong>kasanızı</strong>, <strong>saygınlığınızı</strong>, <strong>sıralamanızı</strong>, öğrenci ve kadro sayınızı görüyorsunuz.`,
     highlightSelector: '.top-bar',
   },
   {

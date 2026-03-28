@@ -761,7 +761,7 @@ export function renderDashboard(state) {
     ` : ''}
 
     <div class="dashboard-grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:12px;margin-bottom:24px;">
-      ${_statCardHtml('Bütçe', formatMoney(uni.budget), netBalance >= 0 ? 'positive' : 'negative',
+      ${_statCardHtml('Kasa', formatMoney(uni.budget), netBalance >= 0 ? 'positive' : 'negative',
         netBalance >= 0 ? `+${formatMoney(netBalance)} bu dönem` : `${formatMoney(netBalance)} bu dönem`)}
       ${_statCardHtml('Saygınlık', Math.round(uni.prestige), null, `Sıralama #${uni.ranking}`)}
       ${_statCardHtml('Öğrenci', formatNumber(state.students?.totalEnrolled ?? 0), null,
@@ -4430,7 +4430,7 @@ export function renderResearchPanel(state, onResearchBudget, onProjectDecision) 
               🏢 TTO Kur (5M ₺)
             </button>
             <div style="font-size:12px;color:var(--text-muted);">
-              Mevcut bütçe: <strong style="color:${(state.university?.budget || 0) >= 5_000_000 ? 'var(--accent-green)' : 'var(--accent-red,#e53e3e)'};">${formatMoney(state.university?.budget || 0)}</strong>
+              Mevcut kasa: <strong style="color:${(state.university?.budget || 0) >= 5_000_000 ? 'var(--accent-green)' : 'var(--accent-red,#e53e3e)'};">${formatMoney(state.university?.budget || 0)}</strong>
             </div>
           </div>
         </div>
@@ -4897,7 +4897,7 @@ export function renderResearchPanel(state, onResearchBudget, onProjectDecision) 
         <span class="cost-preview-label">Fark:</span>
         <span class="cost-preview-val" style="color:${diffColor};font-weight:700;">${diffSign}${formatMoney(diff)}/dönem ${diffArrow}</span>
       </div>
-      <div class="cost-preview-row"><span class="cost-preview-label">Mevcut bütçe:</span><span class="cost-preview-val">${formatMoney(currentBudget)}</span></div>
+      <div class="cost-preview-row"><span class="cost-preview-label">Mevcut kasa:</span><span class="cost-preview-val">${formatMoney(currentBudget)}</span></div>
       <div class="cost-preview-row">
         <span class="cost-preview-label">Dönem sonu tahmini:</span>
         <span class="cost-preview-val" style="color:${projectedBudget >= 0 ? 'var(--accent-green)' : 'var(--accent)'};">${formatMoney(projectedBudget)}</span>
@@ -5651,7 +5651,7 @@ export function renderTurnSummary(summary, onNextTurn) {
           </span>
         </div>
         <div class="summary-row" style="margin-top:8px;">
-          <span class="summary-row-label">Mevcut Bütçe</span>
+          <span class="summary-row-label">Mevcut Kasa</span>
           <span class="summary-row-value">${formatMoney(fin.newBudget ?? 0)}</span>
         </div>
       </div>
@@ -6493,7 +6493,7 @@ export function showNewDeptProgramModal(state) {
       <div style="background:var(--bg-secondary);border-radius:8px;padding:10px 14px;margin-bottom:16px;display:flex;align-items:center;gap:12px;">
         <span style="font-size:22px;">💰</span>
         <div>
-          <div style="font-size:11px;color:var(--text-muted);">Mevcut Bütçe</div>
+          <div style="font-size:11px;color:var(--text-muted);">Mevcut Kasa</div>
           <div style="font-size:16px;font-weight:700;color:${budget > 5_000_000 ? '#38a169' : '#f5a623'};">${formatMoney(budget)}</div>
         </div>
       </div>

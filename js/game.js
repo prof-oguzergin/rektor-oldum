@@ -3655,7 +3655,7 @@ export function checkWinLose() {
       gameOver: true,
       gameWon:  false,
       reason:   'bankruptcy',
-      message:  `Üniversite iflas etti! Bütçe ${BANKRUPTCY_TURNS_LIMIT} dönem boyunca ₺60M'nin altında kaldı.`,
+      message:  `Üniversite iflas etti! Kasa ${BANKRUPTCY_TURNS_LIMIT} dönem boyunca ₺60M'nin altında kaldı.`,
     };
   }
 

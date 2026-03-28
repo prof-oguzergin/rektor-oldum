@@ -559,7 +559,7 @@ function _processNextRandomEvent(events, index, onAllDone) {
     if (result?.success && result?.effects) {
       const effects = result.effects;
       const parts = [];
-      if (effects.budgetDelta) parts.push(`Bütçe ${effects.budgetDelta > 0 ? '+' : ''}${(effects.budgetDelta/1e6).toFixed(1)}M ₺`);
+      if (effects.budgetDelta) parts.push(`Kasa ${effects.budgetDelta > 0 ? '+' : ''}${(effects.budgetDelta/1e6).toFixed(1)}M ₺`);
       if (effects.prestigeDelta) parts.push(`Saygınlık ${effects.prestigeDelta > 0 ? '+' : ''}${effects.prestigeDelta}`);
       if (effects.satisfactionDelta) parts.push(`Memnuniyet ${effects.satisfactionDelta > 0 ? '+' : ''}${effects.satisfactionDelta}`);
       if (parts.length > 0) showNotification(parts.join(', '), effects.budgetDelta >= 0 ? 'info' : 'warning');
