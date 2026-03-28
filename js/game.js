@@ -31,9 +31,10 @@ import {
   STUDENT_NAME_POOL,
   ACCREDITATION_BODIES,
   SCENARIOS,
+  BANKS,
 } from './data.js';
 
-import { calculateEconomy, applyBudget } from './economy.js';
+import { calculateEconomy, applyBudget, calculateLoanPayment, processLoanPayments } from './economy.js';
 import { generateInitialFaculty, updateAllFacultyHappiness, generateApplicants, generateFaculty, getSalaryRange, calculateOverallRating, getFacultyRatingTrend } from './faculty.js';
 import {
   generateInitialStudents,
@@ -1245,6 +1246,11 @@ export function initGame(playerName, universityName, universityType, difficulty,
         it:         0.05,             // BT altyapı
         reserve:    0.05,             // acil rezerv
       },
+
+      // ── Kredi sistemi ──────────────────────────────────────────────────
+      loans:        [],               // aktif kredi listesi
+      totalDebt:    0,                // toplam kalan borç (₺)
+      loanDefault:  false,            // 3+ dönem ödeme atlanırsa true → iflas
     },
 
     // ── Bölümler ───────────────────────────────────────────────────────────
@@ -3638,24 +3644,16 @@ export function checkWinLose() {
   if (!_state) return { gameOver: false, gameWon: false, reason: null };
 
   // ── KAYBETME KOŞULU 1: İflas ───────────────────────────────────────────────
-  // Borç -60M'nin altındaysa ve 2 dönem toparlanamıyorsa oyun biter
-  const BANKRUPTCY_THRESHOLD = -60_000_000;
-  const BANKRUPTCY_TURNS_LIMIT = 2;
+  // Kredi sistemi: herhangi bir kredi 3 dönem ödenemezse loanDefault = true → iflas
 
-  if (_state.university.budget < BANKRUPTCY_THRESHOLD) {
-    _state._internal.consecutiveDeficitTurns++;
-  } else {
-    _state._internal.consecutiveDeficitTurns = 0;
-  }
-
-  if (_state._internal.consecutiveDeficitTurns >= BANKRUPTCY_TURNS_LIMIT) {
+  if (_state.university.loanDefault === true || _state._internal?.bankruptcyTriggered) {
     _gameOver = true;
     _state._internal.gameOver = true;
     return {
       gameOver: true,
       gameWon:  false,
       reason:   'bankruptcy',
-      message:  `Üniversite iflas etti! Kasa ${BANKRUPTCY_TURNS_LIMIT} dönem boyunca ₺60M'nin altında kaldı.`,
+      message:  'Üniversite iflas etti! Bir kredi 3 dönem üst üste ödenemedi.',
     };
   }
 
@@ -3944,6 +3942,42 @@ function migrateState(state) {
   // v0.4 Feature: Kampüs grid layout
   if (!state.campus) {
     initCampusState(state);
+  }
+
+  // v0.4 Feature: Banka kredileri sistemi
+  if (!state.university.loans) state.university.loans = [];
+  if (state.university.totalDebt === undefined || state.university.totalDebt === null) {
+    state.university.totalDebt = 0;
+  }
+  if (state.university.loanDefault === undefined || state.university.loanDefault === null) {
+    state.university.loanDefault = false;
+  }
+
+  // Negatif bütçeyi kredi dönüşümü (eski kayıtlar için)
+  if (state.university.budget < 0) {
+    const debtAmount = Math.abs(state.university.budget);
+    const migrationBank = BANKS.find(b => b.id === 'kamu_bankasi');
+    if (migrationBank) {
+      const termSemesters = 12;
+      const semesterPayment = calculateLoanPayment(debtAmount, migrationBank.interestRate, termSemesters);
+      state.university.loans.push({
+        bankId:          'kamu_bankasi',
+        bankName:        migrationBank.name,
+        bankIcon:        migrationBank.icon,
+        principal:       debtAmount,
+        remainingAmount: debtAmount,
+        interestRate:    migrationBank.interestRate,
+        termSemesters,
+        remainingTerms:  termSemesters,
+        semesterPayment,
+        startTurn:       state.meta?.turn || 1,
+        overdue:         false,
+        overdueCount:    0,
+        migratedFromDebt: true,
+      });
+      state.university.budget  = 0;
+      state.university.totalDebt = debtAmount;
+    }
   }
 
   // v0.4 Feature: Lab binalarında linkedDepartments (eski kayıtlarda assignedDepartments kullanılıyordu)
@@ -5307,11 +5341,115 @@ export function applyDecision(decision) {
       return result;
     }
 
+    // ── Kredi Çek ─────────────────────────────────────────────────────────────
+    case 'take_loan': {
+      const { bankId, amount, termSemesters } = decision;
+
+      // Banka var mı?
+      const bank = BANKS.find(b => b.id === bankId);
+      if (!bank) return { success: false, message: `Banka bulunamadı: ${bankId}` };
+
+      // Miktar kontrolü
+      if (!amount || amount <= 0) return { success: false, message: 'Kredi miktarı sıfırdan büyük olmalı.' };
+      if (amount > bank.maxLoan) {
+        return {
+          success: false,
+          message: `${bank.name} maksimum ₺${bank.maxLoan.toLocaleString('tr-TR')} kredi verebilir.`,
+        };
+      }
+
+      // Vade kontrolü
+      if (!termSemesters || !bank.terms.includes(termSemesters)) {
+        return {
+          success: false,
+          message: `Geçersiz vade. ${bank.name} için geçerli vadeler: ${bank.terms.join(', ')} dönem.`,
+        };
+      }
+
+      // minResearchScore kontrolü
+      if (bank.minResearchScore) {
+        const researchScore = safeNum(_state.research?.researchScore ?? _state.research?.publications ?? 0);
+        if (researchScore < bank.minResearchScore) {
+          return {
+            success: false,
+            message: `${bank.name} için araştırma puanı ≥ ${bank.minResearchScore} gerekli. Mevcut: ${researchScore}.`,
+          };
+        }
+      }
+
+      // Taksit hesapla
+      const semesterPayment = calculateLoanPayment(amount, bank.interestRate, termSemesters);
+
+      // Krediyi kaydet
+      if (!_state.university.loans) _state.university.loans = [];
+      _state.university.loans.push({
+        bankId,
+        bankName:       bank.name,
+        bankIcon:       bank.icon,
+        principal:      amount,
+        remainingAmount: amount,
+        interestRate:   bank.interestRate,
+        termSemesters,
+        remainingTerms: termSemesters,
+        semesterPayment,
+        startTurn:      _state.turn || _state.meta?.turn || 1,
+        overdue:        false,
+        overdueCount:   0,
+      });
+
+      // Bütçeye ekle
+      _state.university.budget += amount;
+
+      // totalDebt güncelle
+      _state.university.totalDebt = (_state.university.loans || [])
+        .reduce((s, l) => s + safeNum(l.remainingAmount), 0);
+
+      return {
+        success: true,
+        message: `${bank.name}'dan ₺${amount.toLocaleString('tr-TR')} kredi alındı. ` +
+                 `Dönem taksiti: ₺${semesterPayment.toLocaleString('tr-TR')} × ${termSemesters} dönem.`,
+        semesterPayment,
+      };
+    }
+
+    // ── Kredi Erken Öde ───────────────────────────────────────────────────────
+    case 'repay_loan_early': {
+      const { loanIndex } = decision;
+      const loans = _state.university.loans || [];
+
+      if (loanIndex < 0 || loanIndex >= loans.length) {
+        return { success: false, message: 'Geçersiz kredi indeksi.' };
+      }
+
+      const loan = loans[loanIndex];
+      const repayAmount = safeNum(loan.remainingAmount);
+
+      if (safeNum(_state.university.budget) < repayAmount) {
+        return {
+          success: false,
+          message: `Erken ödeme için yeterli bütçe yok. Gerekli: ₺${repayAmount.toLocaleString('tr-TR')}`,
+        };
+      }
+
+      // Ödemeyi yap
+      _state.university.budget -= repayAmount;
+      loans.splice(loanIndex, 1);
+      _state.university.loans = loans;
+
+      // totalDebt güncelle
+      _state.university.totalDebt = loans.reduce((s, l) => s + safeNum(l.remainingAmount), 0);
+
+      return {
+        success: true,
+        message: `Kredi tamamen ödendi. ₺${repayAmount.toLocaleString('tr-TR')} bütçeden düşüldü.`,
+      };
+    }
+
     // ── Bilinmeyen Karar Tipi ─────────────────────────────────────────────────
     default:
       return {
         success: false,
-        message: `Bilinmeyen karar tipi: ${decision.type}. Desteklenen tipler: hire_faculty, fire_faculty, set_tuition, start_construction, set_budget_allocation, open_department, close_department, set_scholarship_policy, post_open_position, accept_applicant, reject_applicant, approve_project_application, reject_project_application, open_bap_call, approve_bap_applications, reject_bap_application, set_overhead_rate, organize_alumni_event, apply_random_event`,
+        message: `Bilinmeyen karar tipi: ${decision.type}. Desteklenen tipler: hire_faculty, fire_faculty, set_tuition, start_construction, set_budget_allocation, open_department, close_department, set_scholarship_policy, post_open_position, accept_applicant, reject_applicant, approve_project_application, reject_project_application, open_bap_call, approve_bap_applications, reject_bap_application, set_overhead_rate, organize_alumni_event, apply_random_event, take_loan, repay_loan_early`,
       };
   }
 }

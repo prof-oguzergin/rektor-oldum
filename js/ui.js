@@ -4,10 +4,10 @@
  * Vanilla JS, framework yok.
  */
 
-import { DEPARTMENTS, DEPARTMENT_CURRICULA, UNIVERSITY_TYPES, UNIVERSITY_MODELS, USD_TO_TL, DIFFICULTY_SETTINGS, BUILDINGS, SEMESTER_MONTHS, FACULTIES, DEPT_TO_FACULTY, SALARY_SCALES, ADMIN_UNITS, ADMIN_TITLES, ADMIN_UNIT_BUILDINGS, ACCREDITATION_BODIES, SCENARIOS } from './data.js';
+import { DEPARTMENTS, DEPARTMENT_CURRICULA, UNIVERSITY_TYPES, UNIVERSITY_MODELS, USD_TO_TL, DIFFICULTY_SETTINGS, BUILDINGS, SEMESTER_MONTHS, FACULTIES, DEPT_TO_FACULTY, SALARY_SCALES, ADMIN_UNITS, ADMIN_TITLES, ADMIN_UNIT_BUILDINGS, ACCREDITATION_BODIES, SCENARIOS, BANKS } from './data.js';
 import { DEPARTMENT_FIELDS, getSalaryRange, renderFacultyAvatar, calculateOverallRating, getFacultyRatingTrend } from './faculty.js';
 import { AVAILABLE_NEW_DEPARTMENTS } from './game.js';
-import { calculateIncome, calculateExpenses } from './economy.js';
+import { calculateIncome, calculateExpenses, calculateLoanPayment } from './economy.js';
 import { renderCampusMap, handleCampusClick, handleCampusHover, clearHover } from './campus-renderer.js';
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -3965,7 +3965,7 @@ function _showDepartmentAssignModal(state, building, onDecision) {
  * @param {object}   state          — Oyun durumu
  * @param {Function} onAllocChange  — Bütçe dağılımı değişim callback (allocation alır)
  */
-export function renderBudgetPanel(state, onAllocChange) {
+export function renderBudgetPanel(state, onAllocChange, onLoanAction) {
   const panel = el('tab-budget');
   if (!panel) return;
 
@@ -4139,6 +4139,109 @@ export function renderBudgetPanel(state, onAllocChange) {
       </div>
 
     </div>
+
+    <!-- ─────────────────────────── BANKA KREDİLERİ ─────────────────────────── -->
+    <div style="margin-top:24px;">
+      <div class="section-title">🏦 BANKA KREDİLERİ</div>
+
+      ${(() => {
+        const loans    = uni.loans || [];
+        const totalDebt = uni.totalDebt || 0;
+
+        const loansHtml = loans.length === 0
+          ? `<div class="card" style="font-size:12px;color:var(--text-muted);text-align:center;padding:16px;">
+               Aktif kredi bulunmuyor.
+             </div>`
+          : `<div class="card" style="padding:0;">
+               <table class="data-table">
+                 <thead>
+                   <tr>
+                     <th>Banka</th>
+                     <th class="text-right">Kalan Borç</th>
+                     <th class="text-right">Dönem Taksiti</th>
+                     <th class="text-right">Kalan Dönem</th>
+                     <th class="text-right">Durum</th>
+                     <th class="text-right">İşlem</th>
+                   </tr>
+                 </thead>
+                 <tbody>
+                   ${loans.map((loan, idx) => {
+                     const statusBadge = loan.overdue
+                       ? `<span style="color:#e94560;font-weight:700;">⚠️ Gecikti (${loan.overdueCount}/3)</span>`
+                       : `<span style="color:var(--accent-green);">Aktif</span>`;
+                     const canRepay = budget >= loan.remainingAmount;
+                     return `<tr>
+                       <td>${loan.bankIcon || '🏦'} ${loan.bankName}</td>
+                       <td class="text-right">${formatMoneyFull(loan.remainingAmount)}</td>
+                       <td class="text-right text-bad">-${formatMoneyFull(loan.semesterPayment)}</td>
+                       <td class="text-right">${loan.remainingTerms} dönem</td>
+                       <td class="text-right">${statusBadge}</td>
+                       <td class="text-right">
+                         <button class="btn btn-sm ${canRepay ? 'btn-warning' : ''}"
+                                 data-loan-idx="${idx}"
+                                 id="btn-repay-loan-${idx}"
+                                 ${canRepay ? '' : 'disabled title="Yeterli bütçe yok"'}>
+                           Erken Öde
+                         </button>
+                       </td>
+                     </tr>`;
+                   }).join('')}
+                 </tbody>
+               </table>
+             </div>
+             <div style="text-align:right;margin-top:8px;font-size:12px;color:var(--text-muted);">
+               Toplam borç: <strong style="color:#e94560;">${formatMoneyFull(totalDebt)}</strong>
+             </div>`;
+
+        return loansHtml;
+      })()}
+
+      <!-- Yeni kredi çek bölümü -->
+      <div style="margin-top:16px;">
+        <button class="btn btn-primary" id="btn-show-loan-form" style="margin-bottom:12px;">
+          + Yeni Kredi Çek
+        </button>
+        <div id="loan-form-section" style="display:none;">
+          <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:16px;">
+            ${BANKS.map(bank => {
+              const researchScore = 0; // placeholder; real check at dispatch time
+              const isDisabled = false; // visual only; validation is server-side
+              return `<div class="card bank-card" data-bank-id="${bank.id}"
+                           style="cursor:pointer;border:2px solid transparent;transition:border-color 0.2s;${isDisabled ? 'opacity:0.5;' : ''}">
+                <div style="font-size:24px;text-align:center;margin-bottom:8px;">${bank.icon}</div>
+                <div style="font-weight:700;font-size:14px;text-align:center;margin-bottom:4px;">${bank.name}</div>
+                <div style="font-size:11px;color:var(--text-muted);margin-bottom:8px;">${bank.description}</div>
+                <div style="font-size:12px;">
+                  <div>Faiz: <strong>%${(bank.interestRate * 100).toFixed(0)}/yıl</strong></div>
+                  <div>Limit: <strong>${formatMoney(bank.maxLoan)}</strong></div>
+                  <div>Vadeler: <strong>${bank.terms.join(', ')} dönem</strong></div>
+                  ${bank.minResearchScore ? `<div style="color:var(--accent);">⚠️ Araştırma puanı ≥ ${bank.minResearchScore} gerekli</div>` : ''}
+                </div>
+              </div>`;
+            }).join('')}
+          </div>
+
+          <div id="loan-config-section" style="display:none;" class="card">
+            <div style="font-weight:700;margin-bottom:12px;" id="loan-selected-bank-name">Seçilen banka:</div>
+            <div class="slider-row" style="grid-template-columns:auto 1fr 120px;align-items:center;gap:12px;margin-bottom:12px;">
+              <label style="font-size:13px;white-space:nowrap;">Kredi Miktarı:</label>
+              <input type="range" id="loan-amount-slider" min="1000000" max="60000000" step="1000000" value="5000000">
+              <div class="slider-value" id="loan-amount-display">₺5.000.000</div>
+            </div>
+            <div style="display:flex;align-items:center;gap:12px;margin-bottom:12px;">
+              <label style="font-size:13px;white-space:nowrap;">Vade (dönem):</label>
+              <select id="loan-term-select" class="btn" style="padding:6px 12px;">
+                <option value="">Seçin…</option>
+              </select>
+            </div>
+            <div style="font-size:13px;margin-bottom:16px;" id="loan-payment-preview">
+              Dönem taksiti hesaplanıyor…
+            </div>
+            <button class="btn btn-success" id="btn-confirm-loan">Krediyi Onayla</button>
+          </div>
+        </div>
+      </div>
+    </div>
   `;
 
   // Dağılım slider'ları
@@ -4188,6 +4291,150 @@ export function renderBudgetPanel(state, onAllocChange) {
       aidVal.textContent = `%${aidSlider.value}`;
     });
   }
+
+  // ── Erken Ödeme butonları ─────────────────────────────────────────────────
+  const loans = (state.university || {}).loans || [];
+  loans.forEach((loan, idx) => {
+    const btn = el(`btn-repay-loan-${idx}`);
+    on(btn, 'click', () => {
+      if (!onLoanAction) return;
+      const result = onLoanAction({ type: 'repay_loan_early', loanIndex: idx });
+      if (result && result.success) {
+        showNotification(result.message, 'success');
+        // Paneli yenile (main.js'teki renderBudget çağrısı aracılığıyla)
+        if (window._onBudgetTabRefresh) window._onBudgetTabRefresh();
+      } else {
+        showNotification(result ? result.message : 'İşlem başarısız.', 'error');
+      }
+    });
+  });
+
+  // ── Yeni Kredi Formu ──────────────────────────────────────────────────────
+  let _selectedBankId   = null;
+  let _selectedBankData = null;
+
+  const btnShowLoanForm = el('btn-show-loan-form');
+  const loanFormSection = el('loan-form-section');
+  on(btnShowLoanForm, 'click', () => {
+    if (!loanFormSection) return;
+    const isVisible = loanFormSection.style.display !== 'none';
+    loanFormSection.style.display = isVisible ? 'none' : 'block';
+    btnShowLoanForm.textContent = isVisible ? '+ Yeni Kredi Çek' : '− Formu Kapat';
+  });
+
+  // Banka kartı seçimi
+  qsa('.bank-card').forEach(card => {
+    on(card, 'click', () => {
+      const bankId = card.dataset.bankId;
+      const bank   = BANKS.find(b => b.id === bankId);
+      if (!bank) return;
+
+      _selectedBankId   = bankId;
+      _selectedBankData = bank;
+
+      // Aktif görünüm
+      qsa('.bank-card').forEach(c => c.style.borderColor = 'transparent');
+      card.style.borderColor = 'var(--accent-green)';
+
+      // Konfigürasyon bölümünü göster
+      const configSection = el('loan-config-section');
+      if (configSection) configSection.style.display = 'block';
+
+      // Banka adını güncelle
+      const bankNameEl = el('loan-selected-bank-name');
+      if (bankNameEl) bankNameEl.textContent = `Seçilen banka: ${bank.icon} ${bank.name}`;
+
+      // Slider max değerini güncelle
+      const amtSlider = el('loan-amount-slider');
+      if (amtSlider) {
+        amtSlider.max   = bank.maxLoan;
+        amtSlider.value = Math.min(parseInt(amtSlider.value), bank.maxLoan);
+        const amtDisplay = el('loan-amount-display');
+        if (amtDisplay) amtDisplay.textContent = `₺${parseInt(amtSlider.value).toLocaleString('tr-TR')}`;
+      }
+
+      // Vade seçeneklerini güncelle
+      const termSelect = el('loan-term-select');
+      if (termSelect) {
+        termSelect.innerHTML = '<option value="">Seçin…</option>';
+        bank.terms.forEach(t => {
+          const opt = document.createElement('option');
+          opt.value = t;
+          opt.textContent = `${t} dönem`;
+          termSelect.appendChild(opt);
+        });
+      }
+
+      _updateLoanPreview();
+    });
+  });
+
+  // Taksit önizleme güncelle
+  function _updateLoanPreview() {
+    if (!_selectedBankData) return;
+    const amtSlider   = el('loan-amount-slider');
+    const termSelect  = el('loan-term-select');
+    const previewEl   = el('loan-payment-preview');
+    if (!amtSlider || !termSelect || !previewEl) return;
+
+    const amount = parseInt(amtSlider.value) || 0;
+    const term   = parseInt(termSelect.value) || 0;
+
+    if (!term) {
+      previewEl.textContent = 'Vade seçin…';
+      return;
+    }
+
+    const payment = calculateLoanPayment(amount, _selectedBankData.interestRate, term);
+    previewEl.innerHTML =
+      `Dönem taksiti: <strong style="color:var(--accent);">₺${payment.toLocaleString('tr-TR')}</strong> × ${term} dönem &nbsp;|&nbsp; ` +
+      `Toplam geri ödeme: <strong>₺${(payment * term).toLocaleString('tr-TR')}</strong>`;
+  }
+
+  const amtSlider = el('loan-amount-slider');
+  const amtDisplay = el('loan-amount-display');
+  on(amtSlider, 'input', () => {
+    if (amtDisplay) amtDisplay.textContent = `₺${parseInt(amtSlider.value).toLocaleString('tr-TR')}`;
+    _updateLoanPreview();
+  });
+
+  on(el('loan-term-select'), 'change', _updateLoanPreview);
+
+  // Krediyi Onayla
+  on(el('btn-confirm-loan'), 'click', () => {
+    if (!_selectedBankId || !_selectedBankData) {
+      showNotification('Lütfen önce bir banka seçin.', 'warning');
+      return;
+    }
+    const amtSldr  = el('loan-amount-slider');
+    const termSel  = el('loan-term-select');
+    const amount        = parseInt(amtSldr?.value) || 0;
+    const termSemesters = parseInt(termSel?.value)  || 0;
+
+    if (!amount || !termSemesters) {
+      showNotification('Kredi miktarı ve vadeyi seçin.', 'warning');
+      return;
+    }
+
+    if (!onLoanAction) {
+      showNotification('Oyun motoru hazır değil.', 'error');
+      return;
+    }
+
+    const result = onLoanAction({
+      type: 'take_loan',
+      bankId: _selectedBankId,
+      amount,
+      termSemesters,
+    });
+
+    if (result && result.success) {
+      showNotification(result.message, 'success');
+      if (window._onBudgetTabRefresh) window._onBudgetTabRefresh();
+    } else {
+      showNotification(result ? result.message : 'Kredi alınamadı.', 'error');
+    }
+  });
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

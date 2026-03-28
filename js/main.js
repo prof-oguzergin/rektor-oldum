@@ -296,7 +296,7 @@ function refreshGameUI() {
       renderCampusPanel(state, _onBuildStart, _onCampusDecision);
       break;
     case 'budget':
-      renderBudgetPanel(state, _onAllocChange);
+      renderBudgetPanel(state, _onAllocChange, _onLoanAction);
       break;
     case 'ranking':
       renderRankingPanel(state);
@@ -1256,6 +1256,26 @@ function _onAllocChange(allocation) {
   applyDecision({ type: 'budget_allocation', ...allocation });
   refreshGameUI();
 }
+
+/**
+ * Kredi işlemi (kredi çekme / erken ödeme)
+ * @param {object} decision — { type: 'take_loan' | 'repay_loan_early', ...params }
+ * @returns {object} result — { success, message, ... }
+ */
+function _onLoanAction(decision) {
+  console.log('[main] Kredi işlemi:', decision.type, decision);
+  const result = applyDecision(decision);
+  if (result && result.success) {
+    refreshGameUI();
+  }
+  return result;
+}
+
+// Budget sekmesini yenile (ui.js'ten çağrılabilir)
+window._onBudgetTabRefresh = () => {
+  const state = getState();
+  if (state) renderBudgetPanel(state, _onAllocChange, _onLoanAction);
+};
 
 /** Araştırma bütçesi değişikliği */
 function _onResearchBudget(amount) {

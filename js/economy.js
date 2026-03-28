@@ -65,8 +65,11 @@ const OVERHEAD_PER_STUDENT          = 3_500;        // ₺/dönem enerji+su+temi
 const OVERHEAD_FIXED                = 1_500_000;    // sabit genel gider (₺/dönem)
 
 // Borç faiz oranları
-const DEBT_INTEREST_STAGE2          = 0.03;         // %3/dönem (aşama 2)
-const DEBT_INTEREST_STAGE3          = 0.05;         // %5/dönem (aşama 3)
+const DEBT_INTEREST_STAGE2          = 0.03;         // %3/dönem (aşama 2) — artık sadece uyarı için
+const DEBT_INTEREST_STAGE3          = 0.05;         // %5/dönem (aşama 3) — artık sadece uyarı için
+
+// Kredi gecikme ceza faizi
+const LOAN_OVERDUE_PENALTY_RATE     = 0.02;         // %2 gecikme faizi (kalan borç üzerinden)
 
 // Fiyat elastikliği sabitleri
 const ELASTICITY_BASE_LOW           = -0.5;         // düşük prestij elastikiyeti
@@ -390,6 +393,92 @@ function _estimateScholarshipCount(cohort, state) {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+// calculateLoanPayment — Kredi dönem taksitini hesapla (anüite formülü)
+// ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * Dönem başına kredi taksitini anüite formülüyle hesaplar.
+ * payment = P * r / (1 - (1+r)^-n)
+ * r = yıllık faiz / 2 (dönemlik faiz), n = dönem sayısı
+ *
+ * @param {number} principal       — Kredi anaparası (₺)
+ * @param {number} annualRate      — Yıllık faiz oranı (örn: 0.07)
+ * @param {number} termSemesters   — Kredi süresi (dönem sayısı)
+ * @returns {number} Dönem başına ödeme tutarı (₺)
+ */
+export function calculateLoanPayment(principal, annualRate, termSemesters) {
+  const P = safeNum(principal);
+  const r = safeNum(annualRate) / 2;   // dönemlik faiz
+  const n = safeNum(termSemesters);
+  if (P <= 0 || n <= 0) return 0;
+  if (r === 0) return Math.round(P / n);
+  const payment = P * r / (1 - Math.pow(1 + r, -n));
+  return Math.round(payment);
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// processLoanPayments — Dönem kredi ödemelerini işle
+// ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * Tüm aktif kredilerin dönem taksitlerini bütçeden düşer.
+ * Ödeme yapılamazsa gecikme faizi ve overdue bayrağı uygulanır.
+ * 3 üst üste ödeme atlanırsa loanDefault = true set edilir.
+ *
+ * @param {object} state — Oyun state'i (doğrudan değiştirilir)
+ * @returns {{ totalPaid: number, overdueLoans: number }}
+ */
+export function processLoanPayments(state) {
+  if (!state.university.loans || state.university.loans.length === 0) {
+    state.university.totalDebt = 0;
+    return { totalPaid: 0, overdueLoans: 0 };
+  }
+
+  let totalPaid   = 0;
+  let overdueCount = 0;
+  const remaining = [];
+
+  for (const loan of state.university.loans) {
+    const payment = safeNum(loan.semesterPayment);
+
+    if (safeNum(state.university.budget) >= payment) {
+      // Ödeme yapılabilir
+      state.university.budget -= payment;
+      loan.remainingAmount    -= payment;
+      loan.remainingTerms     -= 1;
+      loan.overdue             = false;
+      totalPaid               += payment;
+
+      // Ödeme yapıldıysa overdueCount sıfırla
+      if (loan.overdueCount > 0) loan.overdueCount = 0;
+    } else {
+      // Ödeme yapılamıyor — gecikme faizi uygula
+      const penaltyAmount = safeNum(loan.remainingAmount) * LOAN_OVERDUE_PENALTY_RATE;
+      loan.remainingAmount += penaltyAmount;
+      loan.overdue          = true;
+      loan.overdueCount     = safeNum(loan.overdueCount) + 1;
+      overdueCount++;
+
+      if (loan.overdueCount >= 3) {
+        state.university.loanDefault = true;
+      }
+    }
+
+    // Kredi bitti mi?
+    if (loan.remainingTerms <= 0 || loan.remainingAmount <= 0) {
+      // Krediyi listeden çıkar (remaining'e ekleme)
+      continue;
+    }
+    remaining.push(loan);
+  }
+
+  state.university.loans     = remaining;
+  state.university.totalDebt = remaining.reduce((s, l) => s + safeNum(l.remainingAmount), 0);
+
+  return { totalPaid, overdueLoans: overdueCount };
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 // calculateExpenses — Dönem giderini kalem kalem hesapla
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -602,8 +691,9 @@ export function applyBudget(state, income, expenses) {
   // Son bilinen iyi bütçeyi kaydet (düzeltme için kullanılır)
   state._lastGoodBudget = state.university.budget;
 
-  // Bütçeye uygula
-  state.university.budget += netCashFlow;
+  // Bütçeye uygula (normal gelir-gider akışı bütçeyi 0'ın altına düşürmez)
+  const rawBudgetAfterFlow = state.university.budget + netCashFlow;
+  state.university.budget  = rawBudgetAfterFlow;
 
   // Uygulama sonrası NaN kontrolü
   if (!isFinite(state.university.budget) || isNaN(state.university.budget)) {
@@ -611,7 +701,10 @@ export function applyBudget(state, income, expenses) {
     state.university.budget = safeNum(state._lastGoodBudget) || 0;
   }
 
-  // Borç takibi
+  // Kredi ödemelerini işle (kredi ödemeleri bütçeyi negatife götürebilir)
+  const loanResult = processLoanPayments(state);
+
+  // Borç takibi (kredi sistemi aktifken totalDebt zaten processLoanPayments tarafından güncelleniyor)
   if (state.university.budget < 0) {
     state.university.debt = Math.abs(state.university.budget);
   } else {
@@ -634,24 +727,17 @@ export function applyBudget(state, income, expenses) {
       break;
 
     case 2:
-      // Aşama 2 (-10M ile -30M): %3/dönem faiz uygulanır
-      interestApplied = Math.abs(state.university.budget) * DEBT_INTEREST_STAGE2;
-      state.university.budget -= interestApplied;
-      state.university.debt    = Math.abs(state.university.budget);
+      // Aşama 2 (-10M ile -30M): Uyarı (faiz artık kredi sisteminde işleniyor)
       warnings.push(
-        `Borç faizi: ₺${Math.round(interestApplied).toLocaleString('tr-TR')} faiz eklendi. ` +
-        `Toplam borç: ₺${state.university.debt.toLocaleString('tr-TR')}.`
+        `Kasa açığı kritik: ₺${Math.abs(state.university.budget).toLocaleString('tr-TR')} açıkta. ` +
+        `Kredi çekmeyi veya giderleri kısmanızı öneririz.`
       );
       break;
 
     case 3:
-      // Aşama 3 (-30M ile -60M): YÖK denetimi + %5 faiz + harcama kısıtı
-      interestApplied = Math.abs(state.university.budget) * DEBT_INTEREST_STAGE3;
-      state.university.budget -= interestApplied;
-      state.university.debt    = Math.abs(state.university.budget);
+      // Aşama 3 (-30M ile -60M): YÖK denetimi + harcama kısıtı
       warnings.push(
-        `YÖK denetimi başladı! Borç ₺${state.university.debt.toLocaleString('tr-TR')}. ` +
-        `Faiz: ₺${Math.round(interestApplied).toLocaleString('tr-TR')}. ` +
+        `YÖK denetimi başladı! Kasa açığı ₺${Math.abs(state.university.budget).toLocaleString('tr-TR')}. ` +
         `Yeni hoca işe alımı ve bina inşaatı donduruldu.`
       );
       // Kısıt bayrağını state'e işle (game.js/UI bu bayrağı okur)
@@ -660,14 +746,13 @@ export function applyBudget(state, income, expenses) {
       break;
 
     case 4:
-      // Aşama 4 (-60M altı): İflas tetikle
-      bankrupt = true;
+      // Aşama 4 (-60M altı): Ciddi uyarı (asıl iflas loanDefault üzerinden tetikleniyor)
       warnings.push(
-        `İFLAS: Kasa ₺60M sınırının altına düştü! ` +
-        `Üniversite kapatılma sürecine girdi.`
+        `Kritik finansal kriz! Kasa ₺60M'nin altına düştü. ` +
+        `Acilen kredi çekin veya bütçeyi yeniden yapılandırın.`
       );
       if (!state._internal) state._internal = {};
-      state._internal.bankruptcyTriggered = true;
+      state._internal.spendingRestricted = true;
       break;
   }
 
@@ -676,11 +761,31 @@ export function applyBudget(state, income, expenses) {
     state._internal.spendingRestricted = false;
   }
 
+  // loanDefault kontrolü: kredi iflas tetikleyici
+  if (state.university.loanDefault === true) {
+    bankrupt = true;
+    warnings.push(
+      `KREDİ İFLASI: Bir kredi 3 dönem üst üste ödenemedi! ` +
+      `Üniversite kapatılma sürecine girdi.`
+    );
+    if (!state._internal) state._internal = {};
+    state._internal.bankruptcyTriggered = true;
+  }
+
+  // Gecikmiş kredi varsa uyarı ekle
+  if (loanResult.overdueLoans > 0) {
+    warnings.push(
+      `${loanResult.overdueLoans} kredi ödemesi bu dönem yapılamadı! Gecikme faizi uygulandı.`
+    );
+  }
+
   return {
     netCashFlow:     Math.round(netCashFlow),
     newBudget:       Math.round(state.university.budget),
     debtStage,
     interestApplied: Math.round(interestApplied),
+    loansPaid:       Math.round(loanResult.totalPaid),
+    overdueLoans:    loanResult.overdueLoans,
     warnings,
     bankrupt,
   };

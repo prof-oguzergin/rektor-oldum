@@ -2320,3 +2320,39 @@ export const SCENARIOS = {
     flavorText: '"Kriz fırsat içinde gizlidir."',
   },
 };
+
+// ─────────────────────────────────────────────────────────────────────────────
+// BANKALAR
+// Kredi çekilebilecek finansal kuruluşlar.
+// ─────────────────────────────────────────────────────────────────────────────
+
+export const BANKS = [
+  {
+    id: 'kamu_bankasi',
+    name: 'Kamu Bankası',
+    icon: '🏦',
+    interestRate: 0.04,
+    maxLoan: 30_000_000,
+    terms: [4, 8, 12],
+    description: 'Devlet destekli düşük faizli kredi. Sınırlı limit.',
+  },
+  {
+    id: 'ozel_banka',
+    name: 'Özel Banka',
+    icon: '🏧',
+    interestRate: 0.07,
+    maxLoan: 60_000_000,
+    terms: [4, 8, 16],
+    description: 'Yüksek limit, hızlı onay. Faiz oranı yüksek.',
+  },
+  {
+    id: 'kalkinma_bankasi',
+    name: 'Kalkınma Bankası',
+    icon: '🌱',
+    interestRate: 0.02,
+    maxLoan: 15_000_000,
+    terms: [8, 12, 20],
+    description: 'Araştırma odaklı üniversitelere özel düşük faizli kredi.',
+    minResearchScore: 50,
+  },
+];
