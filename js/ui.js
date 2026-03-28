@@ -7640,8 +7640,8 @@ export function renderAchievementsPanel(state, achievements, stats) {
 
   panel.innerHTML = `
     <div class="panel-header">
-      <div class="panel-title">🏆 Başarımlar</div>
-      <div class="panel-subtitle">${stats.unlocked}/${stats.total} başarım açıldı</div>
+      <div class="panel-title">🏆 Kazanımlar</div>
+      <div class="panel-subtitle">${stats.unlocked}/${stats.total} kazanım açıldı</div>
     </div>
 
     <div class="card" style="padding:12px;margin-bottom:20px;">
@@ -7675,7 +7675,7 @@ function _achShowNext() {
   toast.innerHTML = `
     <span class="achievement-toast-icon">${ach.icon}</span>
     <div class="achievement-toast-body">
-      <div class="achievement-toast-label">🏆 BAŞARIM AÇILDI!</div>
+      <div class="achievement-toast-label">🏆 KAZANIM AÇILDI!</div>
       <div class="achievement-toast-name">${ach.name}</div>
       <div class="achievement-toast-desc">${ach.description}</div>
     </div>
