@@ -125,7 +125,7 @@ const BUILDING_STYLES = {
     top: '#e8e8e8', left: '#c0c0c0', right: '#a0a0a0',
     topLight: '#ffffff', shadow: 'rgba(40,40,60,0.4)',
     height: 52, label: 'H',
-    roofType: 'flat_cross',      // Düz çatı + kırmızı haç / helipad
+    roofType: 'flat_cross',      // Düz çatı + kırmızı hilal / helipad
     windowColor: '#ffffff',
     windowColorDark: '#cccccc',
   },
@@ -141,7 +141,7 @@ const BUILDING_STYLES = {
     top: '#e8e8e8', left: '#c0c0c0', right: '#a0a0a0',
     topLight: '#ffffff', shadow: 'rgba(40,40,60,0.4)',
     height: 44, label: 'Sa',
-    roofType: 'flat_cross',      // Düz çatı + kırmızı haç
+    roofType: 'flat_cross',      // Düz çatı + kırmızı hilal
     windowColor: '#ffffff',
     windowColorDark: '#cccccc',
   },
@@ -913,7 +913,7 @@ function _drawRoofGlassModern(ctx, x, topY, hw, hh) {
 }
 
 /**
- * Düz çatı + kırmızı haç / helipad (hastane).
+ * Düz çatı + kırmızı hilal / helipad (sağlık merkezi — Kızılay sembolü).
  */
 function _drawRoofFlatCross(ctx, x, topY, hw, hh) {
   // Çatı yüzeyi
@@ -929,16 +929,26 @@ function _drawRoofFlatCross(ctx, x, topY, hw, hh) {
   ctx.lineWidth = 0.8;
   ctx.stroke();
 
-  // Kırmızı haç (çatı ortasında)
-  const crossSize = Math.min(hw, hh) * 0.4;
-  const crossX = x;
-  const crossY = topY - 3;
+  // Kırmızı hilal (Kızılay sembolü — çatı ortasında)
+  const r = Math.min(hw, hh) * 0.4;
+  const cx = x;
+  const cy = topY - 3;
 
   ctx.fillStyle = '#e02020';
-  // Dikey çubuk
-  ctx.fillRect(crossX - crossSize * 0.2, crossY - crossSize, crossSize * 0.4, crossSize * 2);
-  // Yatay çubuk
-  ctx.fillRect(crossX - crossSize, crossY - crossSize * 0.2, crossSize * 2, crossSize * 0.4);
+  // Dış daire (hilal gövdesi)
+  ctx.beginPath();
+  ctx.arc(cx - r * 0.1, cy, r, 0, Math.PI * 2);
+  ctx.fill();
+  // İç daire (hilal boşluğu — sağa kaydırılmış, daha belirgin hilal)
+  ctx.fillStyle = '#e8e8e8'; // çatı rengiyle aynı
+  ctx.beginPath();
+  ctx.arc(cx + r * 0.45, cy, r * 0.8, 0, Math.PI * 2);
+  ctx.fill();
+  // Hilalin uçlarına küçük yıldız (Kızılay tarzı)
+  ctx.fillStyle = '#e02020';
+  ctx.beginPath();
+  ctx.arc(cx + r * 0.15, cy - r * 0.15, r * 0.08, 0, Math.PI * 2);
+  ctx.fill();
 
   // Helipad çemberi
   ctx.beginPath();
