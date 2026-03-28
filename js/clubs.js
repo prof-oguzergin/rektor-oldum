@@ -91,31 +91,6 @@ export const CLUB_TYPES = {
     prestigeBonus: [0, 0, 0, 1],
     description: 'Fotoğraf sergisi ve atölye topluluğu.',
   },
-  // ── Spor ──
-  basketbol: {
-    id: 'basketbol', name: 'Basketbol Takımı', icon: '🏀', category: 'spor',
-    foundingCost: 400_000, semesterCost: 150_000, maxLevel: 3,
-    levelUpCost: [0, 300_000, 600_000],
-    satisfactionBonus: [0, 3, 5, 8],
-    prestigeBonus: [0, 0, 1, 2],
-    description: 'Üniversiteler arası basketbol takımı.',
-  },
-  voleybol: {
-    id: 'voleybol', name: 'Voleybol Takımı', icon: '🏐', category: 'spor',
-    foundingCost: 350_000, semesterCost: 120_000, maxLevel: 3,
-    levelUpCost: [0, 250_000, 500_000],
-    satisfactionBonus: [0, 3, 5, 7],
-    prestigeBonus: [0, 0, 1, 2],
-    description: 'Üniversiteler arası voleybol takımı.',
-  },
-  espor: {
-    id: 'espor', name: 'E-Spor Takımı', icon: '🎮', category: 'spor',
-    foundingCost: 300_000, semesterCost: 100_000, maxLevel: 3,
-    levelUpCost: [0, 200_000, 450_000],
-    satisfactionBonus: [0, 4, 6, 9],
-    prestigeBonus: [0, 0, 1, 2],
-    description: 'Dijital oyun turnuvaları ve e-spor takımı.',
-  },
   // ── Sosyal ──
   cevre: {
     id: 'cevre', name: 'Çevre Topluluğu', icon: '🌿', category: 'sosyal',
@@ -139,7 +114,6 @@ export const CLUB_CATEGORIES = {
   tech:     { name: 'Teknoloji', icon: '💻' },
   akademik: { name: 'Akademik',  icon: '📚' },
   sanat:    { name: 'Sanat',     icon: '🎨' },
-  spor:     { name: 'Spor',      icon: '⚽' },
   sosyal:   { name: 'Sosyal',    icon: '🤝' },
 };
 

@@ -76,6 +76,9 @@ export { establishTTO, upgradeTTO, acceptDeal, rejectDeal, TTO_CONFIG };
 import { initClubsState, foundClub, upgradeClub, dissolveClub, processClubs, CLUB_TYPES, CLUB_CATEGORIES } from './clubs.js';
 export { foundClub, upgradeClub, dissolveClub, CLUB_TYPES, CLUB_CATEGORIES };
 
+import { SPORTS, initSportsState, foundTeam, upgradeTeam, dissolveTeam, processSports } from './sports.js';
+export { SPORTS, foundTeam, upgradeTeam, dissolveTeam };
+
 import { initCampusState, assignBuildingPosition, BUILDING_FOOTPRINTS } from './campus-layout.js';
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -1419,6 +1422,9 @@ export function initGame(playerName, universityName, universityType, difficulty,
 
   // ── v0.3 Feature: Kulüpler state başlat ──────────────────────────────────
   initClubsState(_state);
+
+  // ── v0.4 Feature: Spor takımları state başlat ────────────────────────────
+  initSportsState(_state);
 
   // ── v0.4 Feature: Kampüs grid layout başlat ──────────────────────────────
   try {
@@ -2901,6 +2907,9 @@ function runSimulation() {
   // ── v0.3 Feature: ÖĞRENCİ KULÜPLERİ ────────────────────────────────────
   processClubs(_state, results);
 
+  // ── v0.4 Feature: ÜNİVERSİTE SPORLARI ───────────────────────────────────
+  processSports(_state, results);
+
   // ── v0.2 Feature: RASTGELE OLAYLAR ────────────────────────────────────────
   const rolledEvents = rollRandomEvents(_state);
   if (rolledEvents.length > 0) {
@@ -3939,6 +3948,29 @@ function migrateState(state) {
   // v0.3 Feature 3: TTO — initTTOState ayrıca çağrılıyor (setState içinde)
   // v0.3 Feature 4: Kulüpler — initClubsState ayrıca çağrılıyor (setState içinde)
 
+  // v0.4 Feature: Spor takımları state başlat ve eski kulüplerden migrate et
+  initSportsState(state);
+  if (state.clubs?.active) {
+    const sportClubIds = ['basketbol', 'voleybol', 'espor'];
+    const sportClubs   = state.clubs.active.filter(c => sportClubIds.includes(c.typeId));
+    for (const club of sportClubs) {
+      if (!state.sports.teams.some(t => t.sportId === club.typeId)) {
+        state.sports.teams.push({
+          id: Date.now() + Math.random(),
+          sportId: club.typeId,
+          name:    SPORTS[club.typeId]?.name || club.name,
+          icon:    SPORTS[club.typeId]?.icon || '⚽',
+          level:   Math.min(club.level || 1, 5),
+          wins: 0, losses: 0, draws: 0,
+          seasonPoints: 0, leaguePosition: null,
+          totalInvestment: club.totalInvestment || 0,
+          establishedTurn: club.foundedAt || 1,
+        });
+      }
+    }
+    state.clubs.active = state.clubs.active.filter(c => !sportClubIds.includes(c.typeId));
+  }
+
   // v0.4 Feature: Kampüs grid layout
   if (!state.campus) {
     initCampusState(state);
@@ -4083,6 +4115,10 @@ export function setState(loadedState) {
 
     // v0.3: Kulüpler state'ini tamamla (eski kayıtlar için)
     initClubsState(s);
+
+    // v0.4: Spor takımları state'ini tamamla (eski kayıtlar için)
+    // Not: migrateState zaten initSportsState'i çağırıyor, bu idempotent çağrıdır
+    initSportsState(s);
 
     // v0.4: Kampüs grid layout'unu tamamla (eski kayıtlar için)
     if (!s.campus) initCampusState(s);

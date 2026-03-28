@@ -8,7 +8,7 @@ console.log('[main] main.js modülü yükleniyor...');
 // IMPORT
 // ─────────────────────────────────────────────────────────────────────────────
 
-import { initGame, nextTurn, getState, setState, applyDecision, assignCourses, applyQuotas, assignDeptHead, reassignFacultyToDept, generateAdminCandidates, hireAdminStaff, upgradeAdminUnit, promoteAdminStaff, fireAdminStaff, updateAdminStaffSalary, assignUnitManager, RANDOM_EVENTS, ACHIEVEMENTS, getAchievementStats, organizeAlumniEvent, applyRandomEventChoice, ACCREDITATION_BODIES, applyForAccreditation, checkAccreditationRequirements, establishTTO, upgradeTTO, acceptDeal, rejectDeal, foundClub, upgradeClub, dissolveClub, CLUB_TYPES, CLUB_CATEGORIES } from './game.js';
+import { initGame, nextTurn, getState, setState, applyDecision, assignCourses, applyQuotas, assignDeptHead, reassignFacultyToDept, generateAdminCandidates, hireAdminStaff, upgradeAdminUnit, promoteAdminStaff, fireAdminStaff, updateAdminStaffSalary, assignUnitManager, RANDOM_EVENTS, ACHIEVEMENTS, getAchievementStats, organizeAlumniEvent, applyRandomEventChoice, ACCREDITATION_BODIES, applyForAccreditation, checkAccreditationRequirements, establishTTO, upgradeTTO, acceptDeal, rejectDeal, foundClub, upgradeClub, dissolveClub, CLUB_TYPES, CLUB_CATEGORIES, SPORTS, foundTeam, upgradeTeam, dissolveTeam } from './game.js';
 
 import {
   showScreen,
@@ -39,6 +39,7 @@ import {
   renderAchievementsPanel,
   renderAccreditationPanel,
   renderClubsPanel,
+  renderSportsPanel,
   showAchievementNotification,
   renderRandomEventModal,
   showAccreditationModal,
@@ -242,6 +243,24 @@ function _startGameWithState(state) {
     refreshGameUI();
   };
 
+  // Spor verilerini ve callback'lerini global alana kaydet (ui.js butonları için)
+  window._SPORTS = SPORTS;
+  window._onFoundTeam = (sportId) => {
+    const result = foundTeam(getState(), sportId);
+    showNotification(result.message, result.success ? 'success' : 'error');
+    refreshGameUI();
+  };
+  window._onUpgradeTeam = (teamId) => {
+    const result = upgradeTeam(getState(), teamId);
+    showNotification(result.message, result.success ? 'success' : 'error');
+    refreshGameUI();
+  };
+  window._onDissolveTeam = (teamId) => {
+    if (!confirm('Bu takımı kapatmak istediğinize emin misiniz?')) return;
+    dissolveTeam(getState(), teamId);
+    refreshGameUI();
+  };
+
   refreshGameUI();
   // Ambient müziği başlat (mute değilse)
   if (!isMuted()) startMusic();
@@ -309,6 +328,9 @@ function refreshGameUI() {
       break;
     case 'alumni':
       renderAlumniPanel(state, _onAlumniEvent);
+      break;
+    case 'sports':
+      renderSportsPanel(state);
       break;
     case 'clubs':
       renderClubsPanel(state);
