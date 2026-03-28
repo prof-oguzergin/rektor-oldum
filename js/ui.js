@@ -4,7 +4,7 @@
  * Vanilla JS, framework yok.
  */
 
-import { DEPARTMENTS, DEPARTMENT_CURRICULA, UNIVERSITY_TYPES, UNIVERSITY_MODELS, USD_TO_TL, DIFFICULTY_SETTINGS, BUILDINGS, SEMESTER_MONTHS, FACULTIES, DEPT_TO_FACULTY, SALARY_SCALES, ADMIN_UNITS, ADMIN_TITLES, ACCREDITATION_BODIES, SCENARIOS } from './data.js';
+import { DEPARTMENTS, DEPARTMENT_CURRICULA, UNIVERSITY_TYPES, UNIVERSITY_MODELS, USD_TO_TL, DIFFICULTY_SETTINGS, BUILDINGS, SEMESTER_MONTHS, FACULTIES, DEPT_TO_FACULTY, SALARY_SCALES, ADMIN_UNITS, ADMIN_TITLES, ADMIN_UNIT_BUILDINGS, ACCREDITATION_BODIES, SCENARIOS } from './data.js';
 import { DEPARTMENT_FIELDS, getSalaryRange, renderFacultyAvatar, calculateOverallRating, getFacultyRatingTrend } from './faculty.js';
 import { AVAILABLE_NEW_DEPARTMENTS } from './game.js';
 import { calculateIncome, calculateExpenses } from './economy.js';
@@ -6852,6 +6852,17 @@ export function renderAdminPanel(state, onHireAdmin, onUpgradeUnit) {
             <div style="font-size:11px;color:var(--text-muted);">Düzey ${unit.level}</div>
           </div>
         </div>
+
+        ${(() => {
+          if (unit.assignedBuilding && unit.buildingName) {
+            return `<div style="font-size:11px;color:#4ade80;margin-bottom:8px;">📍 Konum: <strong>${unit.buildingName}</strong></div>`;
+          }
+          const naturalBuilding = ADMIN_UNIT_BUILDINGS[unitId];
+          if (naturalBuilding) {
+            return `<div style="font-size:11px;color:var(--text-muted);margin-bottom:8px;">📍 Konum: <em>Atanmamış</em> <span style="opacity:0.7;">(İlgili binayı inşa edin)</span></div>`;
+          }
+          return '';
+        })()}
 
         ${mgrRow}
 

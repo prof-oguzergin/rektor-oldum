@@ -24,6 +24,7 @@ export const BUILDING_FOOTPRINTS = {
   teknokent:         { w: 3, h: 2 },
   saglik_merkezi:    { w: 2, h: 1 },
   idari_bina:        { w: 2, h: 2, zone: 'core' },
+  ulasim_merkezi:    { w: 2, h: 1 },
 };
 
 /** Bina tipi → tercih edilen bölge */
@@ -40,9 +41,10 @@ export const BUILDING_ZONES = {
   teknokent:         'outer',
   saglik_merkezi:    'inner',
   idari_bina:        'center',
+  ulasim_merkezi:    'edge',
 };
 
-const ZONE_RADIUS = { center: 4, inner: 7, outer: 11 };
+const ZONE_RADIUS = { center: 4, inner: 7, outer: 11, edge: 11 };
 const CENTER = Math.floor(GRID_SIZE / 2);
 
 // ─────────────────────────────────────────────────────────────────────────────

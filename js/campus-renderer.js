@@ -145,6 +145,17 @@ const BUILDING_STYLES = {
     windowColor: '#ffffff',
     windowColorDark: '#cccccc',
   },
+  ulasim_merkezi: {
+    top: '#607D8B', left: '#455A64', right: '#37474F',
+    topLight: '#90A4AE', shadow: 'rgba(38,50,56,0.5)',
+    height: 25, label: 'U',
+    roofType: 'flat',            // Düz çatı (otobüs durağı)
+    windowColor: '#B0BEC5',
+    windowColorDark: '#78909C',
+    color: '#607D8B',
+    topColor: '#78909C',
+    shadow: '#455A64',
+  },
 };
 
 // Zemin renkleri

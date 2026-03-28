@@ -1679,6 +1679,35 @@ export const BUILDINGS = {
     },
     prerequisite: 'arastirma_merkezi',
   },
+
+  ulasim_merkezi: {
+    id:                    'ulasim_merkezi',
+    name:                  'Ulaşım Merkezi',
+    icon:                  '🚌',
+    description:           'Ring/servis araçları durağı ve otopark. Ulaşım hizmetleri verimliliğini artırır.',
+    assignable:            false,
+    benefitText:           'Öğrenci ulaşımını kolaylaştırır, memnuniyeti artırır.',
+    baseCost:              3_000_000,
+    baseArea:              1500,
+    upgradeCostMultiplier: 1.5,
+    maxLevel:              3,
+    areaPerLevel:          1000,
+    capacity:              { offices: 5, classrooms: 0, labs: 0 },
+    capacityPerLevel:      { offices: 2, classrooms: 0, labs: 0 },
+    maintenanceCostPerM2:  30,
+    constructionTurns:     1,
+    canHaveMultiple:       false,
+    effects: { satisfactionBonus: 5 },
+    // Geriye dönük uyumluluk
+    constructionCost:      3_000_000,
+    maintenanceCostRatio:  0.08,
+    constructionTime:      1,
+    upgradeCosts:          [8_000_000, 20_000_000],
+    qualityEffects: {
+      transportScore:      +10,
+    },
+    prerequisite: null,
+  },
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -2205,6 +2234,25 @@ export const ADMIN_INITIAL_STAFF = [
   { unit: 'temizlik_bakim',      title: 'Memur',       count: 1 },
   { unit: 'uluslararasi_ofis',   title: 'Uzman',       count: 1 },
 ];
+
+// ─────────────────────────────────────────────────────────────────────────────
+// İDARİ BİRİM → DOĞAL BİNA EŞLEŞMESİ
+// Her idari birimin "doğal" olarak bulunduğu fiziksel bina tipi.
+// Bu sabit oyun mantığı (game.js) ve UI (ui.js) için tek kaynak olarak kullanılır.
+// ─────────────────────────────────────────────────────────────────────────────
+
+export const ADMIN_UNIT_BUILDINGS = {
+  kutuphane_hizmetleri: 'kutuphane',
+  yemekhane_yonetimi:   'yemekhane',
+  saglik_merkezi:       'saglik_merkezi',
+  ogrenci_isleri:       'idari_bina',
+  kariyer_merkezi:      'idari_bina',
+  bilgi_teknolojileri:  'idari_bina',
+  uluslararasi_ofis:    'idari_bina',
+  guvenlik:             'idari_bina',
+  temizlik_bakim:       'idari_bina',
+  ulasim:               'ulasim_merkezi',
+};
 
 // ─────────────────────────────────────────────────────────────────────────────
 // SENARYOLAR (v0.3)

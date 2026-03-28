@@ -27,6 +27,7 @@ import {
   ADMIN_UNITS,
   ADMIN_TITLES,
   ADMIN_INITIAL_STAFF,
+  ADMIN_UNIT_BUILDINGS,
   STUDENT_NAME_POOL,
   ACCREDITATION_BODIES,
   SCENARIOS,
@@ -438,65 +439,74 @@ function syncAdminUnitStats(adminUnits, adminStaff, buildings) {
 
 /**
  * Fiziksel binalara göre idari birimlere verimlilik ve memnuniyet bonusu uygular.
+ * ADMIN_UNIT_BUILDINGS sabiti üzerinden çalışır — tek kaynak of truth.
  * syncAdminUnitStats tarafından çağrılır (buildings mevcut ise).
  */
 function _applyAdminBuildingBonuses(adminUnits, buildings) {
-  const completed = (type) => buildings.some(b => b.type === type && b.isCompleted);
+  const getBuildingObj = (type) => buildings.find(b => b.type === type && b.isCompleted) || null;
+  const completed      = (type) => !!getBuildingObj(type);
   const getBuildingLevel = (type) => {
-    const b = buildings.find(bl => bl.type === type && bl.isCompleted);
+    const b = getBuildingObj(type);
     return b ? (b.level || 1) : 0;
   };
 
-  // Sağlık merkezi → saglik_merkezi birimi +15 verimlilik bonusu
-  if (completed('saglik_merkezi')) {
-    const unit = adminUnits['saglik_merkezi'];
-    if (unit) {
-      unit.buildingBonus = { type: 'saglik_merkezi', icon: '🏥', efficiency: 15 };
-      unit.satisfaction  = Math.min(100, unit.satisfaction + 15);
+  // Bina icon eşlemesi (UI'de gösterilir)
+  const BUILDING_ICONS = {
+    kutuphane:      '📚',
+    yemekhane:      '🍽️',
+    saglik_merkezi: '🏥',
+    idari_bina:     '🏛️',
+    ulasim_merkezi: '🚌',
+  };
+  // Bina başına verimlilik bonusu
+  const BUILDING_EFFICIENCY = {
+    kutuphane:      10,
+    yemekhane:      10,
+    saglik_merkezi: 15,
+    ulasim_merkezi: 10,
+  };
+
+  // 1. ADMIN_UNIT_BUILDINGS eşlemesine göre her birimin assignedBuilding/buildingBonus'unu güncelle
+  for (const [unitId, buildingType] of Object.entries(ADMIN_UNIT_BUILDINGS)) {
+    const unit = adminUnits[unitId];
+    if (!unit) continue;
+
+    const buildingObj = getBuildingObj(buildingType);
+    if (buildingObj) {
+      // Bina mevcut ve tamamlandı — birimi bu binaya ata
+      unit.assignedBuilding = buildingType;
+      unit.buildingName     = buildingObj.name || buildingType;
+      const eff = BUILDING_EFFICIENCY[buildingType];
+      if (eff) {
+        unit.buildingBonus = {
+          type:       buildingType,
+          icon:       BUILDING_ICONS[buildingType] || '🏢',
+          efficiency: eff,
+        };
+        unit.satisfaction = Math.min(100, unit.satisfaction + eff);
+      }
+    } else {
+      // Bina yok — atamaları temizle
+      unit.assignedBuilding = null;
+      unit.buildingName     = null;
+      if (unit.buildingBonus?.type === buildingType) unit.buildingBonus = null;
     }
-  } else {
-    const unit = adminUnits['saglik_merkezi'];
-    if (unit) unit.buildingBonus = null;
   }
 
-  // İdari bina → tüm birimlere verimlilik bonusu (seviye 1: +10, 2: +15, 3: +20)
-  const idariLevel = getBuildingLevel('idari_bina');
+  // 2. İdari bina → tüm birimlere seviyeye göre verimlilik bonusu (özel kural)
+  const idariLevel    = getBuildingLevel('idari_bina');
   const idariBonusMap = { 1: 10, 2: 15, 3: 20 };
-  const idariBonus = idariLevel > 0 ? (idariBonusMap[idariLevel] || 10) : 0;
+  const idariBonus    = idariLevel > 0 ? (idariBonusMap[idariLevel] || 10) : 0;
   for (const unit of Object.values(adminUnits)) {
     if (idariBonus > 0) {
-      unit.idariBonus     = idariBonus;
-      unit.satisfaction   = Math.min(100, unit.satisfaction + Math.round(idariBonus * 0.3));
+      unit.idariBonus   = idariBonus;
+      unit.satisfaction = Math.min(100, unit.satisfaction + Math.round(idariBonus * 0.3));
     } else {
       unit.idariBonus = 0;
     }
   }
 
-  // Kütüphane → kutuphane_hizmetleri birimi +10 verimlilik bonusu
-  if (completed('kutuphane')) {
-    const unit = adminUnits['kutuphane_hizmetleri'];
-    if (unit) {
-      unit.buildingBonus = { type: 'kutuphane', icon: '📚', efficiency: 10 };
-      unit.satisfaction  = Math.min(100, unit.satisfaction + 10);
-    }
-  } else {
-    const unit = adminUnits['kutuphane_hizmetleri'];
-    if (unit && unit.buildingBonus?.type === 'kutuphane') unit.buildingBonus = null;
-  }
-
-  // Yemekhane → yemekhane_yonetimi birimi +10 verimlilik bonusu
-  if (completed('yemekhane')) {
-    const unit = adminUnits['yemekhane_yonetimi'];
-    if (unit) {
-      unit.buildingBonus = { type: 'yemekhane', icon: '🍽️', efficiency: 10 };
-      unit.satisfaction  = Math.min(100, unit.satisfaction + 10);
-    }
-  } else {
-    const unit = adminUnits['yemekhane_yonetimi'];
-    if (unit && unit.buildingBonus?.type === 'yemekhane') unit.buildingBonus = null;
-  }
-
-  // Spor tesisi → tüm birimlerde memnuniyet +2
+  // 3. Spor tesisi → tüm birimlerde memnuniyet +2
   if (completed('spor_tesisi')) {
     for (const unit of Object.values(adminUnits)) {
       unit.satisfaction = Math.min(100, unit.satisfaction + 2);
