@@ -3167,11 +3167,9 @@ export function renderCampusPanel(state, onBuildStart, onDecision) {
       </div>
     </div>
 
-    <!-- Kampüs İzometrik Harita -->
-    <div class="campus-map-container" style="position:relative;">
-      <canvas id="campus-canvas"></canvas>
-      <div id="campus-tooltip" class="campus-tooltip" style="display:none;"></div>
-    </div>
+    <div class="campus-layout">
+      <!-- SOL: Özet + Binalar -->
+      <div class="campus-main">
 
     <!-- Yerleşke Özeti -->
     <div class="section-title">Yerleşke Özeti</div>
@@ -3511,6 +3509,31 @@ export function renderCampusPanel(state, onBuildStart, onDecision) {
           </div>`;
       }).join('')}
     </div>
+
+      </div><!-- /campus-main -->
+
+      <!-- SAĞ: Küçük harita önizlemesi -->
+      <div class="campus-map-sidebar">
+        <div class="campus-map-preview" id="campus-map-preview" title="Haritayı büyütmek için tıklayın">
+          <canvas id="campus-canvas" width="960" height="600"></canvas>
+          <div id="campus-tooltip" class="campus-tooltip" style="display:none;"></div>
+          <div class="campus-map-expand-hint">🔍 Büyütmek için tıklayın</div>
+        </div>
+      </div>
+
+    </div><!-- /campus-layout -->
+
+    <!-- Tam ekran harita katmanı (varsayılan: gizli) -->
+    <div class="campus-map-fullscreen" id="campus-map-fullscreen" style="display:none;">
+      <div class="campus-map-fullscreen-header">
+        <span>Kampüs Haritası</span>
+        <button class="campus-map-close" id="campus-map-close">✕</button>
+      </div>
+      <div style="position:relative;width:90%;max-width:1200px;">
+        <canvas id="campus-canvas-full" width="1200" height="750"></canvas>
+        <div id="campus-tooltip-full" class="campus-tooltip" style="display:none;"></div>
+      </div>
+    </div>
   `;
 
   // Kampüs haritası canvas — innerHTML her yenilendiğinde yeniden bağlanmalı
@@ -3549,6 +3572,97 @@ export function renderCampusPanel(state, onBuildStart, onDecision) {
       if (tooltip) tooltip.style.display = 'none';
     });
   }
+
+  // Tam ekran harita — önizlemeye tıklanınca aç
+  const mapPreview  = document.getElementById('campus-map-preview');
+  const fullscreen  = document.getElementById('campus-map-fullscreen');
+  const closeBtn    = document.getElementById('campus-map-close');
+  const fullCanvas  = document.getElementById('campus-canvas-full');
+
+  function openFullscreen() {
+    if (!fullscreen || !fullCanvas) return;
+    fullscreen.style.display = 'flex';
+    renderCampusMap(fullCanvas, state);
+
+    // Tam ekran kanvasında da tooltip + hover
+    fullCanvas.addEventListener('click', _fullCanvasClick);
+    fullCanvas.addEventListener('mousemove', _fullCanvasMove);
+    fullCanvas.addEventListener('mouseleave', _fullCanvasLeave);
+  }
+
+  function closeFullscreen() {
+    if (!fullscreen) return;
+    fullscreen.style.display = 'none';
+    clearHover();
+    fullCanvas.removeEventListener('click', _fullCanvasClick);
+    fullCanvas.removeEventListener('mousemove', _fullCanvasMove);
+    fullCanvas.removeEventListener('mouseleave', _fullCanvasLeave);
+    const tt = document.getElementById('campus-tooltip-full');
+    if (tt) tt.style.display = 'none';
+  }
+
+  function _fullCanvasClick(e) {
+    const building = handleCampusClick(e, fullCanvas, state);
+    const tooltip  = document.getElementById('campus-tooltip-full');
+    if (building && tooltip) {
+      tooltip.style.display = 'block';
+      tooltip.style.left = (e.offsetX + 12) + 'px';
+      tooltip.style.top  = (e.offsetY - 12) + 'px';
+      const statusText = building.isCompleted ? '✅ Aktif' : `🔨 Yapım: %${Math.round(building.constructionProgress || 0)}`;
+      tooltip.innerHTML = `
+        <strong>${building.name || building.type}</strong><br>
+        Düzey ${building.level || 1} · ${(building.area || 0).toLocaleString('tr-TR')} m²<br>
+        ${statusText}
+      `;
+    } else if (tooltip) {
+      tooltip.style.display = 'none';
+    }
+    renderCampusMap(fullCanvas, state);
+  }
+
+  function _fullCanvasMove(e) {
+    handleCampusHover(e, fullCanvas, state);
+    renderCampusMap(fullCanvas, state);
+  }
+
+  function _fullCanvasLeave() {
+    clearHover();
+    renderCampusMap(fullCanvas, state);
+    const tt = document.getElementById('campus-tooltip-full');
+    if (tt) tt.style.display = 'none';
+  }
+
+  if (mapPreview) {
+    mapPreview.addEventListener('click', (e) => {
+      // Tıklama önizleme div'ine ait olmalı (canvas veya hint dahil)
+      openFullscreen();
+    });
+  }
+
+  if (closeBtn) {
+    closeBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      closeFullscreen();
+    });
+  }
+
+  if (fullscreen) {
+    // Arka plana tıklayınca kapat (header veya canvas dışı)
+    fullscreen.addEventListener('click', (e) => {
+      if (e.target === fullscreen) closeFullscreen();
+    });
+  }
+
+  // Escape tuşuyla kapat — her render'da eski dinleyiciyi temizle
+  if (panel._escListener) {
+    document.removeEventListener('keydown', panel._escListener);
+  }
+  panel._escListener = (e) => {
+    if (e.key === 'Escape' && fullscreen && fullscreen.style.display !== 'none') {
+      closeFullscreen();
+    }
+  };
+  document.addEventListener('keydown', panel._escListener);
 
   // Olay dinleyicilerini yalnızca bir kez bağla (her render'da tekrar ekleme)
   if (!panel._campusListenersAttached) {
