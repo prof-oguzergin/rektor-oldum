@@ -15,12 +15,15 @@ import { GRID_SIZE, BUILDING_FOOTPRINTS } from './campus-layout.js';
 // SABİTLER
 // ─────────────────────────────────────────────────────────────────────────────
 
-const TILE_W = 64;
-const TILE_H = 32;
 const CANVAS_W = 960;
 const CANVAS_H = 600;
-const ORIGIN_X = CANVAS_W / 2;
-const ORIGIN_Y = 60;
+
+// Tile boyutları ve başlangıç noktası — renderCampusMap tarafından güncellenir
+// (Grid'in tüm canvas'a sığması için dinamik hesap)
+let TILE_H = Math.floor((CANVAS_H - 120) / (GRID_SIZE - 1)); // 120px bina yüksekliği için boşluk
+let TILE_W = TILE_H * 2;
+let ORIGIN_X = CANVAS_W / 2;
+let ORIGIN_Y = 60; // üstte bina yükseklikleri için boşluk
 
 // Bina görsel stilleri — her tipin renk paleti ve meta verisi
 const BUILDING_STYLES = {
@@ -1143,11 +1146,16 @@ function drawBuilding(ctx, building, state) {
   const gw = building.gridW || 1;
   const gh = building.gridH || 1;
 
-  // Multi-tile bina: merkez noktasını hesapla
+  // Multi-tile bina: x merkezi + baseY hesapla
+  // x merkezi: sütun ve satır ortasından
   const centerCol = gx + gw / 2;
   const centerRow = gy + gh / 2;
-  const { x, y } = isoProject(centerCol, centerRow);
-  const baseY = y + TILE_H / 2;
+  const { x } = isoProject(centerCol, centerRow);
+  // baseY: izometrik perspektifte binanın oturduğu zemin noktası.
+  // En "derin" tile (maksimum col+row) taban köşesinin altı kullanılır;
+  // bu 1x1 binalar için mevcut davranışla aynıdır, non-kare için yüzer görünümü düzeltir.
+  const deepTile = isoProject(gx + gw - 1, gy + gh - 1);
+  const baseY = deepTile.y + TILE_H;
 
   // Bina genişlik/derinlik (tile sayısı bazlı)
   const buildW = TILE_W * gw * 0.7;

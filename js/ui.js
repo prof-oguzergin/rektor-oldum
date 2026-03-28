@@ -3390,10 +3390,10 @@ export function renderCampusPanel(state, onBuildStart, onDecision) {
                 ${pct > 130 ? `<div style="font-size:11px;color:#ef4444;">• Kapasite aşıldı — öğrenci şikâyeti artıyor</div>` : ''}
               </div>`;
           } else if (b.type === 'lab') {
-            // Lab binası: atanmış bölümler ve labScore katkısı
+            // Lab binası: bağlı bölümler ve labScore katkısı
             const labBonus    = 25 * (b.level || 1);
             const labTotalCap = cap.labs || 0;
-            const assignedLabDepts = (b.assignedDepartments || []).map(dId => {
+            const linkedLabDepts = (b.linkedDepartments || []).map(dId => {
               const d = (state.departments || []).find(dep => dep.id === dId);
               if (!d) return null;
               return `<div style="font-size:11px;color:#cbd5e1;">• ${d.shortName || d.name} — labScore +${labBonus} puan</div>`;
@@ -3402,11 +3402,11 @@ export function renderCampusPanel(state, onBuildStart, onDecision) {
               <div style="margin-bottom:6px;">
                 <div style="font-size:11px;font-weight:600;color:#94a3b8;margin-bottom:3px;">🔬 LAB KAPASİTESİ</div>
                 <div style="font-size:11px;color:#cbd5e1;">• ${labTotalCap} laboratuvar · Düzey ${b.level || 1}</div>
-                <div style="font-size:11px;color:#4ade80;margin-top:2px;">• Atandığı bölüme +${labBonus} labScore katkısı (düzey × 25)</div>
+                <div style="font-size:11px;color:#4ade80;margin-top:2px;">• Bağlandığı bölüme +${labBonus} labScore katkısı (düzey × 25)</div>
               </div>
               <div style="margin-bottom:6px;">
-                <div style="font-size:11px;font-weight:600;color:#94a3b8;margin-bottom:3px;">📌 ATANMIŞ BÖLÜMLER</div>
-                ${assignedLabDepts || '<div style="font-size:11px;color:#64748b;font-style:italic;">Henüz bölüm atanmadı — "Bölüm Ata" ile ekle</div>'}
+                <div style="font-size:11px;font-weight:600;color:#94a3b8;margin-bottom:3px;">🔗 BAĞLI BÖLÜMLER</div>
+                ${linkedLabDepts || '<div style="font-size:11px;color:#64748b;font-style:italic;">Henüz bölüm bağlanmadı — "Lab Bağla" ile ekle</div>'}
               </div>`;
           } else {
             // Diğer binalar (araştırma merkezi, konferans vb.)
@@ -3456,7 +3456,7 @@ export function renderCampusPanel(state, onBuildStart, onDecision) {
                 <button class="btn-campus-assign btn-small"
                         data-building-id="${b.id}"
                         style="font-size:11px;">
-                  📌 Bölüm Ata
+                  ${b.type === 'lab' ? '🔗 Lab Bağla' : '📌 Bölüm Ata'}
                 </button>` : ''}
               </div>
             </div>`;
@@ -3765,8 +3765,9 @@ export function renderCampusPanel(state, onBuildStart, onDecision) {
  * @param {Function} onDecision — Karar callback
  */
 function _showDepartmentAssignModal(state, building, onDecision) {
-  const allDepts   = state.departments || [];
+  const allDepts     = state.departments || [];
   const allBuildings = state.buildings || [];
+  const isLab        = building.type === 'lab';
 
   /** Modal içeriğini üretir */
   function _buildModalBody() {
@@ -3775,30 +3776,52 @@ function _showDepartmentAssignModal(state, building, onDecision) {
     }
 
     const rows = allDepts.map(dept => {
-      const assignedHere    = (building.assignedDepartments || []).includes(dept.id);
-      const otherBuilding   = assignedHere ? null :
-        allBuildings.find(b => b.id !== building.id && (b.assignedDepartments || []).includes(dept.id));
-
       let statusBadge = '';
       let rowStyle    = 'display:flex;align-items:center;gap:12px;padding:10px 12px;border-radius:8px;cursor:pointer;border:1px solid transparent;transition:background .15s;';
       let actionHint  = '';
       let dataAttr    = '';
 
-      if (assignedHere) {
-        statusBadge = `<span style="font-size:11px;padding:2px 8px;border-radius:10px;background:rgba(76,175,80,0.15);color:#4caf50;border:1px solid rgba(76,175,80,0.3);flex-shrink:0;">✓ Bu binada</span>`;
-        rowStyle   += 'background:rgba(76,175,80,0.06);border-color:rgba(76,175,80,0.2);';
-        actionHint  = `<span style="font-size:11px;color:var(--text-muted);margin-left:auto;flex-shrink:0;">Kaldır</span>`;
-        dataAttr    = `data-action="unassign" data-dept-id="${dept.id}"`;
-      } else if (otherBuilding) {
-        const otherName = otherBuilding.name || otherBuilding.id;
-        statusBadge = `<span style="font-size:11px;padding:2px 8px;border-radius:10px;background:rgba(255,152,0,0.12);color:#ff9800;border:1px solid rgba(255,152,0,0.3);flex-shrink:0;">📍 ${otherName}</span>`;
-        rowStyle   += 'background:rgba(255,152,0,0.04);border-color:rgba(255,152,0,0.15);';
-        actionHint  = `<span style="font-size:11px;color:#ff9800;margin-left:auto;flex-shrink:0;">Taşı</span>`;
-        dataAttr    = `data-action="move" data-dept-id="${dept.id}" data-from-building-id="${otherBuilding.id}"`;
+      if (isLab) {
+        // Lab binası: linkedDepartments üzerinden kontrol
+        const linkedHere = (building.linkedDepartments || []).includes(dept.id);
+
+        if (linkedHere) {
+          statusBadge = `<span style="font-size:11px;padding:2px 8px;border-radius:10px;background:rgba(76,175,80,0.15);color:#4caf50;border:1px solid rgba(76,175,80,0.3);flex-shrink:0;">✓ Bağlı</span>`;
+          rowStyle   += 'background:rgba(76,175,80,0.06);border-color:rgba(76,175,80,0.2);';
+          actionHint  = `<span style="font-size:11px;color:var(--text-muted);margin-left:auto;flex-shrink:0;">Kaldır</span>`;
+          dataAttr    = `data-action="unassign" data-dept-id="${dept.id}"`;
+        } else {
+          // Hangi fakülte binasında olduğunu göster (bilgi amaçlı)
+          const facultyBuilding = allBuildings.find(b => b.type !== 'lab' && (b.assignedDepartments || []).includes(dept.id));
+          if (facultyBuilding) {
+            const fname = facultyBuilding.name || facultyBuilding.id;
+            statusBadge = `<span style="font-size:11px;padding:2px 8px;border-radius:10px;background:rgba(100,148,237,0.12);color:#64a0e8;border:1px solid rgba(100,148,237,0.3);flex-shrink:0;">🏛️ ${fname}</span>`;
+          }
+          actionHint  = `<span style="font-size:11px;color:#4ade80;margin-left:auto;flex-shrink:0;">Bağla</span>`;
+          dataAttr    = `data-action="assign" data-dept-id="${dept.id}"`;
+        }
       } else {
-        rowStyle   += '';
-        actionHint  = `<span style="font-size:11px;color:var(--text-muted);margin-left:auto;flex-shrink:0;">Ata</span>`;
-        dataAttr    = `data-action="assign" data-dept-id="${dept.id}"`;
+        // Normal bina: assignedDepartments üzerinden kontrol
+        const assignedHere  = (building.assignedDepartments || []).includes(dept.id);
+        const otherBuilding = assignedHere ? null :
+          allBuildings.find(b => b.id !== building.id && b.type !== 'lab' && (b.assignedDepartments || []).includes(dept.id));
+
+        if (assignedHere) {
+          statusBadge = `<span style="font-size:11px;padding:2px 8px;border-radius:10px;background:rgba(76,175,80,0.15);color:#4caf50;border:1px solid rgba(76,175,80,0.3);flex-shrink:0;">✓ Bu binada</span>`;
+          rowStyle   += 'background:rgba(76,175,80,0.06);border-color:rgba(76,175,80,0.2);';
+          actionHint  = `<span style="font-size:11px;color:var(--text-muted);margin-left:auto;flex-shrink:0;">Kaldır</span>`;
+          dataAttr    = `data-action="unassign" data-dept-id="${dept.id}"`;
+        } else if (otherBuilding) {
+          const otherName = otherBuilding.name || otherBuilding.id;
+          statusBadge = `<span style="font-size:11px;padding:2px 8px;border-radius:10px;background:rgba(255,152,0,0.12);color:#ff9800;border:1px solid rgba(255,152,0,0.3);flex-shrink:0;">📍 ${otherName}</span>`;
+          rowStyle   += 'background:rgba(255,152,0,0.04);border-color:rgba(255,152,0,0.15);';
+          actionHint  = `<span style="font-size:11px;color:#ff9800;margin-left:auto;flex-shrink:0;">Taşı</span>`;
+          dataAttr    = `data-action="move" data-dept-id="${dept.id}" data-from-building-id="${otherBuilding.id}"`;
+        } else {
+          rowStyle   += '';
+          actionHint  = `<span style="font-size:11px;color:var(--text-muted);margin-left:auto;flex-shrink:0;">Ata</span>`;
+          dataAttr    = `data-action="assign" data-dept-id="${dept.id}"`;
+        }
       }
 
       return `
@@ -3815,9 +3838,13 @@ function _showDepartmentAssignModal(state, building, onDecision) {
         </div>`;
     }).join('');
 
+    const hint = isLab
+      ? 'Bir bölüme tıklayarak bu lab binasına bağlayabilirsiniz. Bölüm, fakülte binasında kalmaya devam eder.'
+      : 'Bir bölüme tıklayarak atama yapabilir, kaldırabilir veya başka binadan taşıyabilirsiniz.';
+
     return `
       <div style="font-size:12px;color:var(--text-muted);margin-bottom:10px;">
-        Bir bölüme tıklayarak atama yapabilir, kaldırabilir veya başka binadan taşıyabilirsiniz.
+        ${hint}
       </div>
       <div id="dept-assign-list" style="display:flex;flex-direction:column;gap:6px;max-height:420px;overflow-y:auto;padding-right:4px;">
         ${rows}
@@ -3825,7 +3852,8 @@ function _showDepartmentAssignModal(state, building, onDecision) {
   }
 
   // İlk açılış
-  showModal(`Bölüm Ata — ${building.name}`, _buildModalBody());
+  const modalTitle = isLab ? `Lab Bağla — ${building.name}` : `Bölüm Ata — ${building.name}`;
+  showModal(modalTitle, _buildModalBody());
 
   // Event listener: modal body üzerinde delegasyon
   // Her modal açılışında yeni listener eklenmesini önlemek için önce eskisini temizle
@@ -3847,21 +3875,31 @@ function _showDepartmentAssignModal(state, building, onDecision) {
     if (!action || !deptId) return;
 
     if (action === 'assign') {
-      const result = onDecision && onDecision({ type: 'assign_department_to_building', buildingId: building.id, departmentId: deptId });
-      // Yerel state'i anında güncelle (modal içinde)
-      if (!building.assignedDepartments) building.assignedDepartments = [];
-      if (!building.assignedDepartments.includes(deptId)) building.assignedDepartments.push(deptId);
+      onDecision && onDecision({ type: 'assign_department_to_building', buildingId: building.id, departmentId: deptId });
+      if (isLab) {
+        // Yerel state'i anında güncelle — linkedDepartments
+        if (!building.linkedDepartments) building.linkedDepartments = [];
+        if (!building.linkedDepartments.includes(deptId)) building.linkedDepartments.push(deptId);
+      } else {
+        // Yerel state'i anında güncelle — assignedDepartments
+        if (!building.assignedDepartments) building.assignedDepartments = [];
+        if (!building.assignedDepartments.includes(deptId)) building.assignedDepartments.push(deptId);
+      }
       // Modalı yenile
       modalBody.innerHTML = _buildModalBody();
 
     } else if (action === 'unassign') {
       onDecision && onDecision({ type: 'unassign_department_from_building', buildingId: building.id, departmentId: deptId });
       // Yerel state'i anında güncelle
-      building.assignedDepartments = (building.assignedDepartments || []).filter(id => id !== deptId);
+      if (isLab) {
+        building.linkedDepartments = (building.linkedDepartments || []).filter(id => id !== deptId);
+      } else {
+        building.assignedDepartments = (building.assignedDepartments || []).filter(id => id !== deptId);
+      }
       modalBody.innerHTML = _buildModalBody();
 
     } else if (action === 'move') {
-      // Taşıma: önce inline onay göster
+      // Taşıma (sadece normal binalar için): önce inline onay göster
       const dept = (state.departments || []).find(d => d.id === deptId);
       const srcBuilding = (state.buildings || []).find(b => b.id === fromBuildId);
       const deptName = dept ? dept.name : deptId;

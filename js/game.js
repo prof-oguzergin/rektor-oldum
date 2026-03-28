@@ -144,7 +144,12 @@ function calculateBuildingUsage(building, state) {
   let totalDr        = 0;  // Dr.Öğr.Üyesi — boş ofis varsa 1, yoksa 2/ofis
   let totalArgo      = 0;  // ArGö — boş ofis varsa 1, yoksa 3/ofis
 
-  for (const deptId of (building.assignedDepartments || [])) {
+  // Lab binaları linkedDepartments üzerinden hesaplar (bölüm orada ofis/derslik tutmaz)
+  const deptList = building.type === 'lab'
+    ? (building.linkedDepartments || [])
+    : (building.assignedDepartments || []);
+
+  for (const deptId of deptList) {
     const dept = (state.departments || []).find(d => d.id === deptId);
     if (!dept) continue;
 
@@ -245,12 +250,12 @@ function _recalcDeptLabScores(state) {
     dept._labBuildingScore = 0;
   }
 
-  // Atanmış lab binalarından puan ekle
+  // Bağlı lab binalarından puan ekle
   for (const building of state.buildings) {
     if (building.type !== 'lab' || !building.isCompleted) continue;
     const level = building.level || 1;
     const bonus = 25 * level;
-    for (const deptId of (building.assignedDepartments || [])) {
+    for (const deptId of (building.linkedDepartments || [])) {
       const dept = state.departments.find(d => d.id === deptId);
       if (dept) {
         dept._labBuildingScore = (dept._labBuildingScore || 0) + bonus;
@@ -3940,6 +3945,22 @@ function migrateState(state) {
   if (!state.campus) {
     initCampusState(state);
   }
+
+  // v0.4 Feature: Lab binalarında linkedDepartments (eski kayıtlarda assignedDepartments kullanılıyordu)
+  for (const building of (state.buildings || [])) {
+    if (building.type === 'lab') {
+      if (!building.linkedDepartments) building.linkedDepartments = [];
+      // Eski kayıtlarda assignedDepartments içinde bölümler varsa linkedDepartments'a taşı
+      if (building.assignedDepartments && building.assignedDepartments.length > 0) {
+        for (const deptId of building.assignedDepartments) {
+          if (!building.linkedDepartments.includes(deptId)) {
+            building.linkedDepartments.push(deptId);
+          }
+        }
+        building.assignedDepartments = [];
+      }
+    }
+  }
 }
 
 // setState — Yüklenen state'i doğrudan uygula (kayıt yükleme için)
@@ -4296,6 +4317,7 @@ export function applyDecision(decision) {
         constructionCost:     cost,
         condition:            100,
         assignedDepartments:  [],
+        ...(buildingType === 'lab' ? { linkedDepartments: [] } : {}),
         assignedFaculty:      [],
         currentCapacity,
         usedCapacity:         _emptyCapacity(currentCapacity),
@@ -4373,25 +4395,31 @@ export function applyDecision(decision) {
       const dept = _state.departments.find(d => d.id === departmentId);
       if (!dept) return { success: false, message: `Bölüm bulunamadı: ${departmentId}` };
 
-      if (!building.assignedDepartments.includes(departmentId)) {
-        building.assignedDepartments.push(departmentId);
-      }
-
-      // Kullanım kapasitesini anında güncelle
-      const usage = calculateBuildingUsage(building, _state);
-      if (!building.usedCapacity) building.usedCapacity = {};
-      building.usedCapacity.classrooms = usage.usedClassrooms;
-      building.usedCapacity.offices    = usage.usedOffices;
-      building.usedCapacity.labs       = usage.usedLabs;
-
-      // Lab binası ise bölümlerin labScore'larını güncelle
       if (building.type === 'lab') {
+        // Lab binası: bölümü taşıma — sadece linkedDepartments'a ekle
+        if (!building.linkedDepartments) building.linkedDepartments = [];
+        if (!building.linkedDepartments.includes(departmentId)) {
+          building.linkedDepartments.push(departmentId);
+        }
         _recalcDeptLabScores(_state);
+      } else {
+        // Normal bina: assignedDepartments'a ekle
+        if (!building.assignedDepartments.includes(departmentId)) {
+          building.assignedDepartments.push(departmentId);
+        }
+        // Kullanım kapasitesini anında güncelle
+        const usage = calculateBuildingUsage(building, _state);
+        if (!building.usedCapacity) building.usedCapacity = {};
+        building.usedCapacity.classrooms = usage.usedClassrooms;
+        building.usedCapacity.offices    = usage.usedOffices;
+        building.usedCapacity.labs       = usage.usedLabs;
       }
 
       return {
         success: true,
-        message: `${dept.name} bölümü ${building.name} binasına atandı.`,
+        message: building.type === 'lab'
+          ? `${dept.name} bölümü ${building.name} lab binasına bağlandı.`
+          : `${dept.name} bölümü ${building.name} binasına atandı.`,
       };
     }
 
@@ -4403,18 +4431,18 @@ export function applyDecision(decision) {
       const building = _state.buildings.find(b => b.id === buildingId);
       if (!building) return { success: false, message: `Bina bulunamadı: ${buildingId}` };
 
-      building.assignedDepartments = building.assignedDepartments.filter(d => d !== departmentId);
-
-      // Kullanım kapasitesini anında güncelle
-      const usageAfterRemove = calculateBuildingUsage(building, _state);
-      if (!building.usedCapacity) building.usedCapacity = {};
-      building.usedCapacity.classrooms = usageAfterRemove.usedClassrooms;
-      building.usedCapacity.offices    = usageAfterRemove.usedOffices;
-      building.usedCapacity.labs       = usageAfterRemove.usedLabs;
-
-      // Lab binası ise bölümlerin labScore'larını güncelle
       if (building.type === 'lab') {
+        // Lab binası: linkedDepartments'tan kaldır
+        building.linkedDepartments = (building.linkedDepartments || []).filter(d => d !== departmentId);
         _recalcDeptLabScores(_state);
+      } else {
+        building.assignedDepartments = building.assignedDepartments.filter(d => d !== departmentId);
+        // Kullanım kapasitesini anında güncelle
+        const usageAfterRemove = calculateBuildingUsage(building, _state);
+        if (!building.usedCapacity) building.usedCapacity = {};
+        building.usedCapacity.classrooms = usageAfterRemove.usedClassrooms;
+        building.usedCapacity.offices    = usageAfterRemove.usedOffices;
+        building.usedCapacity.labs       = usageAfterRemove.usedLabs;
       }
 
       return { success: true, message: 'Bölüm ataması kaldırıldı.' };
