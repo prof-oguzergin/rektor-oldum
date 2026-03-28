@@ -185,6 +185,40 @@ function calculateBuildingUsage(building, state) {
 }
 
 /**
+ * Lab binalarına atanan bölümlerin labScore değerini yeniden hesaplar.
+ * Bir bölüme atanmış her lab binası düzey × 25 puan katkı sağlar (maks 100).
+ */
+function _recalcDeptLabScores(state) {
+  if (!state.departments || !state.buildings) return;
+
+  // Önce tüm bölümlerin lab kaynaklı skorunu sıfırla
+  for (const dept of state.departments) {
+    dept._labBuildingScore = 0;
+  }
+
+  // Atanmış lab binalarından puan ekle
+  for (const building of state.buildings) {
+    if (building.type !== 'lab' || !building.isCompleted) continue;
+    const level = building.level || 1;
+    const bonus = 25 * level;
+    for (const deptId of (building.assignedDepartments || [])) {
+      const dept = state.departments.find(d => d.id === deptId);
+      if (dept) {
+        dept._labBuildingScore = (dept._labBuildingScore || 0) + bonus;
+      }
+    }
+  }
+
+  // labScore'u güncelle: bölümün kendi bazı + bina bonusu, maks 100
+  for (const dept of state.departments) {
+    if (dept.labRequirement > 0 || (dept._labBuildingScore || 0) > 0) {
+      const base = dept.labRequirement > 0 ? 30 : 100;
+      dept.labScore = Math.min(100, base + (dept._labBuildingScore || 0));
+    }
+  }
+}
+
+/**
  * Tüm tamamlanmış binaların usedCapacity değerini günceller.
  * Her dönem simülasyonu sonunda çağrılır.
  */
@@ -352,7 +386,8 @@ function generateInitialAdminStaff(totalStudents) {
 }
 
 // Birim state'lerindeki staffCount ve staffQuality'yi gerçek personele göre güncelle
-function syncAdminUnitStats(adminUnits, adminStaff) {
+// buildings parametresi verilirse fiziksel bina bonusları da uygulanır
+function syncAdminUnitStats(adminUnits, adminStaff, buildings) {
   // Eski kayıtlar için eksik alanları doldur (göç)
   for (const member of adminStaff) {
     if (member.efficiency    == null) member.efficiency    = member.quality || 60;
@@ -393,6 +428,79 @@ function syncAdminUnitStats(adminUnits, adminStaff) {
       ratio * unit.staffQuality * 0.55 +
       (ADMIN_UNITS[unit.id]?.levelBonuses?.[unit.level]?.satisfactionBonus || 0)
     );
+  }
+
+  // Fiziksel bina bonusları (opsiyonel)
+  if (buildings && buildings.length > 0) {
+    _applyAdminBuildingBonuses(adminUnits, buildings);
+  }
+}
+
+/**
+ * Fiziksel binalara göre idari birimlere verimlilik ve memnuniyet bonusu uygular.
+ * syncAdminUnitStats tarafından çağrılır (buildings mevcut ise).
+ */
+function _applyAdminBuildingBonuses(adminUnits, buildings) {
+  const completed = (type) => buildings.some(b => b.type === type && b.isCompleted);
+  const getBuildingLevel = (type) => {
+    const b = buildings.find(bl => bl.type === type && bl.isCompleted);
+    return b ? (b.level || 1) : 0;
+  };
+
+  // Sağlık merkezi → saglik_merkezi birimi +15 verimlilik bonusu
+  if (completed('saglik_merkezi')) {
+    const unit = adminUnits['saglik_merkezi'];
+    if (unit) {
+      unit.buildingBonus = { type: 'saglik_merkezi', icon: '🏥', efficiency: 15 };
+      unit.satisfaction  = Math.min(100, unit.satisfaction + 15);
+    }
+  } else {
+    const unit = adminUnits['saglik_merkezi'];
+    if (unit) unit.buildingBonus = null;
+  }
+
+  // İdari bina → tüm birimlere verimlilik bonusu (seviye 1: +10, 2: +15, 3: +20)
+  const idariLevel = getBuildingLevel('idari_bina');
+  const idariBonusMap = { 1: 10, 2: 15, 3: 20 };
+  const idariBonus = idariLevel > 0 ? (idariBonusMap[idariLevel] || 10) : 0;
+  for (const unit of Object.values(adminUnits)) {
+    if (idariBonus > 0) {
+      unit.idariBonus     = idariBonus;
+      unit.satisfaction   = Math.min(100, unit.satisfaction + Math.round(idariBonus * 0.3));
+    } else {
+      unit.idariBonus = 0;
+    }
+  }
+
+  // Kütüphane → kutuphane_hizmetleri birimi +10 verimlilik bonusu
+  if (completed('kutuphane')) {
+    const unit = adminUnits['kutuphane_hizmetleri'];
+    if (unit) {
+      unit.buildingBonus = { type: 'kutuphane', icon: '📚', efficiency: 10 };
+      unit.satisfaction  = Math.min(100, unit.satisfaction + 10);
+    }
+  } else {
+    const unit = adminUnits['kutuphane_hizmetleri'];
+    if (unit && unit.buildingBonus?.type === 'kutuphane') unit.buildingBonus = null;
+  }
+
+  // Yemekhane → yemekhane_yonetimi birimi +10 verimlilik bonusu
+  if (completed('yemekhane')) {
+    const unit = adminUnits['yemekhane_yonetimi'];
+    if (unit) {
+      unit.buildingBonus = { type: 'yemekhane', icon: '🍽️', efficiency: 10 };
+      unit.satisfaction  = Math.min(100, unit.satisfaction + 10);
+    }
+  } else {
+    const unit = adminUnits['yemekhane_yonetimi'];
+    if (unit && unit.buildingBonus?.type === 'yemekhane') unit.buildingBonus = null;
+  }
+
+  // Spor tesisi → tüm birimlerde memnuniyet +2
+  if (completed('spor_tesisi')) {
+    for (const unit of Object.values(adminUnits)) {
+      unit.satisfaction = Math.min(100, unit.satisfaction + 2);
+    }
   }
 }
 
@@ -590,7 +698,7 @@ export function promoteAdminStaff(staffId) {
   staff.happiness              = Math.min(100, safeNum(staff.happiness) + 15);
   // Liderlik terfi ile artar
   staff.leadership = Math.min(100, safeNum(staff.leadership) + randInt(3, 7));
-  syncAdminUnitStats(_state.adminUnits, _state.adminStaff);
+  syncAdminUnitStats(_state.adminUnits, _state.adminStaff, _state.buildings);
   _assignUnitManagers(_state.adminUnits, _state.adminStaff);
   return { success: true, message: `${staff.name} terfi ettirildi: ${nextTitle}` };
 }
@@ -606,7 +714,7 @@ export function fireAdminStaff(staffId) {
   const [staff] = _state.adminStaff.splice(idx, 1);
   const severance = safeNum(staff.salary) * 2;
   _state.university.budget = safeNum(_state.university.budget) - severance;
-  syncAdminUnitStats(_state.adminUnits, _state.adminStaff);
+  syncAdminUnitStats(_state.adminUnits, _state.adminStaff, _state.buildings);
   _assignUnitManagers(_state.adminUnits, _state.adminStaff);
   return { success: true, message: `${staff.name} iş akdi feshedildi.`, severance, staffName: staff.name };
 }
@@ -661,7 +769,7 @@ export function hireAdminStaff(candidate) {
   if (!_state.adminStaff) _state.adminStaff = [];
   _state.adminStaff.push({ ...candidate });
   // Birim istatistiklerini güncelle
-  syncAdminUnitStats(_state.adminUnits, _state.adminStaff);
+  syncAdminUnitStats(_state.adminUnits, _state.adminStaff, _state.buildings);
 }
 
 // İdari birim yükselt
@@ -683,7 +791,7 @@ export function upgradeAdminUnit(unitId) {
     template.baseStaffNeeded,
     Math.ceil(totalStudents * template.staffPerStudentRatio)
   );
-  syncAdminUnitStats(_state.adminUnits, _state.adminStaff || []);
+  syncAdminUnitStats(_state.adminUnits, _state.adminStaff || [], _state.buildings);
   return { success: true };
 }
 
@@ -1212,7 +1320,7 @@ export function initGame(playerName, universityName, universityType, difficulty,
   const initStudentCount = _state.students?.totalEnrolled || uniTemplate.startStudents;
   _state.adminUnits = buildAdminUnitStates(initStudentCount);
   _state.adminStaff = generateInitialAdminStaff(initStudentCount);
-  syncAdminUnitStats(_state.adminUnits, _state.adminStaff);
+  syncAdminUnitStats(_state.adminUnits, _state.adminStaff, _state.buildings);
 
   // Bölüm başkanı atama: her bölüme en yüksek yönetim statına sahip Prof/Doç ata
   _autoAssignDeptHeads(_state);
@@ -2359,7 +2467,7 @@ function runSimulation() {
         Math.ceil(curStudents * template.staffPerStudentRatio)
       );
     }
-    syncAdminUnitStats(_state.adminUnits, _state.adminStaff || []);
+    syncAdminUnitStats(_state.adminUnits, _state.adminStaff || [], _state.buildings);
   }
 
   // ── 3i. İDARİ PERSONEL KARİYER SİMÜLASYONU ────────────────────────────────
@@ -2398,7 +2506,7 @@ function runSimulation() {
     }
 
     // 5. Birim istatistiklerini güncelle
-    syncAdminUnitStats(_state.adminUnits, _state.adminStaff);
+    syncAdminUnitStats(_state.adminUnits, _state.adminStaff, _state.buildings);
   }
 
   // ── 4. ARAŞTIRMA İLERLEMESİ ────────────────────────────────────────────────
@@ -3060,6 +3168,8 @@ export function nextTurn() {
 
   // Bina kullanım kapasitesini güncelle
   _updateAllBuildingUsage(_state);
+  // Lab binalarına göre bölüm labScore'larını güncelle
+  _recalcDeptLabScores(_state);
 
   // Bütçe geçmişine ekle
   _state.university.budgetHistory.push({
@@ -4216,6 +4326,11 @@ export function applyDecision(decision) {
       building.usedCapacity.offices    = usage.usedOffices;
       building.usedCapacity.labs       = usage.usedLabs;
 
+      // Lab binası ise bölümlerin labScore'larını güncelle
+      if (building.type === 'lab') {
+        _recalcDeptLabScores(_state);
+      }
+
       return {
         success: true,
         message: `${dept.name} bölümü ${building.name} binasına atandı.`,
@@ -4238,6 +4353,11 @@ export function applyDecision(decision) {
       building.usedCapacity.classrooms = usageAfterRemove.usedClassrooms;
       building.usedCapacity.offices    = usageAfterRemove.usedOffices;
       building.usedCapacity.labs       = usageAfterRemove.usedLabs;
+
+      // Lab binası ise bölümlerin labScore'larını güncelle
+      if (building.type === 'lab') {
+        _recalcDeptLabScores(_state);
+      }
 
       return { success: true, message: 'Bölüm ataması kaldırıldı.' };
     }

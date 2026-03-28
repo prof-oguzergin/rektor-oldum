@@ -23,6 +23,7 @@ export const BUILDING_FOOTPRINTS = {
   yurt:              { w: 2, h: 2 },
   teknokent:         { w: 3, h: 2 },
   saglik_merkezi:    { w: 2, h: 1 },
+  idari_bina:        { w: 2, h: 2, zone: 'core' },
 };
 
 /** Bina tipi → tercih edilen bölge */
@@ -38,6 +39,7 @@ export const BUILDING_ZONES = {
   yurt:              'outer',
   teknokent:         'outer',
   saglik_merkezi:    'inner',
+  idari_bina:        'center',
 };
 
 const ZONE_RADIUS = { center: 4, inner: 7, outer: 11 };

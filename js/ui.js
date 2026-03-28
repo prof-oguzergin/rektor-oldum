@@ -3390,8 +3390,27 @@ export function renderCampusPanel(state, onBuildStart, onDecision) {
                 <div style="font-size:11px;color:#cbd5e1;">• Saygınlık: +2</div>
                 ${pct > 130 ? `<div style="font-size:11px;color:#ef4444;">• Kapasite aşıldı — öğrenci şikâyeti artıyor</div>` : ''}
               </div>`;
+          } else if (b.type === 'lab') {
+            // Lab binası: atanmış bölümler ve labScore katkısı
+            const labBonus    = 25 * (b.level || 1);
+            const labTotalCap = cap.labs || 0;
+            const assignedLabDepts = (b.assignedDepartments || []).map(dId => {
+              const d = (state.departments || []).find(dep => dep.id === dId);
+              if (!d) return null;
+              return `<div style="font-size:11px;color:#cbd5e1;">• ${d.shortName || d.name} — labScore +${labBonus} puan</div>`;
+            }).filter(Boolean).join('');
+            detailsHtml = `
+              <div style="margin-bottom:6px;">
+                <div style="font-size:11px;font-weight:600;color:#94a3b8;margin-bottom:3px;">🔬 LAB KAPASİTESİ</div>
+                <div style="font-size:11px;color:#cbd5e1;">• ${labTotalCap} laboratuvar · Düzey ${b.level || 1}</div>
+                <div style="font-size:11px;color:#4ade80;margin-top:2px;">• Atandığı bölüme +${labBonus} labScore katkısı (düzey × 25)</div>
+              </div>
+              <div style="margin-bottom:6px;">
+                <div style="font-size:11px;font-weight:600;color:#94a3b8;margin-bottom:3px;">📌 ATANMIŞ BÖLÜMLER</div>
+                ${assignedLabDepts || '<div style="font-size:11px;color:#64748b;font-style:italic;">Henüz bölüm atanmadı — "Bölüm Ata" ile ekle</div>'}
+              </div>`;
           } else {
-            // Diğer binalar (araştırma merkezi, lab, konferans vb.)
+            // Diğer binalar (araştırma merkezi, konferans vb.)
             const capBarsHtml = [
               cap.offices    ? _capacityBar('Ofis',    used.offices    ?? 0, cap.offices)    : '',
               cap.classrooms ? _capacityBar('Derslik', used.classrooms ?? 0, cap.classrooms) : '',
@@ -6862,6 +6881,17 @@ export function renderAdminPanel(state, onHireAdmin, onUpgradeUnit) {
         </div>` : ''}
 
         ${eksik > 0 ? `<div style="font-size:11px;color:var(--color-warning);margin-bottom:8px;">⚠️ Yetersiz personel! Performans düşük.</div>` : ''}
+
+        ${(() => {
+          const bonuses = [];
+          if (unit.buildingBonus) {
+            bonuses.push(`<span style="font-size:10px;padding:2px 7px;border-radius:5px;background:rgba(56,161,105,0.12);color:#4ade80;border:1px solid rgba(74,222,128,0.25);">${unit.buildingBonus.icon} Bina bonusu: +${unit.buildingBonus.efficiency}% verimlilik</span>`);
+          }
+          if (unit.idariBonus > 0) {
+            bonuses.push(`<span style="font-size:10px;padding:2px 7px;border-radius:5px;background:rgba(99,102,241,0.12);color:#a5b4fc;border:1px solid rgba(165,180,252,0.25);">🏛️ İdari bina: +${unit.idariBonus}% verimlilik</span>`);
+          }
+          return bonuses.length > 0 ? `<div style="display:flex;flex-wrap:wrap;gap:4px;margin-bottom:8px;">${bonuses.join('')}</div>` : '';
+        })()}
 
         <div style="display:flex;gap:6px;margin-bottom:${unitStaff.length > 0 ? '10px' : '0'};">
           <button class="btn btn-sm btn-secondary" style="font-size:11px;"
