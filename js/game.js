@@ -5481,6 +5481,35 @@ export function applyDecision(decision) {
       };
     }
 
+    // ── Topluluk Kur ──────────────────────────────────────────────────────────
+    case 'found_club': {
+      return foundClub(_state, decision.typeId);
+    }
+    case 'upgrade_club': {
+      return upgradeClub(_state, decision.clubId);
+    }
+    case 'dissolve_club': {
+      return dissolveClub(_state, decision.clubId);
+    }
+
+    // ── Spor Takımı Kur ────────────────────────────────────────────────────────
+    case 'found_team': {
+      const result = foundTeam(_state, decision.sportId);
+      return result;
+    }
+
+    // ── Spor Takımı Yükselt ─────────────────────────────────────────────────────
+    case 'upgrade_team': {
+      const result = upgradeTeam(_state, decision.teamId);
+      return result;
+    }
+
+    // ── Spor Takımı Kapat ───────────────────────────────────────────────────────
+    case 'dissolve_team': {
+      const result = dissolveTeam(_state, decision.teamId);
+      return result;
+    }
+
     // ── Bilinmeyen Karar Tipi ─────────────────────────────────────────────────
     default:
       return {

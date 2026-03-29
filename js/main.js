@@ -227,18 +227,18 @@ function _startGameWithState(state) {
   window._CLUB_TYPES      = CLUB_TYPES;
   window._CLUB_CATEGORIES = CLUB_CATEGORIES;
   window._onFoundClub = (typeId) => {
-    const result = foundClub(getState(), typeId);
+    const result = applyDecision({ type: 'found_club', typeId });
     showNotification(result.message, result.success ? 'success' : 'error');
     refreshGameUI();
   };
   window._onUpgradeClub = (clubId) => {
-    const result = upgradeClub(getState(), clubId);
+    const result = applyDecision({ type: 'upgrade_club', clubId });
     showNotification(result.message, result.success ? 'success' : 'error');
     refreshGameUI();
   };
   window._onDissolveClub = (clubId) => {
-    if (!confirm('Bu kulübü kapatmak istediğinize emin misiniz?')) return;
-    const result = dissolveClub(getState(), clubId);
+    if (!confirm('Bu topluluğu kapatmak istediğinize emin misiniz?')) return;
+    const result = applyDecision({ type: 'dissolve_club', clubId });
     showNotification(result.message, result.success ? 'success' : 'error');
     refreshGameUI();
   };
@@ -246,18 +246,19 @@ function _startGameWithState(state) {
   // Spor verilerini ve callback'lerini global alana kaydet (ui.js butonları için)
   window._SPORTS = SPORTS;
   window._onFoundTeam = (sportId) => {
-    const result = foundTeam(getState(), sportId);
+    const result = applyDecision({ type: 'found_team', sportId });
     showNotification(result.message, result.success ? 'success' : 'error');
     refreshGameUI();
   };
   window._onUpgradeTeam = (teamId) => {
-    const result = upgradeTeam(getState(), teamId);
+    const result = applyDecision({ type: 'upgrade_team', teamId });
     showNotification(result.message, result.success ? 'success' : 'error');
     refreshGameUI();
   };
   window._onDissolveTeam = (teamId) => {
     if (!confirm('Bu takımı kapatmak istediğinize emin misiniz?')) return;
-    dissolveTeam(getState(), teamId);
+    const result = applyDecision({ type: 'dissolve_team', teamId });
+    showNotification(result.message, result.success ? 'success' : 'error');
     refreshGameUI();
   };
 
