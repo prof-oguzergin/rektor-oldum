@@ -4,7 +4,7 @@
  * ES module, Firebase SDK'yı CDN'den dinamik olarak yükler.
  */
 
-import { firebaseConfig } from './firebase-config.js?v=0.4.4';
+import { firebaseConfig } from './firebase-config.js?v=0.4.5';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // TEKİL BAŞLATMA
@@ -13,6 +13,48 @@ import { firebaseConfig } from './firebase-config.js?v=0.4.4';
 let _app  = null;
 let _auth = null;
 let _db   = null;
+
+// Çevrimiçi liderlik tablosunun geçici olarak kullanılamadığı durumlar
+// (Firebase Console: Anonymous auth kapalı, API key geçersiz, Identity Toolkit
+//  API'si aktif değil). UI bu durumda skoru lokal yedekleyip "bakımda" mesajı gösterir.
+const _UNAVAILABLE_CODES = new Set([
+  'auth/api-key-not-valid',
+  'auth/api-key-not-valid.-please-pass-a-valid-api-key.',
+  'auth/operation-not-allowed',
+  'auth/admin-restricted-operation',
+  'auth/configuration-not-found',
+  'auth/network-request-failed',
+]);
+
+export function isLeaderboardUnavailable(err) {
+  if (!err) return false;
+  const code = String(err.code || '').toLowerCase();
+  if (_UNAVAILABLE_CODES.has(code)) return true;
+  // Bazı SDK sürümleri code'u boş bırakıp message'a koyuyor
+  const msg = String(err.message || '').toLowerCase();
+  return /api-key-not-valid|operation-not-allowed|admin-restricted|configuration-not-found/.test(msg);
+}
+
+const _LOCAL_SCORE_KEY = 'rektor_oldum_local_scores';
+
+export function saveLocalScore(entry) {
+  try {
+    const list = JSON.parse(localStorage.getItem(_LOCAL_SCORE_KEY) || '[]');
+    list.push({ ...entry, savedAt: new Date().toISOString() });
+    list.sort((a, b) => (b.score || 0) - (a.score || 0));
+    localStorage.setItem(_LOCAL_SCORE_KEY, JSON.stringify(list.slice(0, 100)));
+  } catch (e) {
+    console.warn('[leaderboard] Lokal skor yedeklenemedi:', e);
+  }
+}
+
+export function getLocalScores() {
+  try {
+    return JSON.parse(localStorage.getItem(_LOCAL_SCORE_KEY) || '[]');
+  } catch (e) {
+    return [];
+  }
+}
 
 /**
  * Firebase'i başlatır (lazy single-init).

@@ -4,11 +4,11 @@
  * Vanilla JS, framework yok.
  */
 
-import { DEPARTMENTS, DEPARTMENT_CURRICULA, UNIVERSITY_TYPES, UNIVERSITY_MODELS, USD_TO_TL, DIFFICULTY_SETTINGS, BUILDINGS, SEMESTER_MONTHS, FACULTIES, DEPT_TO_FACULTY, SALARY_SCALES, ADMIN_UNITS, ADMIN_TITLES, ADMIN_UNIT_BUILDINGS, ACCREDITATION_BODIES, SCENARIOS, BANKS } from './data.js?v=0.4.4';
-import { DEPARTMENT_FIELDS, getSalaryRange, renderFacultyAvatar, calculateOverallRating, getFacultyRatingTrend } from './faculty.js?v=0.4.4';
-import { AVAILABLE_NEW_DEPARTMENTS } from './game.js?v=0.4.4';
-import { calculateIncome, calculateExpenses, calculateLoanPayment } from './economy.js?v=0.4.4';
-import { renderCampusMap, handleCampusClick, handleCampusHover, clearHover } from './campus-renderer.js?v=0.4.4';
+import { DEPARTMENTS, DEPARTMENT_CURRICULA, UNIVERSITY_TYPES, UNIVERSITY_MODELS, USD_TO_TL, DIFFICULTY_SETTINGS, BUILDINGS, SEMESTER_MONTHS, FACULTIES, DEPT_TO_FACULTY, SALARY_SCALES, ADMIN_UNITS, ADMIN_TITLES, ADMIN_UNIT_BUILDINGS, ACCREDITATION_BODIES, SCENARIOS, BANKS } from './data.js?v=0.4.5';
+import { DEPARTMENT_FIELDS, getSalaryRange, renderFacultyAvatar, calculateOverallRating, getFacultyRatingTrend } from './faculty.js?v=0.4.5';
+import { AVAILABLE_NEW_DEPARTMENTS } from './game.js?v=0.4.5';
+import { calculateIncome, calculateExpenses, calculateLoanPayment } from './economy.js?v=0.4.5';
+import { renderCampusMap, handleCampusClick, handleCampusHover, clearHover } from './campus-renderer.js?v=0.4.5';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // DOM YARDIMCILARI
@@ -8671,7 +8671,56 @@ export async function renderLeaderboardPanel(getTopScoresFn) {
         tbody tr td { padding: 8px 6px; border-bottom: 1px solid rgba(255,255,255,0.04); }
       </style>`;
   } catch (err) {
-    contentEl.innerHTML = `<p style="color:#e74c3c;font-size:13px;">⚠️ ${_escHtml(err.message)}</p>`;
+    // Çevrimiçi liderlik tablosu hatasında lokal yedek skorları göster
+    let localScores = [];
+    try {
+      localScores = JSON.parse(localStorage.getItem('rektor_oldum_local_scores') || '[]');
+    } catch (e) { /* localStorage okunamadı */ }
+
+    const banner = `
+      <div style="background:rgba(245,166,35,0.1);border:1px solid rgba(245,166,35,0.3);
+                  padding:12px;border-radius:8px;margin-bottom:14px;font-size:13px;">
+        🛠️ Çevrimiçi liderlik tablosu geçici olarak kullanılamıyor.
+        ${localScores.length ? `Aşağıda bu cihazda kayıtlı skorların gösteriliyor.` : ''}
+      </div>`;
+
+    if (!localScores.length) {
+      contentEl.innerHTML = banner +
+        '<p style="color:var(--text-muted,#aaa);font-size:13px;">Henüz lokal skor da yok.</p>';
+      return;
+    }
+
+    const localRows = localScores.slice(0, 50).map((r, idx) => {
+      const pos = idx + 1;
+      const medal = pos <= 3 ? ['🥇','🥈','🥉'][pos-1] : `${pos}.`;
+      const date = r.savedAt ? new Date(r.savedAt).toLocaleDateString('tr-TR') : '—';
+      return `
+        <tr>
+          <td style="text-align:center;">${medal}</td>
+          <td>${_escHtml(r.name ?? 'Anonim')}</td>
+          <td style="text-align:right;font-weight:700;color:var(--accent,#5dd6c0);">${(r.score ?? 0).toLocaleString('tr-TR')}</td>
+          <td style="text-align:center;">${r.year ?? '—'}. Yıl</td>
+          <td style="text-align:center;">${r.prestige ?? '—'}</td>
+          <td style="text-align:center;font-size:11px;color:var(--text-muted,#aaa);">${date}</td>
+        </tr>`;
+    }).join('');
+
+    contentEl.innerHTML = banner + `
+      <div style="overflow-x:auto;">
+        <table style="width:100%;border-collapse:collapse;font-size:13px;">
+          <thead>
+            <tr style="border-bottom:1px solid rgba(255,255,255,0.1);color:var(--text-muted,#aaa);font-size:11px;text-transform:uppercase;">
+              <th style="padding:8px 6px;text-align:center;">#</th>
+              <th style="padding:8px 6px;text-align:left;">Rektör</th>
+              <th style="padding:8px 6px;text-align:right;">Skor</th>
+              <th style="padding:8px 6px;text-align:center;">Yıl</th>
+              <th style="padding:8px 6px;text-align:center;">Saygınlık</th>
+              <th style="padding:8px 6px;text-align:center;">Tarih</th>
+            </tr>
+          </thead>
+          <tbody>${localRows}</tbody>
+        </table>
+      </div>`;
   }
 }
 

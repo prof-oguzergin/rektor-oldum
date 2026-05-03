@@ -8,7 +8,7 @@ console.log('[main] main.js modülü yükleniyor...');
 // IMPORT
 // ─────────────────────────────────────────────────────────────────────────────
 
-import { initGame, nextTurn, getState, setState, applyDecision, assignCourses, applyQuotas, assignDeptHead, reassignFacultyToDept, generateAdminCandidates, hireAdminStaff, upgradeAdminUnit, promoteAdminStaff, fireAdminStaff, updateAdminStaffSalary, assignUnitManager, RANDOM_EVENTS, ACHIEVEMENTS, getAchievementStats, organizeAlumniEvent, applyRandomEventChoice, ACCREDITATION_BODIES, applyForAccreditation, checkAccreditationRequirements, establishTTO, upgradeTTO, acceptDeal, rejectDeal, foundClub, upgradeClub, dissolveClub, CLUB_TYPES, CLUB_CATEGORIES, SPORTS, foundTeam, upgradeTeam, dissolveTeam } from './game.js?v=0.4.4';
+import { initGame, nextTurn, getState, setState, applyDecision, assignCourses, applyQuotas, assignDeptHead, reassignFacultyToDept, generateAdminCandidates, hireAdminStaff, upgradeAdminUnit, promoteAdminStaff, fireAdminStaff, updateAdminStaffSalary, assignUnitManager, RANDOM_EVENTS, ACHIEVEMENTS, getAchievementStats, organizeAlumniEvent, applyRandomEventChoice, ACCREDITATION_BODIES, applyForAccreditation, checkAccreditationRequirements, establishTTO, upgradeTTO, acceptDeal, rejectDeal, foundClub, upgradeClub, dissolveClub, CLUB_TYPES, CLUB_CATEGORIES, SPORTS, foundTeam, upgradeTeam, dissolveTeam } from './game.js?v=0.4.5';
 
 import {
   showScreen,
@@ -47,15 +47,15 @@ import {
   renderLeaderboardPanel,
   el,
   on,
-} from './ui.js?v=0.4.4';
+} from './ui.js?v=0.4.5';
 
-import { saveGame, loadGame, autoSave, getSaveSlots, deleteSave, exportSave, importSave, sanitizeForSave } from './save.js?v=0.4.4';
-import { calculateScore, scoreBreakdown, submitScore, getTopScores, initFirebase } from './leaderboard.js?v=0.4.4';
-import { showTutorialIfNeeded, replayTutorial } from './tutorial.js?v=0.4.4';
-import { initAudio, playSound, toggleMute, isMuted, startMusic, stopMusic, setMusicVolume, setSFXVolume, getAudioSettings } from './audio.js?v=0.4.4';
+import { saveGame, loadGame, autoSave, getSaveSlots, deleteSave, exportSave, importSave, sanitizeForSave } from './save.js?v=0.4.5';
+import { calculateScore, scoreBreakdown, submitScore, getTopScores, initFirebase, isLeaderboardUnavailable, saveLocalScore, getLocalScores } from './leaderboard.js?v=0.4.5';
+import { showTutorialIfNeeded, replayTutorial } from './tutorial.js?v=0.4.5';
+import { initAudio, playSound, toggleMute, isMuted, startMusic, stopMusic, setMusicVolume, setSFXVolume, getAudioSettings } from './audio.js?v=0.4.5';
 
-import { generateTransferMarket, renderFacultyAvatar, calculateOverallRating, getFacultyRatingTrend } from './faculty.js?v=0.4.4';
-import { resolveDecision } from './events.js?v=0.4.4';
+import { generateTransferMarket, renderFacultyAvatar, calculateOverallRating, getFacultyRatingTrend } from './faculty.js?v=0.4.5';
+import { resolveDecision } from './events.js?v=0.4.5';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // UYGULAMA DURUMU
@@ -881,6 +881,19 @@ function _showLeaderboardSubmitModal(isGameOver = false) {
 
     } catch (err) {
       console.error('[main] Skor gönderme hatası:', err);
+
+      // Çevrimiçi tablo bakımdaysa skoru lokal yedekle, modal'ı kapat ve kullanıcıyı rezil etme
+      if (isLeaderboardUnavailable(err)) {
+        saveLocalScore({ name, score, year: state?.meta?.year, prestige: state?.university?.prestige });
+        hideModal();
+        showNotification(
+          `🏆 ${name} — ${score.toLocaleString('tr-TR')} puan kaydedildi. (Çevrimiçi tablo geçici olarak bakımda; skor lokal yedeklendi.)`,
+          'info',
+          6000,
+        );
+        return;
+      }
+
       if (statusEl) statusEl.textContent = '⚠️ ' + (err.message || 'Bağlantı hatası oluştu.');
       if (submitBtn) {
         submitBtn.disabled = false;
