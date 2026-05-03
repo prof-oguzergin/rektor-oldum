@@ -32,10 +32,10 @@ import {
   ACCREDITATION_BODIES,
   SCENARIOS,
   BANKS,
-} from './data.js?v=0.4.21';
+} from './data.js?v=0.4.22';
 
-import { calculateEconomy, applyBudget, calculateLoanPayment, processLoanPayments } from './economy.js?v=0.4.21';
-import { generateInitialFaculty, updateAllFacultyHappiness, generateApplicants, generateFaculty, getSalaryRange, calculateOverallRating, getFacultyRatingTrend } from './faculty.js?v=0.4.21';
+import { calculateEconomy, applyBudget, calculateLoanPayment, processLoanPayments } from './economy.js?v=0.4.22';
+import { generateInitialFaculty, updateAllFacultyHappiness, generateApplicants, generateFaculty, getSalaryRange, calculateOverallRating, getFacultyRatingTrend } from './faculty.js?v=0.4.22';
 import {
   generateInitialStudents,
   getTotalEnrolled,
@@ -52,9 +52,9 @@ import {
   updateCohorts,
   processGraduation,
   processAdmissions,
-} from './students.js?v=0.4.21';
-import { calculatePrestige, updateRivals } from './ranking.js?v=0.4.21';
-import { checkForEvents, applyEventEffects } from './events.js?v=0.4.21';
+} from './students.js?v=0.4.22';
+import { calculatePrestige, updateRivals } from './ranking.js?v=0.4.22';
+import { checkForEvents, applyEventEffects } from './events.js?v=0.4.22';
 import {
   initAlumniState,
   processGraduatesForAlumni,
@@ -66,20 +66,20 @@ import {
   getAchievementStats,
   RANDOM_EVENTS,
   ACHIEVEMENTS,
-} from './alumni_events_achievements.js?v=0.4.21';
+} from './alumni_events_achievements.js?v=0.4.22';
 
 export { RANDOM_EVENTS, ACHIEVEMENTS, getAchievementStats, organizeAlumniEvent, applyRandomEventChoice, ACCREDITATION_BODIES };
 
-import { initTTOState, establishTTO, upgradeTTO, processTTO, acceptDeal, rejectDeal, TTO_CONFIG } from './tto.js?v=0.4.21';
+import { initTTOState, establishTTO, upgradeTTO, processTTO, acceptDeal, rejectDeal, TTO_CONFIG } from './tto.js?v=0.4.22';
 export { establishTTO, upgradeTTO, acceptDeal, rejectDeal, TTO_CONFIG };
 
-import { initClubsState, foundClub, upgradeClub, dissolveClub, processClubs, CLUB_TYPES, CLUB_CATEGORIES } from './clubs.js?v=0.4.21';
+import { initClubsState, foundClub, upgradeClub, dissolveClub, processClubs, CLUB_TYPES, CLUB_CATEGORIES } from './clubs.js?v=0.4.22';
 export { foundClub, upgradeClub, dissolveClub, CLUB_TYPES, CLUB_CATEGORIES };
 
-import { SPORTS, initSportsState, foundTeam, upgradeTeam, dissolveTeam, processSports } from './sports.js?v=0.4.21';
+import { SPORTS, initSportsState, foundTeam, upgradeTeam, dissolveTeam, processSports } from './sports.js?v=0.4.22';
 export { SPORTS, foundTeam, upgradeTeam, dissolveTeam };
 
-import { initCampusState, assignBuildingPosition, BUILDING_FOOTPRINTS } from './campus-layout.js?v=0.4.21';
+import { initCampusState, assignBuildingPosition, BUILDING_FOOTPRINTS } from './campus-layout.js?v=0.4.22';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // YARDİMCI: Derin kopya (state immutability için)
@@ -3491,9 +3491,11 @@ export function checkAccreditationRequirements(state, dept, body) {
     {
       key: 'minStudentSatisfaction',
       label: 'Öğrenci memnuniyeti',
-      current: dept.studentSatisfaction ?? 50,
+      // dept.studentSatisfaction simulasyonda guncellenmiyor (default 50'de kaliyor).
+      // Genel state.students.overallSatisfaction gercek deger; oncelik ona verildi.
+      current: Math.round(state?.students?.overallSatisfaction ?? dept.studentSatisfaction ?? 50),
       required: req.minStudentSatisfaction,
-      met: (dept.studentSatisfaction ?? 50) >= (req.minStudentSatisfaction || 0),
+      met: (state?.students?.overallSatisfaction ?? dept.studentSatisfaction ?? 50) >= (req.minStudentSatisfaction || 0),
     },
     {
       key: 'hasDeptHead',

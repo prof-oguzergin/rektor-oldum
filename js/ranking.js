@@ -8,7 +8,7 @@ import {
   MAX_PRESTIGE,
   INITIAL_RIVAL_UNIVERSITIES,
   DIFFICULTY_SETTINGS,
-} from './data.js?v=0.4.21';
+} from './data.js?v=0.4.22';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // YARDIMCI: 0-100 aralığına sıkıştır

@@ -4,11 +4,11 @@
  * Vanilla JS, framework yok.
  */
 
-import { DEPARTMENTS, DEPARTMENT_CURRICULA, UNIVERSITY_TYPES, UNIVERSITY_MODELS, USD_TO_TL, DIFFICULTY_SETTINGS, BUILDINGS, SEMESTER_MONTHS, FACULTIES, DEPT_TO_FACULTY, SALARY_SCALES, ADMIN_UNITS, ADMIN_TITLES, ADMIN_UNIT_BUILDINGS, ACCREDITATION_BODIES, SCENARIOS, BANKS } from './data.js?v=0.4.21';
-import { DEPARTMENT_FIELDS, getSalaryRange, renderFacultyAvatar, calculateOverallRating, getFacultyRatingTrend } from './faculty.js?v=0.4.21';
-import { AVAILABLE_NEW_DEPARTMENTS } from './game.js?v=0.4.21';
-import { calculateIncome, calculateExpenses, calculateLoanPayment } from './economy.js?v=0.4.21';
-import { renderCampusMap, handleCampusClick, handleCampusHover, clearHover } from './campus-renderer.js?v=0.4.21';
+import { DEPARTMENTS, DEPARTMENT_CURRICULA, UNIVERSITY_TYPES, UNIVERSITY_MODELS, USD_TO_TL, DIFFICULTY_SETTINGS, BUILDINGS, SEMESTER_MONTHS, FACULTIES, DEPT_TO_FACULTY, SALARY_SCALES, ADMIN_UNITS, ADMIN_TITLES, ADMIN_UNIT_BUILDINGS, ACCREDITATION_BODIES, SCENARIOS, BANKS } from './data.js?v=0.4.22';
+import { DEPARTMENT_FIELDS, getSalaryRange, renderFacultyAvatar, calculateOverallRating, getFacultyRatingTrend } from './faculty.js?v=0.4.22';
+import { AVAILABLE_NEW_DEPARTMENTS } from './game.js?v=0.4.22';
+import { calculateIncome, calculateExpenses, calculateLoanPayment } from './economy.js?v=0.4.22';
+import { renderCampusMap, handleCampusClick, handleCampusHover, clearHover } from './campus-renderer.js?v=0.4.22';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // DOM YARDIMCILARI
@@ -2226,8 +2226,10 @@ export function renderBolumlerPanel(state, onAssignHead, onReassignFaculty) {
     const yks = byDept?.year1?.avgYKS || byDept?.avgYKS || 0;
     const avgYKS = yks > 0 ? formatNumber(yks) : '—';
 
-    // Memnuniyet
-    const satisfaction = dept.studentSatisfaction ?? 50;
+    // Memnuniyet: dept-level simulasyonda güncellenmiyor (default 50 takılı),
+    // overallSatisfaction gerçek hesap → öncelik ona verilir
+    const rawSatisfaction = state.students?.overallSatisfaction ?? dept.studentSatisfaction ?? 50;
+    const satisfaction = Math.round(rawSatisfaction);
     const satColor = satisfaction >= 70 ? 'var(--accent-green)' : satisfaction >= 45 ? 'var(--accent-yellow,#f5a623)' : 'var(--accent-red,#e53e3e)';
 
     // Bölüm başkanı adayları için seçim kutusu

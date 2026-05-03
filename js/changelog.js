@@ -6,6 +6,14 @@
 
 export const CHANGELOG = [
   {
+    version: '0.4.22',
+    date: '2026-05-04',
+    title: 'MÜDEK ve idari ekranda öğrenci memnuniyeti yanlış görünüyordu',
+    items: [
+      { type: 'fix', text: 'Ana ekranda öğrenci memnuniyeti 100 görünüp MÜDEK akreditasyon başvurusunda 50 olarak görünmesi nedeniyle başvuru reddediliyordu (AkaDemi raporu). Aynı sorun idari/bölüm ekranında da vardı (Emir raporu). Bölüm bazlı memnuniyet sayısı tutulmuyorsa genel öğrenci memnuniyetine göre değerlendirilecek.' },
+    ],
+  },
+  {
     version: '0.4.21',
     date: '2026-05-04',
     title: 'Yazılım Mühendisliği bölümü tamamlandı + İdari bina detayı',

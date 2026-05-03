@@ -9,7 +9,7 @@
  *   - Bina tipine özgü dekoratif unsurlar
  */
 
-import { GRID_SIZE, BUILDING_FOOTPRINTS } from './campus-layout.js?v=0.4.21';
+import { GRID_SIZE, BUILDING_FOOTPRINTS } from './campus-layout.js?v=0.4.22';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // SABİTLER
