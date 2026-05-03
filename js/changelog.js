@@ -6,6 +6,15 @@
 
 export const CHANGELOG = [
   {
+    version: '0.4.17',
+    date: '2026-05-03',
+    title: '"Bahar undefined" sorunu için son katman koruma',
+    items: [
+      { type: 'fix', text: 'Bazı oyuncular "Dönem Özeti — Bahar undefined" başlığını hâlâ görüyordu (Erdinç + Burak Gökalp raporları). Kayıt yüklenirken oyun yıl/dönem alanları eksik gelirse otomatik düzeltiliyor (yıl 1, dönem güz olarak başlatılıyor).' },
+      { type: 'fix', text: 'Tarayıcıların eski HTML\'i önbellekten yüklemesini engellemek için sayfa başlığına önbellek başlıkları eklendi. Yeni sürümler artık daha güvenilir biçimde tarayıcılara ulaşacak.' },
+    ],
+  },
+  {
     version: '0.4.16',
     date: '2026-05-03',
     title: 'Bütçe dağılımı uygulanmıyor sorunu düzeltildi',
