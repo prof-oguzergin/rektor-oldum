@@ -32,10 +32,10 @@ import {
   ACCREDITATION_BODIES,
   SCENARIOS,
   BANKS,
-} from './data.js?v=0.4.17';
+} from './data.js?v=0.4.18';
 
-import { calculateEconomy, applyBudget, calculateLoanPayment, processLoanPayments } from './economy.js?v=0.4.17';
-import { generateInitialFaculty, updateAllFacultyHappiness, generateApplicants, generateFaculty, getSalaryRange, calculateOverallRating, getFacultyRatingTrend } from './faculty.js?v=0.4.17';
+import { calculateEconomy, applyBudget, calculateLoanPayment, processLoanPayments } from './economy.js?v=0.4.18';
+import { generateInitialFaculty, updateAllFacultyHappiness, generateApplicants, generateFaculty, getSalaryRange, calculateOverallRating, getFacultyRatingTrend } from './faculty.js?v=0.4.18';
 import {
   generateInitialStudents,
   getTotalEnrolled,
@@ -52,9 +52,9 @@ import {
   updateCohorts,
   processGraduation,
   processAdmissions,
-} from './students.js?v=0.4.17';
-import { calculatePrestige, updateRivals } from './ranking.js?v=0.4.17';
-import { checkForEvents, applyEventEffects } from './events.js?v=0.4.17';
+} from './students.js?v=0.4.18';
+import { calculatePrestige, updateRivals } from './ranking.js?v=0.4.18';
+import { checkForEvents, applyEventEffects } from './events.js?v=0.4.18';
 import {
   initAlumniState,
   processGraduatesForAlumni,
@@ -66,20 +66,20 @@ import {
   getAchievementStats,
   RANDOM_EVENTS,
   ACHIEVEMENTS,
-} from './alumni_events_achievements.js?v=0.4.17';
+} from './alumni_events_achievements.js?v=0.4.18';
 
 export { RANDOM_EVENTS, ACHIEVEMENTS, getAchievementStats, organizeAlumniEvent, applyRandomEventChoice, ACCREDITATION_BODIES };
 
-import { initTTOState, establishTTO, upgradeTTO, processTTO, acceptDeal, rejectDeal, TTO_CONFIG } from './tto.js?v=0.4.17';
+import { initTTOState, establishTTO, upgradeTTO, processTTO, acceptDeal, rejectDeal, TTO_CONFIG } from './tto.js?v=0.4.18';
 export { establishTTO, upgradeTTO, acceptDeal, rejectDeal, TTO_CONFIG };
 
-import { initClubsState, foundClub, upgradeClub, dissolveClub, processClubs, CLUB_TYPES, CLUB_CATEGORIES } from './clubs.js?v=0.4.17';
+import { initClubsState, foundClub, upgradeClub, dissolveClub, processClubs, CLUB_TYPES, CLUB_CATEGORIES } from './clubs.js?v=0.4.18';
 export { foundClub, upgradeClub, dissolveClub, CLUB_TYPES, CLUB_CATEGORIES };
 
-import { SPORTS, initSportsState, foundTeam, upgradeTeam, dissolveTeam, processSports } from './sports.js?v=0.4.17';
+import { SPORTS, initSportsState, foundTeam, upgradeTeam, dissolveTeam, processSports } from './sports.js?v=0.4.18';
 export { SPORTS, foundTeam, upgradeTeam, dissolveTeam };
 
-import { initCampusState, assignBuildingPosition, BUILDING_FOOTPRINTS } from './campus-layout.js?v=0.4.17';
+import { initCampusState, assignBuildingPosition, BUILDING_FOOTPRINTS } from './campus-layout.js?v=0.4.18';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // YARDİMCI: Derin kopya (state immutability için)

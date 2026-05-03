@@ -6,6 +6,14 @@
 
 export const CHANGELOG = [
   {
+    version: '0.4.18',
+    date: '2026-05-03',
+    title: 'Dönemlik harç slider\'ı kayıt yapmıyordu',
+    items: [
+      { type: 'fix', text: 'Harç slider\'ında değer değiştiriyordunuz ama state\'e kaydedilmiyordu (Burak Gökalp raporu). Slider\'ı bıraktığınız anda harç artık kayıt ediliyor ve onay bildirimi geliyor. Aynı düzeltme financial aid (Co-op tipi) için de yapıldı.' },
+    ],
+  },
+  {
     version: '0.4.17',
     date: '2026-05-03',
     title: '"Bahar undefined" sorunu için son katman koruma',

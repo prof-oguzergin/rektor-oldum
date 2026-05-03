@@ -4,11 +4,11 @@
  * Vanilla JS, framework yok.
  */
 
-import { DEPARTMENTS, DEPARTMENT_CURRICULA, UNIVERSITY_TYPES, UNIVERSITY_MODELS, USD_TO_TL, DIFFICULTY_SETTINGS, BUILDINGS, SEMESTER_MONTHS, FACULTIES, DEPT_TO_FACULTY, SALARY_SCALES, ADMIN_UNITS, ADMIN_TITLES, ADMIN_UNIT_BUILDINGS, ACCREDITATION_BODIES, SCENARIOS, BANKS } from './data.js?v=0.4.17';
-import { DEPARTMENT_FIELDS, getSalaryRange, renderFacultyAvatar, calculateOverallRating, getFacultyRatingTrend } from './faculty.js?v=0.4.17';
-import { AVAILABLE_NEW_DEPARTMENTS } from './game.js?v=0.4.17';
-import { calculateIncome, calculateExpenses, calculateLoanPayment } from './economy.js?v=0.4.17';
-import { renderCampusMap, handleCampusClick, handleCampusHover, clearHover } from './campus-renderer.js?v=0.4.17';
+import { DEPARTMENTS, DEPARTMENT_CURRICULA, UNIVERSITY_TYPES, UNIVERSITY_MODELS, USD_TO_TL, DIFFICULTY_SETTINGS, BUILDINGS, SEMESTER_MONTHS, FACULTIES, DEPT_TO_FACULTY, SALARY_SCALES, ADMIN_UNITS, ADMIN_TITLES, ADMIN_UNIT_BUILDINGS, ACCREDITATION_BODIES, SCENARIOS, BANKS } from './data.js?v=0.4.18';
+import { DEPARTMENT_FIELDS, getSalaryRange, renderFacultyAvatar, calculateOverallRating, getFacultyRatingTrend } from './faculty.js?v=0.4.18';
+import { AVAILABLE_NEW_DEPARTMENTS } from './game.js?v=0.4.18';
+import { calculateIncome, calculateExpenses, calculateLoanPayment } from './economy.js?v=0.4.18';
+import { renderCampusMap, handleCampusClick, handleCampusHover, clearHover } from './campus-renderer.js?v=0.4.18';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // DOM YARDIMCILARI
@@ -4078,7 +4078,7 @@ function _showDepartmentAssignModal(state, building, onDecision) {
  * @param {object}   state          — Oyun durumu
  * @param {Function} onAllocChange  — Bütçe dağılımı değişim callback (allocation alır)
  */
-export function renderBudgetPanel(state, onAllocChange, onLoanAction) {
+export function renderBudgetPanel(state, onAllocChange, onLoanAction, onTuitionChange, onAidChange) {
   const panel = el('tab-budget');
   if (!panel) return;
 
@@ -4391,8 +4391,22 @@ export function renderBudgetPanel(state, onAllocChange, onLoanAction) {
   const tuitionSlider = el('tuition-slider');
   const tuitionVal    = el('tuition-value');
   if (tuitionSlider && tuitionVal) {
+    // 'input' her hareketinde sadece görüntüyü güncelle
     on(tuitionSlider, 'input', () => {
       tuitionVal.textContent = formatMoney(parseInt(tuitionSlider.value));
+    });
+    // 'change' kullanıcı slider'ı bıraktığında tetiklenir → state'e yaz
+    // (Önceden hiç save yoktu, sadece görüntü güncelleniyordu — Burak Gökalp raporu)
+    on(tuitionSlider, 'change', () => {
+      const amount = parseInt(tuitionSlider.value);
+      if (onTuitionChange) {
+        const result = onTuitionChange(amount);
+        if (result && result.success === false) {
+          showNotification(result.message || 'Harç ayarlanamadı.', 'warning');
+        } else {
+          showNotification(`Dönemlik harç ${formatMoney(amount)} olarak ayarlandı.`, 'success');
+        }
+      }
     });
   }
 
@@ -4402,6 +4416,15 @@ export function renderBudgetPanel(state, onAllocChange, onLoanAction) {
   if (aidSlider && aidVal) {
     on(aidSlider, 'input', () => {
       aidVal.textContent = `%${aidSlider.value}`;
+    });
+    on(aidSlider, 'change', () => {
+      const rate = parseInt(aidSlider.value) / 100;
+      if (onAidChange) {
+        const result = onAidChange(rate);
+        if (result && result.success === false) {
+          showNotification(result.message || 'Burs oranı ayarlanamadı.', 'warning');
+        }
+      }
     });
   }
 

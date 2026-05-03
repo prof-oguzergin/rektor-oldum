@@ -8,7 +8,7 @@ console.log('[main] main.js modülü yükleniyor...');
 // IMPORT
 // ─────────────────────────────────────────────────────────────────────────────
 
-import { initGame, nextTurn, getState, setState, applyDecision, assignCourses, applyQuotas, assignDeptHead, reassignFacultyToDept, generateAdminCandidates, hireAdminStaff, upgradeAdminUnit, promoteAdminStaff, fireAdminStaff, updateAdminStaffSalary, assignUnitManager, RANDOM_EVENTS, ACHIEVEMENTS, getAchievementStats, organizeAlumniEvent, applyRandomEventChoice, ACCREDITATION_BODIES, applyForAccreditation, checkAccreditationRequirements, establishTTO, upgradeTTO, acceptDeal, rejectDeal, foundClub, upgradeClub, dissolveClub, CLUB_TYPES, CLUB_CATEGORIES, SPORTS, foundTeam, upgradeTeam, dissolveTeam } from './game.js?v=0.4.17';
+import { initGame, nextTurn, getState, setState, applyDecision, assignCourses, applyQuotas, assignDeptHead, reassignFacultyToDept, generateAdminCandidates, hireAdminStaff, upgradeAdminUnit, promoteAdminStaff, fireAdminStaff, updateAdminStaffSalary, assignUnitManager, RANDOM_EVENTS, ACHIEVEMENTS, getAchievementStats, organizeAlumniEvent, applyRandomEventChoice, ACCREDITATION_BODIES, applyForAccreditation, checkAccreditationRequirements, establishTTO, upgradeTTO, acceptDeal, rejectDeal, foundClub, upgradeClub, dissolveClub, CLUB_TYPES, CLUB_CATEGORIES, SPORTS, foundTeam, upgradeTeam, dissolveTeam } from './game.js?v=0.4.18';
 
 import {
   showScreen,
@@ -48,17 +48,17 @@ import {
   showChangelogModal,
   el,
   on,
-} from './ui.js?v=0.4.17';
+} from './ui.js?v=0.4.18';
 
-import { CHANGELOG, hasUnseenChanges, setLastSeenVersion } from './changelog.js?v=0.4.17';
+import { CHANGELOG, hasUnseenChanges, setLastSeenVersion } from './changelog.js?v=0.4.18';
 
-import { saveGame, loadGame, autoSave, getSaveSlots, deleteSave, exportSave, importSave, sanitizeForSave } from './save.js?v=0.4.17';
-import { calculateScore, scoreBreakdown, submitScore, getTopScores, initFirebase, isLeaderboardUnavailable, saveLocalScore, getLocalScores } from './leaderboard.js?v=0.4.17';
-import { showTutorialIfNeeded, replayTutorial } from './tutorial.js?v=0.4.17';
-import { initAudio, playSound, toggleMute, isMuted, startMusic, stopMusic, setMusicVolume, setSFXVolume, getAudioSettings } from './audio.js?v=0.4.17';
+import { saveGame, loadGame, autoSave, getSaveSlots, deleteSave, exportSave, importSave, sanitizeForSave } from './save.js?v=0.4.18';
+import { calculateScore, scoreBreakdown, submitScore, getTopScores, initFirebase, isLeaderboardUnavailable, saveLocalScore, getLocalScores } from './leaderboard.js?v=0.4.18';
+import { showTutorialIfNeeded, replayTutorial } from './tutorial.js?v=0.4.18';
+import { initAudio, playSound, toggleMute, isMuted, startMusic, stopMusic, setMusicVolume, setSFXVolume, getAudioSettings } from './audio.js?v=0.4.18';
 
-import { generateTransferMarket, renderFacultyAvatar, calculateOverallRating, getFacultyRatingTrend } from './faculty.js?v=0.4.17';
-import { resolveDecision } from './events.js?v=0.4.17';
+import { generateTransferMarket, renderFacultyAvatar, calculateOverallRating, getFacultyRatingTrend } from './faculty.js?v=0.4.18';
+import { resolveDecision } from './events.js?v=0.4.18';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // UYGULAMA DURUMU
@@ -572,7 +572,7 @@ function refreshGameUI() {
       renderCampusPanel(state, _onBuildStart, _onCampusDecision);
       break;
     case 'budget':
-      renderBudgetPanel(state, _onAllocChange, _onLoanAction);
+      renderBudgetPanel(state, _onAllocChange, _onLoanAction, _onTuitionChange, _onAidChange);
       break;
     case 'ranking':
       renderRankingPanel(state);
@@ -1745,8 +1745,27 @@ function _onLoanAction(decision) {
 // Budget sekmesini yenile (ui.js'ten çağrılabilir)
 window._onBudgetTabRefresh = () => {
   const state = getState();
-  if (state) renderBudgetPanel(state, _onAllocChange, _onLoanAction);
+  if (state) renderBudgetPanel(state, _onAllocChange, _onLoanAction, _onTuitionChange, _onAidChange);
 };
+
+/** Harç (tuition) değişikliği — slider 'change' event'inden çağrılır */
+function _onTuitionChange(amount) {
+  console.log('[main] Harç değişikliği:', amount);
+  const result = applyDecision({ type: 'set_tuition', amount });
+  if (result && result.success !== false) refreshGameUI();
+  return result;
+}
+
+/** Financial aid (us_private) oranı değişikliği */
+function _onAidChange(rate) {
+  console.log('[main] Burs oranı değişikliği:', rate);
+  const state = getState();
+  if (state?.university) {
+    state.university.financialAidRate = rate;
+    refreshGameUI();
+  }
+  return { success: true };
+}
 
 /** Araştırma bütçesi değişikliği */
 function _onResearchBudget(amount) {
