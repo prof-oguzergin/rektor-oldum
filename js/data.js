@@ -1516,7 +1516,7 @@ export const BUILDINGS = {
     capacityPerLevel:      { simultaneous: 200, daily: 800 },
     maintenanceCostPerM2:  40,
     constructionTurns:     2,
-    canHaveMultiple:       false,
+    canHaveMultiple:       true,
     effects: { studentSatisfaction: 5, researchBoost: 0.05 },
     // Geriye dönük uyumluluk
     constructionCost:      6_000_000,

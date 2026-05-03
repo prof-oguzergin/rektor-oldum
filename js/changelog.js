@@ -6,6 +6,14 @@
 
 export const CHANGELOG = [
   {
+    version: '0.4.30',
+    date: '2026-05-04',
+    title: 'Birden fazla kütüphane inşa edilebilir',
+    items: [
+      { type: 'fix', text: 'Kütüphane kullanım sınırına ulaştığında ikinci bir kütüphane inşa edilemiyordu (Erdinç raporu). Spor tesisi (v0.4.20) ile aynı düzeltme uygulandı: `canHaveMultiple` artık true. Mevcut kütüphane tamamlandıktan sonra yenisi başlatılabilir.' },
+    ],
+  },
+  {
     version: '0.4.29',
     date: '2026-05-04',
     title: 'Sonradan açılan bölümlere öğrenci yerleşmiyor + fakülteler ekranında görünmüyor',
