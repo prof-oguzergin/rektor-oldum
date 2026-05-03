@@ -48,15 +48,19 @@ Tam liste: `js/changelog.js` (oyun içi "Yenilikler" panelinde de gösterilir, b
   - v0.4.24: Ulaşım merkezi memnuniyet katkı, idari bina memnuniyet, araştırma merkezi "Bölüm Ata" → +%15 dış proje şansı (iki merkez +%30)
   - v0.4.25: İletişim bölümü tam veri (8 ders müfredatı + 7 uzmanlık alanı: Gazetecilik, Halkla İlişkiler, Reklam, Radyo-TV, Yeni Medya, İletişim Tasarımı, Medya Çalışmaları) — hoca alımında "ders örtüşmesi yok" uyarısı kapandı (Erdinç)
   - v0.4.26: Siyaset Bilimi bölümü tam veri (8 ders müfredatı + 7 uzmanlık: Siyaset Teorisi, Siyasi Düşünce, Karşılaştırmalı Siyaset, Türk Siyasal Hayatı, Uluslararası İlişkiler, Kamu Yönetimi, Siyaset Sosyolojisi) — Issue #5 (seyrekilyas09)
-  - v0.4.27: Leaderboard'da kullanıcı başına yalnızca en iyi skor (R-Fatih önerisi). Doc id `uid_gameId` → `uid`. Yeni rules: create/update/delete + update koşulu `score > resource.data.score`. Migration: `scripts/migrate-leaderboard.js` (Node + firebase-admin, service-account.json gerektirir, .gitignore'da). 51 belge → 48 (1 oyuncuda 4→1 birleşme, 3 silme).
+  - v0.4.27: Leaderboard'da kullanıcı başına yalnızca en iyi skor (R-Fatih önerisi). Doc id `uid_gameId` → `uid`. Yeni rules: create/update/delete + update koşulu `score > resource.data.score`. Migration: `scripts/migrate-leaderboard.js` (Node + firebase-admin, service-account.json gerektirir, .gitignore'da). 54 belge → 51 (3 duplicate silindi). Rules deploy: scripts/deploy-rules.js (REST API, geçici — sonra silindi).
+  - v0.4.28: Oyun bitti/kazanıldı sonrası boş Dönem Özeti açılması düzeltildi (Emir raporu, console log ile teşhis). _onNextTurn handler en başta gameOver/gameWon kontrolü + nextTurn sonrası defensive katman. Bonus: main.js'deki save.js cache-bust sürümü 0.4.24'te kalmış, 0.4.28'e güncellendi.
 
 ## Aktif Oyuncu Raporcuları
 Erdinç (en yoğun), AkaDemi, Emir, Burak Gökalp, Yusuf Sertkaya, R-Fatih (Issue #7, #9), X, serhattural
 
 ## Bekleyen Raporlar
 - Burak — kontenjan modal ilerlemiyor, console log bekleniyor
-- Emir — özet ekranında tüm değerler 0, console log bekleniyor
 - App Check — 200/403 doğrulaması kullanıcı browser'ında
+- Erdinç (4 May 2026) — "Kütüphane de kullanım sınırına ulaştı, ayrıca inşa edilebilmeli" (kullanıcı emin değil, doğrulama gerek). Olası fix: v0.4.20 spor tesisi pattern'ı — `canHaveMultiple: true` (data.js BUILDINGS içinde kütüphane girdisi). Önce kapasite sınırı/kullanım davranışı + tek-tek mi çoklu mu inşa konfigürasyonu kontrol edilmeli.
+
+## Çözülmüş (sonraki cleanup'a kadar burada)
+- Emir (özet ekranında tüm değerler 0) → v0.4.28'de gameOver/gameWon erken çıkış
 
 ## Sonraki Adımlar
 - Ek senaryo paketleri

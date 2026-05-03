@@ -6,6 +6,15 @@
 
 export const CHANGELOG = [
   {
+    version: '0.4.28',
+    date: '2026-05-04',
+    title: 'Oyun bitti/kazanıldı sonrası boş dönem özeti açılması düzeltildi',
+    items: [
+      { type: 'fix', text: 'Oyun kazanıldıktan veya bittikten sonra "Sonraki Dönem"e basıldığında boş bir Dönem Özeti modal\'ı açılıyor; tüm değerler 0 veya — gözüküyordu (Emir raporu, console log ile teşhis edildi). Backend zaten "Oyun zaten bitti" dönüyordu ama UI yine de modal açıyordu. Artık iki katmanlı korunuyor: handler en başta gameOver/gameWon kontrol edip "🏆 Oyun kazanıldı. Yeni oyun başlatabilirsin." bildirimi veriyor; ek güvenlik ağı olarak da nextTurn() sonrası yine kontrol ediliyor.' },
+      { type: 'fix', text: 'main.js içindeki save.js cache-bust sürümü 0.4.24\'te kalmış (her sürümde otomatik bumplanmıyor). 0.4.28\'e güncellendi — eski tarayıcı önbelleklerinin save modülünü zorla yenilemesi sağlandı.' },
+    ],
+  },
+  {
     version: '0.4.27',
     date: '2026-05-04',
     title: 'Skor tablosunda kullanıcı başına yalnızca en iyi skor',

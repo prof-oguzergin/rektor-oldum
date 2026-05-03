@@ -52,7 +52,7 @@ import {
 
 import { CHANGELOG, hasUnseenChanges, setLastSeenVersion } from './changelog.js?v=0.4.24';
 
-import { saveGame, loadGame, autoSave, getSaveSlots, deleteSave, exportSave, importSave, sanitizeForSave } from './save.js?v=0.4.24';
+import { saveGame, loadGame, autoSave, getSaveSlots, deleteSave, exportSave, importSave, sanitizeForSave } from './save.js?v=0.4.28';
 import { calculateScore, scoreBreakdown, submitScore, getTopScores, initFirebase, isLeaderboardUnavailable, saveLocalScore, getLocalScores } from './leaderboard.js?v=0.4.27';
 import { showTutorialIfNeeded, replayTutorial } from './tutorial.js?v=0.4.24';
 import { initAudio, playSound, toggleMute, isMuted, startMusic, stopMusic, setMusicVolume, setSFXVolume, getAudioSettings } from './audio.js?v=0.4.24';
@@ -740,6 +740,20 @@ function _onNextTurn() {
   const currentState = getState();
   if (!currentState) return;
 
+  // Oyun bittiyse/kazanıldıysa simülasyon yapma (Emir raporu — boş özet
+  // modal'ı açılıyordu çünkü nextTurn() "Oyun zaten bitti." döndürüp
+  // erken çıkıyor, ama UI hâlâ özet render ediyordu).
+  if (currentState.gameOver || currentState.gameWon) {
+    showNotification(
+      currentState.gameWon
+        ? '🏆 Oyun kazanıldı. Yeni oyun başlatabilirsin.'
+        : 'Oyun bitti. Yeni oyun başlatabilirsin.',
+      'info',
+      5000,
+    );
+    return;
+  }
+
   // Bahar dönemi simüle edilecekse → önce kontenjan modalı ZORUNLU
   // (Bahar sonunda sınıf ilerlemesi + yeni alım birlikte yapılır;
   //  oyuncu bir sonraki yılın kontenjanlarını Bahar öncesinde belirler.)
@@ -767,6 +781,17 @@ function _runTurnAfterQuotas() {
   const state   = getState();
 
   console.log('[main] nextTurn() tamamlandı. Özet:', summary);
+
+  // Defensive: backend "Oyun zaten bitti." dönerse boş özet modal'ı açma
+  // (Emir raporu — _onNextTurn'de zaten erken çıkış var, bu son güvenlik ağı).
+  if (state?.gameOver || state?.gameWon || /zaten bitti/i.test(summary?.message || '')) {
+    showNotification(
+      state?.gameWon ? '🏆 Oyun kazanıldı. Yeni oyun başlatabilirsin.' : 'Oyun bitti. Yeni oyun başlatabilirsin.',
+      'info',
+      5000,
+    );
+    return;
+  }
 
   // Simülasyon hatası: state geri alındı, kullanıcıya net bildirim göster
   // ve akışı durdur (otomatik kayıt + özet modal'ı çalıştırma).
