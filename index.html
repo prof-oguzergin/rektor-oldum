@@ -437,9 +437,11 @@
 
   <script>console.log('[inline] Script tag çalışıyor — before module');</script>
   <script type="module">
-    console.log('[inline-module] Inline module çalışıyor');
+    // Cache-bust: build hash veya manuel versiyon. Her release'de bumpla.
+    const APP_VERSION = '0.4.2';
+    console.log('[inline-module] Sürüm:', APP_VERSION);
     try {
-      const m = await import('./js/main.js');
+      const m = await import(`./js/main.js?v=${APP_VERSION}`);
       console.log('[inline-module] main.js başarıyla yüklendi');
     } catch(e) {
       console.error('[inline-module] main.js HATA:', e.message, e.stack);
