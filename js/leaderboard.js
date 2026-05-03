@@ -4,7 +4,7 @@
  * ES module, Firebase SDK'yı CDN'den dinamik olarak yükler.
  */
 
-import { firebaseConfig, APP_CHECK_SITE_KEY } from './firebase-config.js?v=0.4.24';
+import { firebaseConfig, APP_CHECK_SITE_KEY } from './firebase-config.js?v=0.4.27';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // TEKİL BAŞLATMA
@@ -181,35 +181,57 @@ export function scoreBreakdown(state) {
 // ─────────────────────────────────────────────────────────────────────────────
 
 /**
- * Firestore'a skor kaydeder.
+ * Firestore'a skor kaydeder. Kullanıcı başına TEK kayıt tutulur:
+ * doc id = uid. Yeni skor mevcuttan yüksekse update, değilse atlanır
+ * (R-Fatih önerisi — leaderboard'da kullanıcı başına yalnızca en iyi skor).
+ *
  * @param {string} name   Oyuncu adı (1-30 karakter)
  * @param {object} state  Mevcut oyun state'i
- * @returns {string} Eklenen dökümanın ID'si
+ * @returns {{ status: 'created'|'updated'|'not-improved', score: number, oldScore?: number, docId: string }}
  */
 export async function submitScore(name, state) {
   if (!name || name.trim().length === 0) {
     throw new Error('İsim boş olamaz.');
   }
   const trimmed = name.trim().slice(0, 30);
-  const score   = calculateScore(state);
+  const score   = _safeNum(calculateScore(state), 0);
 
   const uid = await ensureAnonAuth();
   const { db } = await initFirebase();
 
-  const { doc, setDoc, serverTimestamp } = await import('https://www.gstatic.com/firebasejs/11.0.2/firebase-firestore.js');
+  const { doc, getDoc, setDoc, serverTimestamp } = await import('https://www.gstatic.com/firebasejs/11.0.2/firebase-firestore.js');
 
-  // gameId yoksa fallback (eski kayıtlar): zaman tabanlı.
-  const gameId = String(state?.meta?.gameId || Date.now().toString(36));
-  // Doc ID `${uid}_${gameId}`. Firestore Rules `if !exists` ile aynı oyundan
-  // ikinci yazımı reddeder — client-side flag bypass edilse bile server-side
-  // mükerrer kayıt korunması (R-Fatih + serhattural raporları).
-  const docId  = `${uid}_${gameId}`.replace(/[^A-Za-z0-9_-]/g, '_').slice(0, 200);
+  // Doc ID = uid (kullanıcı başına tek kayıt). gameId payload'da arşiv için tutulur.
+  const docId  = uid;
+  const gameId = String(state?.meta?.gameId || Date.now().toString(36)).slice(0, 100);
+  const ref    = doc(db, 'scores', docId);
+
+  // Önce mevcut kullanıcı kaydını oku — yeni skor düşükse hiç yazma.
+  let existingScore = null;
+  try {
+    const existing = await getDoc(ref);
+    if (existing.exists()) {
+      existingScore = _safeNum(existing.data()?.score, null);
+    }
+  } catch (err) {
+    // Read başarısız olursa (offline vb.) ileri git, write sırasında tekrar dene.
+    console.warn('[leaderboard] Mevcut skor okunamadi (yine de gondermeye calisilacak):', err?.message || err);
+  }
+
+  if (existingScore !== null && score <= existingScore) {
+    return {
+      status:    'not-improved',
+      score,
+      oldScore:  existingScore,
+      docId,
+    };
+  }
 
   const payload = {
     uid,                                  // Rules'da request.auth.uid ile eşleşmeli
-    gameId:    String(gameId).slice(0, 100),
+    gameId,                               // Hangi oyundan geldi (arşiv)
     name:      trimmed,
-    score:     _safeNum(score, 0),
+    score,
     year:      Math.round(_safeNum(state?.meta?.year, 1)),
     rank:      Math.round(_safeNum(state?.university?.ranking, 50)),
     prestige:  Math.round(_safeNum(state?.university?.prestige, 0)),
@@ -217,14 +239,18 @@ export async function submitScore(name, state) {
   };
 
   try {
-    await setDoc(doc(db, 'scores', docId), payload);
-    return docId;
+    await setDoc(ref, payload);
+    return {
+      status:    existingScore === null ? 'created' : 'updated',
+      score,
+      oldScore:  existingScore,
+      docId,
+    };
   } catch (err) {
     console.error('[leaderboard] Skor gönderilirken hata:', err, 'payload:', payload);
     let msg;
     if (err?.code === 'permission-denied') {
-      // Rules `if !exists` veya range/type kontrolü reddi de buraya düşer
-      msg = 'Skor gönderme reddedildi. Bu oyun için skor zaten gönderilmiş veya veri geçersiz.';
+      msg = 'Skor gönderme reddedildi. Veri geçersiz veya kurallar tarafından engellendi.';
     } else if (err?.code === 'unauthenticated') {
       msg = 'Anonim oturum açılamadı. Lütfen sayfayı yenileyip tekrar dene.';
     } else if (err?.code === 'unavailable' || /network|offline/i.test(err?.message || '')) {

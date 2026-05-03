@@ -3,14 +3,14 @@
 // Deploy: Firebase Console → Firestore Database → Rules → bu içeriği yapıştır → Yayınla
 // Veya CLI: firebase deploy --only firestore:rules
 //
-// Korumalar (serhattural raporu — client-only kontrol yetersiz):
+// Korumalar (R-Fatih önerisi v0.4.27 + serhattural raporu):
 //  1) Yalnızca anonim auth ile yazılabilir
-//  2) Doc ID `${uid}_${gameId}` formatında olmalı, request.auth.uid ile eşleşmeli
-//  3) Aynı oyundan ikinci kayıt reddedilir (`if !exists`) — mükerrer skor önleme
+//  2) Doc ID = request.auth.uid (kullanıcı başına TEK kayıt)
+//  3) Update yalnızca yeni skor mevcuttan yüksekse (server-side karşılaştırma)
 //  4) Score 0..100000, year 1..200, prestige -100..200, rank 1..1000 aralığında
 //  5) Name 1-30 karakter string
 //  6) Read herkese açık (skor tablosu publik)
-//  7) Update/delete kapalı (kayıt sabit)
+//  7) Delete kapalı
 
 rules_version = '2';
 service cloud.firestore {
@@ -21,56 +21,50 @@ service cloud.firestore {
       // Skor tablosu okuması herkese açık
       allow read: if true;
 
-      // Yeni skor yazımı: katı validasyon
+      // Ortak alan + tip + aralık doğrulamaları (create + update için)
+      function validScore(data, uid) {
+        return data.keys().hasOnly(
+                ['uid', 'gameId', 'name', 'score', 'year', 'rank', 'prestige', 'createdAt'])
+            && data.keys().hasAll(
+                ['uid', 'gameId', 'name', 'score', 'year', 'rank', 'prestige', 'createdAt'])
+            && data.uid == uid
+            && data.gameId is string
+            && data.gameId.size() >= 1
+            && data.gameId.size() <= 100
+            && data.name is string
+            && data.name.size() >= 1
+            && data.name.size() <= 30
+            && data.score is int
+            && data.score >= 0
+            && data.score <= 100000
+            && data.year is int
+            && data.year >= 1
+            && data.year <= 200
+            && data.rank is int
+            && data.rank >= 1
+            && data.rank <= 1000
+            && data.prestige is int
+            && data.prestige >= -100
+            && data.prestige <= 200
+            && data.createdAt == request.time;
+      }
+
+      // Yeni kayıt oluşturma: doc ID = uid, ilk kayıt
       allow create: if
-        // Anonim auth zorunlu
         request.auth != null
+        && scoreId == request.auth.uid
+        && validScore(request.resource.data, request.auth.uid);
 
-        // Doc ID = `${uid}_${gameId}` ile başlamalı
-        && scoreId.matches('^' + request.auth.uid + '_[A-Za-z0-9_-]{1,150}$')
+      // Mevcut kaydı güncelleme: yeni skor MEVCUT skordan yüksek olmalı
+      // (R-Fatih önerisi — kullanıcı başına yalnızca en iyi skor tutulur)
+      allow update: if
+        request.auth != null
+        && scoreId == request.auth.uid
+        && validScore(request.resource.data, request.auth.uid)
+        && request.resource.data.score > resource.data.score;
 
-        // Mükerrer engel: aynı doc ID daha önce yazılmamış olmalı
-        && !exists(/databases/$(database)/documents/scores/$(scoreId))
-
-        // Required fields
-        && request.resource.data.keys().hasOnly(
-            ['uid', 'gameId', 'name', 'score', 'year', 'rank', 'prestige', 'createdAt'])
-        && request.resource.data.keys().hasAll(
-            ['uid', 'gameId', 'name', 'score', 'year', 'rank', 'prestige', 'createdAt'])
-
-        // uid eşleşmeli
-        && request.resource.data.uid == request.auth.uid
-
-        // Type + aralık kontrolleri (saldırgan parametreleri istediği gibi gönderemesin)
-        && request.resource.data.gameId is string
-        && request.resource.data.gameId.size() >= 1
-        && request.resource.data.gameId.size() <= 100
-
-        && request.resource.data.name is string
-        && request.resource.data.name.size() >= 1
-        && request.resource.data.name.size() <= 30
-
-        && request.resource.data.score is int
-        && request.resource.data.score >= 0
-        && request.resource.data.score <= 100000
-
-        && request.resource.data.year is int
-        && request.resource.data.year >= 1
-        && request.resource.data.year <= 200
-
-        && request.resource.data.rank is int
-        && request.resource.data.rank >= 1
-        && request.resource.data.rank <= 1000
-
-        && request.resource.data.prestige is int
-        && request.resource.data.prestige >= -100
-        && request.resource.data.prestige <= 200
-
-        // Server-side timestamp zorunlu (client kendi tarihini yazamaz)
-        && request.resource.data.createdAt == request.time;
-
-      // Güncelleme/silme yasak
-      allow update, delete: if false;
+      // Silme yasak
+      allow delete: if false;
     }
   }
 }

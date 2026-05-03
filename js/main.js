@@ -53,7 +53,7 @@ import {
 import { CHANGELOG, hasUnseenChanges, setLastSeenVersion } from './changelog.js?v=0.4.24';
 
 import { saveGame, loadGame, autoSave, getSaveSlots, deleteSave, exportSave, importSave, sanitizeForSave } from './save.js?v=0.4.24';
-import { calculateScore, scoreBreakdown, submitScore, getTopScores, initFirebase, isLeaderboardUnavailable, saveLocalScore, getLocalScores } from './leaderboard.js?v=0.4.24';
+import { calculateScore, scoreBreakdown, submitScore, getTopScores, initFirebase, isLeaderboardUnavailable, saveLocalScore, getLocalScores } from './leaderboard.js?v=0.4.27';
 import { showTutorialIfNeeded, replayTutorial } from './tutorial.js?v=0.4.24';
 import { initAudio, playSound, toggleMute, isMuted, startMusic, stopMusic, setMusicVolume, setSFXVolume, getAudioSettings } from './audio.js?v=0.4.24';
 
@@ -952,7 +952,7 @@ function _showLeaderboardSubmitModal(isGameOver = false) {
     try {
       await initFirebase();
       if (statusEl) statusEl.textContent = 'Skor yükleniyor…';
-      await submitScore(name, state);
+      const result = await submitScore(name, state);
 
       // Mükerrer kayıt önleme: bu oyun için skor gönderildiğini state'e işaretle.
       // autoSave ile localStorage'a yazılır; sayfa yenilense de korunur.
@@ -967,7 +967,24 @@ function _showLeaderboardSubmitModal(isGameOver = false) {
       }
 
       hideModal();
-      showNotification(`🏆 ${name} — ${score.toLocaleString('tr-TR')} puan kaydedildi!`, 'success', 5000);
+
+      // Skor sonucunu kullanıcıya net göster (R-Fatih önerisi v0.4.27):
+      // leaderboard'da kullanıcı başına yalnızca en iyi skor tutulur.
+      const fmt = (n) => Number(n).toLocaleString('tr-TR');
+      if (result?.status === 'updated') {
+        showNotification(
+          `🏆 ${name} — ${fmt(result.score)} puan! En iyi skorun güncellendi (eski: ${fmt(result.oldScore)}).`,
+          'success', 6000,
+        );
+      } else if (result?.status === 'not-improved') {
+        showNotification(
+          `📊 ${fmt(result.score)} puan aldın. Küresel en iyi skorun ${fmt(result.oldScore)} — leaderboard güncellenmedi.`,
+          'info', 6000,
+        );
+      } else {
+        // 'created' veya legacy
+        showNotification(`🏆 ${name} — ${fmt(result?.score ?? score)} puan kaydedildi!`, 'success', 5000);
+      }
 
       // Leaderboard sekmesine geç ve yenile
       _activeTab = 'leaderboard';

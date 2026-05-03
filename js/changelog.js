@@ -6,6 +6,15 @@
 
 export const CHANGELOG = [
   {
+    version: '0.4.27',
+    date: '2026-05-04',
+    title: 'Skor tablosunda kullanıcı başına yalnızca en iyi skor',
+    items: [
+      { type: 'feat', text: 'Önceden bir kullanıcı birden fazla oyun bitirince skor tablosunda birden çok kaydı oluşuyordu (R-Fatih önerisi). Artık kullanıcı başına yalnızca en iyi skor tutuluyor: yeni oyun mevcuttan yüksek skor üretirse kayıt güncelleniyor, düşük olunca atlanıyor — modal "📊 X puan aldın. Küresel en iyi skorun Y — leaderboard güncellenmedi." der.' },
+      { type: 'security', text: 'Firestore Security Rules güncellendi: doc id artık `uid` (kullanıcı başına tek belge), update yalnızca yeni skor mevcuttan yüksek olunca kabul ediliyor (server-side). İstemci tarafı bypass edilse bile sunucu reddediyor.' },
+    ],
+  },
+  {
     version: '0.4.26',
     date: '2026-05-04',
     title: 'Siyaset Bilimi bölümü tam veri ile destekleniyor',

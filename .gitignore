@@ -6,6 +6,11 @@ take_screenshots.py
 duyuru/
 og-template.html
 
+# Migration artifacts (Firebase Admin SDK)
+service-account.json
+service-account*.json
+node_modules/
+
 # OS
 Thumbs.db
 .DS_Store
