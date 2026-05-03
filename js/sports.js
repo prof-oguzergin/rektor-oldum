@@ -15,6 +15,7 @@ export const SPORTS = {
     maxLevel: 5, upgradeMultiplier: 1.5,
     upgradeCosts: [0, 300_000, 600_000, 1_000_000, 1_500_000],
     basePower: 20, description: 'Üniversiteler arası basketbol takımı',
+    allowsDraw: false,  // basketbol uzatma ile karara bağlanır
   },
   futbol: {
     id: 'futbol', name: 'Futbol', icon: '⚽',
@@ -23,6 +24,7 @@ export const SPORTS = {
     maxLevel: 5, upgradeMultiplier: 1.5,
     upgradeCosts: [0, 400_000, 800_000, 1_200_000, 2_000_000],
     basePower: 20, description: 'Üniversiteler arası futbol takımı',
+    allowsDraw: true,
   },
   voleybol: {
     id: 'voleybol', name: 'Voleybol', icon: '🏐',
@@ -31,6 +33,7 @@ export const SPORTS = {
     maxLevel: 5, upgradeMultiplier: 1.5,
     upgradeCosts: [0, 250_000, 500_000, 800_000, 1_200_000],
     basePower: 20, description: 'Üniversiteler arası voleybol takımı',
+    allowsDraw: false,  // voleybolda 5 set, beraberlik yok
   },
   yuzme: {
     id: 'yuzme', name: 'Yüzme', icon: '🏊',
@@ -39,6 +42,7 @@ export const SPORTS = {
     maxLevel: 5, upgradeMultiplier: 1.5,
     upgradeCosts: [0, 350_000, 700_000, 1_000_000, 1_500_000],
     basePower: 18, description: 'Üniversiteler arası yüzme takımı',
+    allowsDraw: false,
   },
   atletizm: {
     id: 'atletizm', name: 'Atletizm', icon: '🏃',
@@ -47,6 +51,7 @@ export const SPORTS = {
     maxLevel: 5, upgradeMultiplier: 1.5,
     upgradeCosts: [0, 200_000, 400_000, 600_000, 1_000_000],
     basePower: 15, description: 'Üniversite atletizm takımı (tesis gerekmez)',
+    allowsDraw: false,
   },
   espor: {
     id: 'espor', name: 'E-Spor', icon: '🎮',
@@ -55,6 +60,7 @@ export const SPORTS = {
     maxLevel: 5, upgradeMultiplier: 1.5,
     upgradeCosts: [0, 150_000, 300_000, 500_000, 800_000],
     basePower: 15, description: 'Üniversite e-spor takımı (tesis gerekmez)',
+    allowsDraw: false,
   },
 };
 
@@ -178,12 +184,14 @@ function _getTeamPower(team, state) {
 // YARDIMCI: Tek maç simülasyonu
 // ─────────────────────────────────────────────────────────────────────────────
 
-function _simulateMatch(teamPower, opponentPower) {
+function _simulateMatch(teamPower, opponentPower, allowsDraw = true) {
   const teamRoll = teamPower + Math.floor(Math.random() * 30) - 15;
   const oppRoll  = opponentPower + Math.floor(Math.random() * 30) - 15;
   if (teamRoll > oppRoll + 5) return 'win';
   if (oppRoll > teamRoll + 5) return 'loss';
-  return 'draw';
+  // Yakın sonuç: beraberliğe izin veriyorsa draw, aksi halde teamRoll daha yüksekse galip (tie-break)
+  if (allowsDraw) return 'draw';
+  return teamRoll >= oppRoll ? 'win' : 'loss';
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -224,10 +232,13 @@ export function processSports(state, results) {
     const teamPower  = _getTeamPower(team, state);
     const matchResults = [];
 
+    const sportInfo = SPORTS[team.sportId] || {};
+    const allowsDraw = sportInfo.allowsDraw !== false;  // varsayılan true
+
     for (let i = 0; i < 5; i++) {
       const oppPower = 30 + Math.floor(Math.random() * 50);
       const oppName  = _getOpponentName(i);
-      const result   = _simulateMatch(teamPower, oppPower);
+      const result   = _simulateMatch(teamPower, oppPower, allowsDraw);
 
       if (result === 'win')       { team.wins++;   team.seasonPoints += 3; }
       else if (result === 'draw') { team.draws++;  team.seasonPoints += 1; }
@@ -271,7 +282,9 @@ export function processSports(state, results) {
       matches:  matchResults,
       position: team.leaguePosition,
       points:   team.seasonPoints,
-      record:   `${team.wins}G-${team.draws}B-${team.losses}M`,
+      record:   allowsDraw
+        ? `${team.wins}G-${team.draws}B-${team.losses}M`
+        : `${team.wins}G-${team.losses}M`,
     });
   }
 

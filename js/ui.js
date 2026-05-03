@@ -4,11 +4,11 @@
  * Vanilla JS, framework yok.
  */
 
-import { DEPARTMENTS, DEPARTMENT_CURRICULA, UNIVERSITY_TYPES, UNIVERSITY_MODELS, USD_TO_TL, DIFFICULTY_SETTINGS, BUILDINGS, SEMESTER_MONTHS, FACULTIES, DEPT_TO_FACULTY, SALARY_SCALES, ADMIN_UNITS, ADMIN_TITLES, ADMIN_UNIT_BUILDINGS, ACCREDITATION_BODIES, SCENARIOS, BANKS } from './data.js?v=0.4.18';
-import { DEPARTMENT_FIELDS, getSalaryRange, renderFacultyAvatar, calculateOverallRating, getFacultyRatingTrend } from './faculty.js?v=0.4.18';
-import { AVAILABLE_NEW_DEPARTMENTS } from './game.js?v=0.4.18';
-import { calculateIncome, calculateExpenses, calculateLoanPayment } from './economy.js?v=0.4.18';
-import { renderCampusMap, handleCampusClick, handleCampusHover, clearHover } from './campus-renderer.js?v=0.4.18';
+import { DEPARTMENTS, DEPARTMENT_CURRICULA, UNIVERSITY_TYPES, UNIVERSITY_MODELS, USD_TO_TL, DIFFICULTY_SETTINGS, BUILDINGS, SEMESTER_MONTHS, FACULTIES, DEPT_TO_FACULTY, SALARY_SCALES, ADMIN_UNITS, ADMIN_TITLES, ADMIN_UNIT_BUILDINGS, ACCREDITATION_BODIES, SCENARIOS, BANKS } from './data.js?v=0.4.19';
+import { DEPARTMENT_FIELDS, getSalaryRange, renderFacultyAvatar, calculateOverallRating, getFacultyRatingTrend } from './faculty.js?v=0.4.19';
+import { AVAILABLE_NEW_DEPARTMENTS } from './game.js?v=0.4.19';
+import { calculateIncome, calculateExpenses, calculateLoanPayment } from './economy.js?v=0.4.19';
+import { renderCampusMap, handleCampusClick, handleCampusHover, clearHover } from './campus-renderer.js?v=0.4.19';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // DOM YARDIMCILARI
@@ -2516,14 +2516,14 @@ export function renderStudentsPanel(state, onOpenQuotaScreen) {
     <div class="card" style="margin-bottom:20px;display:flex;align-items:center;gap:20px;padding:12px 20px;">
       <div style="font-size:32px;">${satIcon(overall)}</div>
       <div>
-        <div style="font-size:22px;font-weight:700;color:${satColor(overall)};">${overall}<span style="font-size:12px;color:var(--text-muted);">/100</span></div>
+        <div style="font-size:22px;font-weight:700;color:${satColor(overall)};">${Math.round(overall)}<span style="font-size:12px;color:var(--text-muted);">/100</span></div>
         <div style="font-size:11px;color:var(--text-muted);">Genel Öğrenci Memnuniyeti</div>
       </div>
       ${breakdown ? `
         <div style="display:flex;gap:8px;flex-wrap:wrap;margin-left:auto;">
           ${Object.values(breakdown).slice(0,5).map(f => `
             <div style="text-align:center;min-width:52px;">
-              <div style="font-size:12px;font-weight:700;color:${satColor(f.score)};">${f.score}</div>
+              <div style="font-size:12px;font-weight:700;color:${satColor(f.score)};">${Math.round(f.score)}</div>
               <div style="font-size:10px;color:var(--text-muted);">${f.label.split(' ')[0]}</div>
             </div>
           `).join('')}
@@ -8610,7 +8610,9 @@ export function renderSportsPanel(state) {
                 <span style="font-size:12px;color:#10b981;font-weight:600;">${posLabel}</span>
               </div>
               <div style="font-size:12px;color:#94a3b8;margin-bottom:6px;">
-                Sezon: ${t.wins || 0}G - ${t.draws || 0}B - ${t.losses || 0}M · ${t.seasonPoints || 0} puan
+                Sezon: ${(sport.allowsDraw !== false)
+                  ? `${t.wins || 0}G - ${t.draws || 0}B - ${t.losses || 0}M`
+                  : `${t.wins || 0}G - ${t.losses || 0}M`} · ${t.seasonPoints || 0} puan
               </div>
               <div style="font-size:11px;color:#64748b;margin-bottom:8px;">
                 Dönem maliyeti: ${formatMoney(semCost)}

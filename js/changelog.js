@@ -6,6 +6,15 @@
 
 export const CHANGELOG = [
   {
+    version: '0.4.19',
+    date: '2026-05-04',
+    title: 'Memnuniyet sayısı + spor beraberliği',
+    items: [
+      { type: 'fix', text: 'Genel Öğrenci Memnuniyeti "63.9000000" gibi uzun ondalıklı görünüyordu (R-Fatih raporu, Issue #7). Ekrandaki tüm memnuniyet sayıları artık tam sayıya yuvarlanıyor.' },
+      { type: 'fix', text: 'Basketbol ve voleybolda beraberlik gösteriliyordu, gerçekte bu sporlarda beraberlik yok (R-Fatih raporu, Issue #9). Spor başına "beraberlik var mı" alanı eklendi; basketbol/voleybol/yüzme/atletizm/e-spor için yakın sonuçlar artık galibiyet/mağlubiyetle sonuçlanıyor. Sezon sonu kayıt formatı da uyarlandı.' },
+    ],
+  },
+  {
     version: '0.4.18',
     date: '2026-05-03',
     title: 'Dönemlik harç slider\'ı kayıt yapmıyordu',
