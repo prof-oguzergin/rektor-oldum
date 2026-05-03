@@ -319,6 +319,10 @@
             <span class="tab-icon">🏆</span>
             <span class="tab-label">Kazanımlar</span>
           </button>
+          <button class="sidebar-tab" data-tab="leaderboard">
+            <span class="tab-icon">🏅</span>
+            <span class="tab-label">En İyiler</span>
+          </button>
         </div>
       </nav>
 
@@ -339,6 +343,15 @@
         <div id="tab-clubs"       class="tab-panel"></div>
         <div id="tab-accreditation" class="tab-panel"></div>
         <div id="tab-achievements" class="tab-panel"></div>
+        <div id="tab-leaderboard" class="tab-panel">
+          <div style="padding:24px 32px;">
+            <h2 style="margin:0 0 8px;font-size:22px;">🏅 En İyi Rektörler</h2>
+            <p style="margin:0 0 16px;color:var(--text-muted,#aaa);font-size:14px;">
+              Dünya genelindeki en başarılı rektörlerin listesi.
+            </p>
+            <div id="leaderboard-list"></div>
+          </div>
+        </div>
       </main>
 
     </div>

@@ -44,11 +44,13 @@ import {
   showAchievementNotification,
   renderRandomEventModal,
   showAccreditationModal,
+  renderLeaderboardPanel,
   el,
   on,
 } from './ui.js';
 
 import { saveGame, loadGame, autoSave, getSaveSlots, deleteSave, exportSave, importSave, sanitizeForSave } from './save.js';
+import { calculateScore, scoreBreakdown, submitScore, getTopScores, initFirebase } from './leaderboard.js';
 import { showTutorialIfNeeded, replayTutorial } from './tutorial.js';
 import { initAudio, playSound, toggleMute, isMuted, startMusic, stopMusic, setMusicVolume, setSFXVolume, getAudioSettings } from './audio.js';
 
@@ -148,6 +150,9 @@ function init() {
   // Sayfa yüklendiğinde kayıt varlığını kontrol et
   _checkSaveOnLoad();
 
+  // Firebase'i arka planda sessizce başlat (ilk tıklamada gecikmeyi önler)
+  initFirebase().catch(err => console.warn('[main] Firebase önyükleme başarısız (önemli değil):', err.message));
+
   console.log('[main] Başlangıç tamamlandı.');
 }
 
@@ -213,14 +218,16 @@ function _toggleMainMenuDropdown() {
   `;
 
   const items = [
-    { action: 'settings', icon: '⚙️',  label: 'Ayarlar' },
-    { action: 'save',     icon: '💾',  label: 'Kaydet' },
-    { action: 'load',     icon: '📂',  label: 'Kayıt Yükle' },
-    { action: 'export',   icon: '📤',  label: 'Kaydı Dışa Aktar' },
-    { action: 'tutorial', icon: '📚',  label: 'Tutorial Tekrarla' },
-    { action: 'feedback', icon: '💬',  label: 'Geri Bildirim' },
+    { action: 'settings',   icon: '⚙️',  label: 'Ayarlar' },
+    { action: 'save',       icon: '💾',  label: 'Kaydet' },
+    { action: 'load',       icon: '📂',  label: 'Kayıt Yükle' },
+    { action: 'export',     icon: '📤',  label: 'Kaydı Dışa Aktar' },
+    { action: 'tutorial',   icon: '📚',  label: 'Tutorial Tekrarla' },
+    { action: 'feedback',   icon: '💬',  label: 'Geri Bildirim' },
     { action: 'separator' },
-    { action: 'menu',     icon: '🚪',  label: 'Ana Menüye Dön' },
+    { action: 'leaderboard-submit', icon: '🏆', label: 'Skorumu Gönder' },
+    { action: 'separator' },
+    { action: 'menu',       icon: '🚪',  label: 'Ana Menüye Dön' },
   ];
 
   items.forEach(it => {
@@ -346,6 +353,9 @@ function _handleMainMenuAction(action) {
       break;
     case 'feedback':
       _openFeedback();
+      break;
+    case 'leaderboard-submit':
+      _showLeaderboardSubmitModal();
       break;
     case 'menu':
       if (confirm('Ana menüye dönmek istiyor musun? Kaydetmediğin işler korunmaz.')) {
@@ -542,6 +552,11 @@ function refreshGameUI() {
       break;
     case 'achievements':
       renderAchievementsPanel(state, ACHIEVEMENTS, getAchievementStats(state));
+      break;
+    case 'leaderboard':
+      renderLeaderboardPanel(getTopScores).catch(err => {
+        showNotification('Skor tablosu yüklenemedi: ' + err.message, 'error');
+      });
       break;
     default:
       console.warn(`[main] Bilinmeyen sekme: ${_activeTab}`);
@@ -762,6 +777,117 @@ function _continueAfterEvents(summary, state) {
 
   refreshGameUI();
   console.log(`[main] Tur tamamlandı → Tur ${state?.meta?.turn}`);
+
+  // Oyun bittiyse (gameOver veya gameWon) skor gönderme modal'ını tetikle
+  if (summary?.gameOver || summary?.gameWon) {
+    setTimeout(() => _showLeaderboardSubmitModal(true), 1200);
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// LEADERBOARD — SKOR GÖNDERME MODAL'I
+// ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * Skor gönderme modal'ını açar.
+ * @param {boolean} isGameOver Oyun sonu tetiklemesiyse true (başlık farklılaşır)
+ */
+function _showLeaderboardSubmitModal(isGameOver = false) {
+  const state = getState();
+  if (!state) {
+    showNotification('Önce bir oyun başlatmalısın.', 'warning');
+    return;
+  }
+
+  const score     = calculateScore(state);
+  const breakdown = scoreBreakdown(state);
+  const heading   = isGameOver ? '🎓 Oyun Bitti!' : '🏆 Skorunu Gönder';
+
+  const breakdownHtml = breakdown
+    .map(line => `<li style="font-size:12px;color:var(--text-muted,#aaa);margin:2px 0;">${line}</li>`)
+    .join('');
+
+  const bodyHtml = `
+    <div style="display:flex;flex-direction:column;gap:16px;padding:4px 0;">
+      <p style="margin:0;font-size:14px;line-height:1.5;">
+        Skorunu küresel skor tablosuna ekle. İsim girip <strong>Gönder</strong>'e bas.
+      </p>
+      <div style="background:rgba(255,255,255,0.04);border-radius:10px;padding:14px;">
+        <div style="font-size:28px;font-weight:700;text-align:center;color:var(--accent,#5dd6c0);">
+          ${score.toLocaleString('tr-TR')} puan
+        </div>
+        <ul style="margin:10px 0 0;padding-left:18px;">
+          ${breakdownHtml}
+        </ul>
+      </div>
+      <div>
+        <label style="font-size:12px;color:var(--text-muted,#aaa);display:block;margin-bottom:6px;">
+          Adın (1-30 karakter)
+        </label>
+        <input
+          id="lb-name-input"
+          type="text"
+          maxlength="30"
+          placeholder="Anonim Rektör"
+          value="${state.meta?.playerName ? state.meta.playerName.slice(0, 30) : ''}"
+          style="width:100%;box-sizing:border-box;padding:9px 12px;border-radius:8px;border:1px solid rgba(255,255,255,0.15);background:rgba(255,255,255,0.06);color:inherit;font-size:14px;"
+        />
+      </div>
+      <div style="display:flex;gap:10px;justify-content:flex-end;">
+        <button id="lb-cancel-btn" class="btn btn-ghost btn-sm">❌ Vazgeç</button>
+        <button id="lb-submit-btn" class="btn btn-primary btn-sm">🏆 Gönder</button>
+      </div>
+      <div id="lb-submit-status" style="font-size:12px;color:var(--text-muted,#aaa);min-height:16px;"></div>
+    </div>`;
+
+  showModal(heading, bodyHtml);
+
+  // Buton handler'ları
+  document.getElementById('lb-cancel-btn')?.addEventListener('click', () => {
+    hideModal();
+  });
+
+  document.getElementById('lb-submit-btn')?.addEventListener('click', async () => {
+    const nameInput = document.getElementById('lb-name-input');
+    const statusEl  = document.getElementById('lb-submit-status');
+    const submitBtn = document.getElementById('lb-submit-btn');
+    const name = (nameInput?.value?.trim() || 'Anonim Rektör').slice(0, 30) || 'Anonim Rektör';
+
+    if (submitBtn) {
+      submitBtn.disabled = true;
+      submitBtn.textContent = '⏳ Gönderiliyor…';
+    }
+    if (statusEl) statusEl.textContent = 'Firebase bağlantısı kuruluyor…';
+
+    try {
+      await initFirebase();
+      if (statusEl) statusEl.textContent = 'Skor yükleniyor…';
+      await submitScore(name, state);
+
+      hideModal();
+      showNotification(`🏆 ${name} — ${score.toLocaleString('tr-TR')} puan kaydedildi!`, 'success', 5000);
+
+      // Leaderboard sekmesine geç ve yenile
+      _activeTab = 'leaderboard';
+      const lbTab = document.querySelector('[data-tab="leaderboard"]');
+      if (lbTab) {
+        document.querySelectorAll('.sidebar-tab').forEach(t => t.classList.remove('active'));
+        lbTab.classList.add('active');
+        document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+        const panel = document.getElementById('tab-leaderboard');
+        if (panel) panel.classList.add('active');
+      }
+      renderLeaderboardPanel(getTopScores).catch(() => {});
+
+    } catch (err) {
+      console.error('[main] Skor gönderme hatası:', err);
+      if (statusEl) statusEl.textContent = '⚠️ ' + (err.message || 'Bağlantı hatası oluştu.');
+      if (submitBtn) {
+        submitBtn.disabled = false;
+        submitBtn.textContent = '🏆 Tekrar Dene';
+      }
+    }
+  });
 }
 
 /**

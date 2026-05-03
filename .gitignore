@@ -1,5 +1,9 @@
-node_modules/
-.DS_Store
+# Local development
+screenshots/
+screenshot.py
+take_screenshots.py
+.claude/launch.json
+
+# OS
 Thumbs.db
-*.bat
-.claude/
+.DS_Store

@@ -8530,3 +8530,103 @@ export function renderSportsPanel(state) {
     ` : ''}
   `;
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// LEADERBOARD PANELİ
+// ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * Leaderboard panelini render eder.
+ * Firestore verilerini alıp #leaderboard-list div'ine yazar.
+ * @param {Function} getTopScoresFn  leaderboard.js'ten gelen getTopScores fonksiyonu
+ */
+export async function renderLeaderboardPanel(getTopScoresFn) {
+  const container = document.getElementById('leaderboard-list');
+  if (!container) return;
+
+  // Yenile butonu
+  const refreshHtml = `
+    <div style="display:flex;justify-content:flex-end;margin-bottom:14px;">
+      <button id="lb-refresh-btn" class="btn btn-ghost btn-sm" style="font-size:12px;">
+        🔄 Yenile
+      </button>
+    </div>`;
+
+  container.innerHTML = refreshHtml + '<div id="lb-content"><p style="color:var(--text-muted,#aaa);font-size:14px;">Yükleniyor…</p></div>';
+
+  document.getElementById('lb-refresh-btn')?.addEventListener('click', () => {
+    renderLeaderboardPanel(getTopScoresFn);
+  });
+
+  const contentEl = document.getElementById('lb-content');
+
+  try {
+    const rows = await getTopScoresFn(50);
+
+    if (!rows || rows.length === 0) {
+      contentEl.innerHTML = '<p style="color:var(--text-muted,#aaa);font-size:14px;">Henüz skor yok, ilk olabilirsin!</p>';
+      return;
+    }
+
+    const medals = ['🥇', '🥈', '🥉'];
+
+    const tableRows = rows.map((r, idx) => {
+      const pos    = idx + 1;
+      const medal  = pos <= 3 ? medals[pos - 1] : `${pos}.`;
+      const rowCls = pos === 1 ? 'lb-gold' : pos === 2 ? 'lb-silver' : pos === 3 ? 'lb-bronze' : '';
+      const date   = r.createdAt?.toDate
+        ? r.createdAt.toDate().toLocaleDateString('tr-TR')
+        : (r.createdAt?.seconds
+            ? new Date(r.createdAt.seconds * 1000).toLocaleDateString('tr-TR')
+            : '—');
+      return `
+        <tr class="${rowCls}">
+          <td style="text-align:center;font-size:15px;">${medal}</td>
+          <td style="font-weight:${pos <= 3 ? '700' : '400'};">${_escHtml(r.name ?? 'Anonim')}</td>
+          <td style="text-align:right;font-weight:700;color:var(--accent,#5dd6c0);">${(r.score ?? 0).toLocaleString('tr-TR')}</td>
+          <td style="text-align:center;">${r.year ?? '—'}. Yıl</td>
+          <td style="text-align:center;">#${r.rank ?? '—'}</td>
+          <td style="text-align:center;">${r.prestige ?? '—'}</td>
+          <td style="text-align:center;font-size:11px;color:var(--text-muted,#aaa);">${date}</td>
+        </tr>`;
+    }).join('');
+
+    contentEl.innerHTML = `
+      <div style="overflow-x:auto;">
+        <table style="width:100%;border-collapse:collapse;font-size:13px;">
+          <thead>
+            <tr style="border-bottom:1px solid rgba(255,255,255,0.1);color:var(--text-muted,#aaa);font-size:11px;text-transform:uppercase;">
+              <th style="padding:8px 6px;text-align:center;">#</th>
+              <th style="padding:8px 6px;text-align:left;">Rektör</th>
+              <th style="padding:8px 6px;text-align:right;">Skor</th>
+              <th style="padding:8px 6px;text-align:center;">Yıl</th>
+              <th style="padding:8px 6px;text-align:center;">Sıralama</th>
+              <th style="padding:8px 6px;text-align:center;">Saygınlık</th>
+              <th style="padding:8px 6px;text-align:center;">Tarih</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${tableRows}
+          </tbody>
+        </table>
+      </div>
+      <style>
+        .lb-gold   { background: rgba(255,215,0,0.07); }
+        .lb-silver { background: rgba(192,192,192,0.06); }
+        .lb-bronze { background: rgba(205,127,50,0.06); }
+        .lb-gold td, .lb-silver td, .lb-bronze td { padding: 9px 6px; }
+        tbody tr td { padding: 8px 6px; border-bottom: 1px solid rgba(255,255,255,0.04); }
+      </style>`;
+  } catch (err) {
+    contentEl.innerHTML = `<p style="color:#e74c3c;font-size:13px;">⚠️ ${_escHtml(err.message)}</p>`;
+  }
+}
+
+/** HTML özel karakterlerini kaçış için küçük yardımcı. */
+function _escHtml(str) {
+  return String(str)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+}
