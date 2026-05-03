@@ -26,4 +26,4 @@ export const firebaseConfig = {
  * Konsola çıkan token'ı Firebase Console > App Check > Apps > ⋮ > Debug
  * sayfasında ekle.
  */
-export const APP_CHECK_SITE_KEY = '';  // ← reCAPTCHA v3 site key buraya gelecek
+export const APP_CHECK_SITE_KEY = '6LcHhtcsAAAAAHaOmKLINvgINeMPv8Mbk_cT_F1L';
