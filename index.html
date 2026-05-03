@@ -28,8 +28,13 @@
   <div id="screen-menu" class="screen active">
     <div class="menu-bg">
       <div class="menu-overlay"></div>
+      <span class="menu-star-1">✦</span>
+      <span class="menu-star-2">✦</span>
+      <span class="menu-star-3">✦</span>
+      <span class="menu-star-4">✦</span>
       <div class="menu-center">
         <div class="menu-logo">
+          <span class="menu-icon">🎓</span>
           <h1 class="menu-title">Rektör Oldum</h1>
           <p class="menu-subtitle">Türkiye'nin en iyi üniversitesini kur</p>
         </div>
@@ -47,7 +52,13 @@
             <span class="btn-icon">💬</span> Geri Bildirim
           </button>
         </div>
-        <div class="menu-version">v0.4</div>
+        <div class="menu-features">
+          <span class="menu-feature-chip">🏛️ 50+ Rakip Üniversite</span>
+          <span class="menu-feature-chip">👨‍🏫 Akademik Kadro Yönetimi</span>
+          <span class="menu-feature-chip">💰 Bütçe ve Yerleşke</span>
+          <span class="menu-feature-chip">📊 Dünya Sıralaması</span>
+        </div>
+        <div class="menu-version">v0.4.3</div>
       </div>
     </div>
   </div>
@@ -443,7 +454,7 @@
   <script>console.log('[inline] Script tag çalışıyor — before module');</script>
   <script type="module">
     // Cache-bust: build hash veya manuel versiyon. Her release'de bumpla.
-    const APP_VERSION = '0.4.2';
+    const APP_VERSION = '0.4.3';
     console.log('[inline-module] Sürüm:', APP_VERSION);
     try {
       const m = await import(`./js/main.js?v=${APP_VERSION}`);

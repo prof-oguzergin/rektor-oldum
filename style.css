@@ -154,7 +154,24 @@ body {
    EKRAN 1: ANA MENÜ
 ───────────────────────────────────────────────────────────────────────── */
 #screen-menu {
-  background: linear-gradient(135deg, #0a0a1a 0%, #1a1a2e 40%, #0f3460 100%);
+  background: #0a0a1a;
+}
+
+/* Yıldız parıltı animasyonu */
+@keyframes sparkle {
+  0%, 100% { opacity: 0; transform: scale(0.6) translateZ(0); }
+  50%       { opacity: 0.7; transform: scale(1) translateZ(0); }
+}
+
+/* Logo nefes/pulse animasyonu */
+@keyframes title-pulse {
+  0%, 100% { text-shadow: 0 0 40px rgba(78,204,163,0.45), 0 0 12px rgba(255,255,255,0.25); }
+  50%       { text-shadow: 0 0 60px rgba(78,204,163,0.75), 0 0 20px rgba(255,255,255,0.4), 0 0 80px rgba(78,204,163,0.3); }
+}
+
+@keyframes icon-float {
+  0%, 100% { transform: translateY(0); }
+  50%       { transform: translateY(-6px); }
 }
 
 .menu-bg {
@@ -164,16 +181,60 @@ body {
   align-items: center;
   justify-content: center;
   position: relative;
+  background: url('assets/menu-bg.jpg') center/cover no-repeat;
+}
+
+/* Yıldız parıltı noktaları (pseudo-elements ile) */
+.menu-bg::before,
+.menu-bg::after {
+  content: '✦';
+  position: absolute;
+  color: rgba(255,255,255,0.8);
+  font-size: 10px;
+  pointer-events: none;
+  animation: sparkle 4s infinite ease-in-out;
+  transform: translateZ(0);
+}
+
+.menu-bg::before {
+  top: 18%;
+  left: 12%;
+  animation-delay: 0s;
+  font-size: 8px;
+}
+
+.menu-bg::after {
+  top: 72%;
+  right: 15%;
+  animation-delay: 2s;
+  font-size: 12px;
 }
 
 .menu-overlay {
   position: absolute;
   inset: 0;
   background:
-    radial-gradient(ellipse at 20% 50%, rgba(233,69,96,0.08) 0%, transparent 60%),
-    radial-gradient(ellipse at 80% 50%, rgba(78,204,163,0.06) 0%, transparent 60%);
+    rgba(10,10,30,0.62),
+    radial-gradient(ellipse at center, rgba(10,10,30,0.2) 0%, rgba(10,10,30,0.55) 100%),
+    radial-gradient(ellipse at 20% 50%, rgba(233,69,96,0.10) 0%, transparent 55%),
+    radial-gradient(ellipse at 80% 50%, rgba(78,204,163,0.08) 0%, transparent 55%);
   pointer-events: none;
 }
+
+/* Ek yıldız noktaları (ek element kullanmadan span ile) */
+.menu-star-1, .menu-star-2, .menu-star-3, .menu-star-4 {
+  position: absolute;
+  color: rgba(255,255,255,0.75);
+  font-size: 8px;
+  pointer-events: none;
+  animation: sparkle 4s infinite ease-in-out;
+  transform: translateZ(0);
+  z-index: 0;
+}
+.menu-star-1 { top: 28%; left: 80%; animation-delay: 0.8s; font-size: 10px; }
+.menu-star-2 { top: 60%; left: 8%;  animation-delay: 1.6s; font-size: 7px; }
+.menu-star-3 { top: 12%; left: 55%; animation-delay: 3s;   font-size: 9px; }
+.menu-star-4 { top: 82%; left: 42%; animation-delay: 1.2s; font-size: 6px; }
 
 .menu-center {
   position: relative;
@@ -188,7 +249,17 @@ body {
 .menu-logo {
   display: flex;
   flex-direction: column;
+  align-items: center;
   gap: var(--space-sm);
+}
+
+.menu-icon {
+  font-size: 3.8rem;
+  line-height: 1;
+  display: block;
+  margin-bottom: 0.25rem;
+  animation: icon-float 3s ease-in-out infinite;
+  filter: drop-shadow(0 0 16px rgba(78,204,163,0.6));
 }
 
 .menu-title {
@@ -199,6 +270,7 @@ body {
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
+  animation: title-pulse 2.8s ease-in-out infinite;
 }
 
 .menu-subtitle {
@@ -223,6 +295,35 @@ body {
 
 .btn-icon {
   font-style: normal;
+}
+
+/* Özellik chip şeridi */
+.menu-features {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 0.5rem;
+  max-width: 520px;
+  margin-top: 0.25rem;
+}
+
+.menu-feature-chip {
+  background: rgba(255,255,255,0.06);
+  border: 1px solid rgba(255,255,255,0.14);
+  border-radius: 999px;
+  padding: 0.3rem 0.85rem;
+  font-size: 0.72rem;
+  color: rgba(255,255,255,0.72);
+  letter-spacing: 0.3px;
+  white-space: nowrap;
+  transition: background 0.25s, border-color 0.25s, color 0.25s;
+  cursor: default;
+}
+
+.menu-feature-chip:hover {
+  background: rgba(78,204,163,0.12);
+  border-color: rgba(78,204,163,0.4);
+  color: rgba(255,255,255,0.92);
 }
 
 .menu-version {
