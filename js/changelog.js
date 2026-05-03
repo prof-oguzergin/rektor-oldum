@@ -6,6 +6,14 @@
 
 export const CHANGELOG = [
   {
+    version: '0.4.16',
+    date: '2026-05-03',
+    title: 'Bütçe dağılımı uygulanmıyor sorunu düzeltildi',
+    items: [
+      { type: 'fix', text: 'Bütçe Dağılımı ekranında slider\'larla yüzde değiştirip "Dağılımı Uygula"ya basınca eski değere dönüyordu, kayıt yapılmıyordu (Yusuf Sertkaya raporu). Karar gönderiminde aksiyon adı yanlıştı; düzeltildi. Artık dağılım anında uygulanıyor.' },
+    ],
+  },
+  {
     version: '0.4.14',
     date: '2026-05-03',
     title: 'App Check (reCAPTCHA v3) altyapısı eklendi',
