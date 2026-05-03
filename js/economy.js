@@ -17,7 +17,7 @@ import {
   TUITION_MULTIPLIER_FEN,
   TUITION_MULTIPLIER_SOS,
   DIFFICULTY_SETTINGS,
-} from './data.js?v=0.4.6';
+} from './data.js?v=0.4.7';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // EKONOMİ SABİTLERİ
@@ -439,12 +439,16 @@ export function processLoanPayments(state) {
   const remaining = [];
 
   for (const loan of state.university.loans) {
-    const payment = safeNum(loan.semesterPayment);
+    const payment    = safeNum(loan.semesterPayment);
+    const periodRate = safeNum(loan.interestRate) / 2;  // yıllık → dönemlik
 
     if (safeNum(state.university.budget) >= payment) {
-      // Ödeme yapılabilir
+      // Ödeme yapılabilir — annuity amortizasyonu: taksitin bir kısmı faiz, kalanı ana para
+      // (Önceden tüm taksit anaparadan düşülüyordu, faiz hiç ödenmiyordu — exploit.)
+      const interestPart  = safeNum(loan.remainingAmount) * periodRate;
+      const principalPart = Math.max(0, payment - interestPart);
       state.university.budget -= payment;
-      loan.remainingAmount    -= payment;
+      loan.remainingAmount    = Math.max(0, safeNum(loan.remainingAmount) - principalPart);
       loan.remainingTerms     -= 1;
       loan.overdue             = false;
       totalPaid               += payment;

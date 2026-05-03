@@ -32,10 +32,10 @@ import {
   ACCREDITATION_BODIES,
   SCENARIOS,
   BANKS,
-} from './data.js?v=0.4.6';
+} from './data.js?v=0.4.7';
 
-import { calculateEconomy, applyBudget, calculateLoanPayment, processLoanPayments } from './economy.js?v=0.4.6';
-import { generateInitialFaculty, updateAllFacultyHappiness, generateApplicants, generateFaculty, getSalaryRange, calculateOverallRating, getFacultyRatingTrend } from './faculty.js?v=0.4.6';
+import { calculateEconomy, applyBudget, calculateLoanPayment, processLoanPayments } from './economy.js?v=0.4.7';
+import { generateInitialFaculty, updateAllFacultyHappiness, generateApplicants, generateFaculty, getSalaryRange, calculateOverallRating, getFacultyRatingTrend } from './faculty.js?v=0.4.7';
 import {
   generateInitialStudents,
   getTotalEnrolled,
@@ -52,9 +52,9 @@ import {
   updateCohorts,
   processGraduation,
   processAdmissions,
-} from './students.js?v=0.4.6';
-import { calculatePrestige, updateRivals } from './ranking.js?v=0.4.6';
-import { checkForEvents, applyEventEffects } from './events.js?v=0.4.6';
+} from './students.js?v=0.4.7';
+import { calculatePrestige, updateRivals } from './ranking.js?v=0.4.7';
+import { checkForEvents, applyEventEffects } from './events.js?v=0.4.7';
 import {
   initAlumniState,
   processGraduatesForAlumni,
@@ -66,20 +66,20 @@ import {
   getAchievementStats,
   RANDOM_EVENTS,
   ACHIEVEMENTS,
-} from './alumni_events_achievements.js?v=0.4.6';
+} from './alumni_events_achievements.js?v=0.4.7';
 
 export { RANDOM_EVENTS, ACHIEVEMENTS, getAchievementStats, organizeAlumniEvent, applyRandomEventChoice, ACCREDITATION_BODIES };
 
-import { initTTOState, establishTTO, upgradeTTO, processTTO, acceptDeal, rejectDeal, TTO_CONFIG } from './tto.js?v=0.4.6';
+import { initTTOState, establishTTO, upgradeTTO, processTTO, acceptDeal, rejectDeal, TTO_CONFIG } from './tto.js?v=0.4.7';
 export { establishTTO, upgradeTTO, acceptDeal, rejectDeal, TTO_CONFIG };
 
-import { initClubsState, foundClub, upgradeClub, dissolveClub, processClubs, CLUB_TYPES, CLUB_CATEGORIES } from './clubs.js?v=0.4.6';
+import { initClubsState, foundClub, upgradeClub, dissolveClub, processClubs, CLUB_TYPES, CLUB_CATEGORIES } from './clubs.js?v=0.4.7';
 export { foundClub, upgradeClub, dissolveClub, CLUB_TYPES, CLUB_CATEGORIES };
 
-import { SPORTS, initSportsState, foundTeam, upgradeTeam, dissolveTeam, processSports } from './sports.js?v=0.4.6';
+import { SPORTS, initSportsState, foundTeam, upgradeTeam, dissolveTeam, processSports } from './sports.js?v=0.4.7';
 export { SPORTS, foundTeam, upgradeTeam, dissolveTeam };
 
-import { initCampusState, assignBuildingPosition, BUILDING_FOOTPRINTS } from './campus-layout.js?v=0.4.6';
+import { initCampusState, assignBuildingPosition, BUILDING_FOOTPRINTS } from './campus-layout.js?v=0.4.7';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // YARDİMCI: Derin kopya (state immutability için)
@@ -5468,17 +5468,20 @@ export function applyDecision(decision) {
       }
 
       const loan = loans[loanIndex];
-      const repayAmount = safeNum(loan.remainingAmount);
+      const principal = safeNum(loan.remainingAmount);
+      const breakFee  = Math.round(principal * 0.05);   // %5 erken kapatma cezası
+      const total     = principal + breakFee;
 
-      if (safeNum(_state.university.budget) < repayAmount) {
+      if (safeNum(_state.university.budget) < total) {
         return {
           success: false,
-          message: `Erken ödeme için yeterli bütçe yok. Gerekli: ₺${repayAmount.toLocaleString('tr-TR')}`,
+          message: `Erken ödeme için yeterli bütçe yok. Gerekli: ₺${total.toLocaleString('tr-TR')} ` +
+                   `(₺${principal.toLocaleString('tr-TR')} bakiye + ₺${breakFee.toLocaleString('tr-TR')} erken kapatma cezası).`,
         };
       }
 
       // Ödemeyi yap
-      _state.university.budget -= repayAmount;
+      _state.university.budget -= total;
       loans.splice(loanIndex, 1);
       _state.university.loans = loans;
 
@@ -5487,7 +5490,8 @@ export function applyDecision(decision) {
 
       return {
         success: true,
-        message: `Kredi tamamen ödendi. ₺${repayAmount.toLocaleString('tr-TR')} bütçeden düşüldü.`,
+        message: `Kredi kapatıldı: ₺${principal.toLocaleString('tr-TR')} bakiye + ` +
+                 `₺${breakFee.toLocaleString('tr-TR')} erken kapatma cezası = ₺${total.toLocaleString('tr-TR')} bütçeden düşüldü.`,
       };
     }
 
