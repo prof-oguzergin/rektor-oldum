@@ -3,6 +3,8 @@ screenshots/
 screenshot.py
 take_screenshots.py
 .claude/launch.json
+duyuru/
+og-template.html
 
 # OS
 Thumbs.db

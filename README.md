@@ -1,16 +1,25 @@
 # 🎓 Rektör Oldum
 
-Bir üniversiteyi sıfırdan kurup dünya sıralamasında zirveye taşıyın!
+[![Rektör Oldum — Üniversite Yönetim Oyunu](og-image.jpg)](https://prof-oguzergin.github.io/rektor-oldum/)
 
-## 🎮 Oyna / Play
+> **Bir üniversiteyi sıfırdan kurup dünya sıralamasında zirveye taşı.**  
+> Tarayıcında çalışır, kurulum yok.
 
-👉 **[Hemen Oyna](https://prof-oguzergin.github.io/rektor-oldum/)**
+## 🎮 Hemen Oyna
 
-Tarayıcınızda çalışır, kurulum gerekmez.
+<p align="center">
+  <a href="https://prof-oguzergin.github.io/rektor-oldum/">
+    <img src="https://img.shields.io/badge/OYNA-%F0%9F%8E%93%20Rekt%C3%B6r%20Oldum-7c3aed?style=for-the-badge" alt="Hemen Oyna">
+  </a>
+</p>
+
+**[https://prof-oguzergin.github.io/rektor-oldum/](https://prof-oguzergin.github.io/rektor-oldum/)**
+
+Akademik kadro, öğrenci, bütçe, yerleşke, araştırma projesi yönetimi, 50+ rakip üniversite. Football Manager tarzı üniversite simülasyonu.
 
 ## 📖 Hakkında
 
-Bu oyun, bir üniversite rektörü olarak akademik kurumunuzu yönetmenizi sağlayan detaylı bir simülasyon oyunudur. Football Manager'ın üniversite versiyonu olarak düşünebilirsiniz.
+Bu oyun, bir üniversite rektörü olarak akademik kurumunuzu yönetmenizi sağlayan ayrıntılı bir simülasyon oyunudur. Football Manager'ın üniversite versiyonu olarak düşünebilirsiniz.
 
 ### Temel Özellikler
 
