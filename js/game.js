@@ -32,10 +32,10 @@ import {
   ACCREDITATION_BODIES,
   SCENARIOS,
   BANKS,
-} from './data.js?v=0.4.22';
+} from './data.js?v=0.4.23';
 
-import { calculateEconomy, applyBudget, calculateLoanPayment, processLoanPayments } from './economy.js?v=0.4.22';
-import { generateInitialFaculty, updateAllFacultyHappiness, generateApplicants, generateFaculty, getSalaryRange, calculateOverallRating, getFacultyRatingTrend } from './faculty.js?v=0.4.22';
+import { calculateEconomy, applyBudget, calculateLoanPayment, processLoanPayments } from './economy.js?v=0.4.23';
+import { generateInitialFaculty, updateAllFacultyHappiness, generateApplicants, generateFaculty, getSalaryRange, calculateOverallRating, getFacultyRatingTrend } from './faculty.js?v=0.4.23';
 import {
   generateInitialStudents,
   getTotalEnrolled,
@@ -52,9 +52,9 @@ import {
   updateCohorts,
   processGraduation,
   processAdmissions,
-} from './students.js?v=0.4.22';
-import { calculatePrestige, updateRivals } from './ranking.js?v=0.4.22';
-import { checkForEvents, applyEventEffects } from './events.js?v=0.4.22';
+} from './students.js?v=0.4.23';
+import { calculatePrestige, updateRivals } from './ranking.js?v=0.4.23';
+import { checkForEvents, applyEventEffects } from './events.js?v=0.4.23';
 import {
   initAlumniState,
   processGraduatesForAlumni,
@@ -66,20 +66,20 @@ import {
   getAchievementStats,
   RANDOM_EVENTS,
   ACHIEVEMENTS,
-} from './alumni_events_achievements.js?v=0.4.22';
+} from './alumni_events_achievements.js?v=0.4.23';
 
 export { RANDOM_EVENTS, ACHIEVEMENTS, getAchievementStats, organizeAlumniEvent, applyRandomEventChoice, ACCREDITATION_BODIES };
 
-import { initTTOState, establishTTO, upgradeTTO, processTTO, acceptDeal, rejectDeal, TTO_CONFIG } from './tto.js?v=0.4.22';
+import { initTTOState, establishTTO, upgradeTTO, processTTO, acceptDeal, rejectDeal, TTO_CONFIG } from './tto.js?v=0.4.23';
 export { establishTTO, upgradeTTO, acceptDeal, rejectDeal, TTO_CONFIG };
 
-import { initClubsState, foundClub, upgradeClub, dissolveClub, processClubs, CLUB_TYPES, CLUB_CATEGORIES } from './clubs.js?v=0.4.22';
+import { initClubsState, foundClub, upgradeClub, dissolveClub, processClubs, CLUB_TYPES, CLUB_CATEGORIES } from './clubs.js?v=0.4.23';
 export { foundClub, upgradeClub, dissolveClub, CLUB_TYPES, CLUB_CATEGORIES };
 
-import { SPORTS, initSportsState, foundTeam, upgradeTeam, dissolveTeam, processSports } from './sports.js?v=0.4.22';
+import { SPORTS, initSportsState, foundTeam, upgradeTeam, dissolveTeam, processSports } from './sports.js?v=0.4.23';
 export { SPORTS, foundTeam, upgradeTeam, dissolveTeam };
 
-import { initCampusState, assignBuildingPosition, BUILDING_FOOTPRINTS } from './campus-layout.js?v=0.4.22';
+import { initCampusState, assignBuildingPosition, BUILDING_FOOTPRINTS } from './campus-layout.js?v=0.4.23';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // YARDİMCI: Derin kopya (state immutability için)
@@ -3554,10 +3554,18 @@ export function applyForAccreditation(deptId, bodyId) {
     return { success: false, message: `${body.name} başvurusu zaten devam ediyor.` };
   }
   if (acc.status === 'granted') {
-    return { success: false, message: `${body.name} akreditasyonu zaten mevcut.` };
+    // Süresi yaklaştıysa (son 2 dönem) erken yenileme kabul edilir; UI bu noktada
+    // "Yenile" butonu gösteriyor (Erdinç raporu — eskiden "zaten mevcut" reddediliyordu).
+    const remaining = (acc.expiresAt != null) ? (acc.expiresAt - _state.meta.turn) : null;
+    if (remaining == null || remaining > 2) {
+      return { success: false, message: `${body.name} akreditasyonu zaten mevcut. Yenileme son 2 dönem kalınca yapılabilir.` };
+    }
+    // Erken yenileme: renewal maliyeti, status applied'a alınır, mevcut granted süresi
+    // değerlendirme bitene kadar korunur; yeni dönem grantedAt/expiresAt simulasyonda set edilir.
   }
 
-  const cost = (acc.status === 'expired') ? body.renewalCost : body.cost;
+  const isRenewal = (acc.status === 'expired' || acc.status === 'granted');
+  const cost = isRenewal ? body.renewalCost : body.cost;
   if (_state.university.budget < cost) {
     return { success: false, message: `Yetersiz bütçe. Gerekli: ${cost.toLocaleString('tr-TR')} ₺` };
   }

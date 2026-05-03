@@ -8,7 +8,7 @@ console.log('[main] main.js modülü yükleniyor...');
 // IMPORT
 // ─────────────────────────────────────────────────────────────────────────────
 
-import { initGame, nextTurn, getState, setState, applyDecision, assignCourses, applyQuotas, assignDeptHead, reassignFacultyToDept, generateAdminCandidates, hireAdminStaff, upgradeAdminUnit, promoteAdminStaff, fireAdminStaff, updateAdminStaffSalary, assignUnitManager, RANDOM_EVENTS, ACHIEVEMENTS, getAchievementStats, organizeAlumniEvent, applyRandomEventChoice, ACCREDITATION_BODIES, applyForAccreditation, checkAccreditationRequirements, establishTTO, upgradeTTO, acceptDeal, rejectDeal, foundClub, upgradeClub, dissolveClub, CLUB_TYPES, CLUB_CATEGORIES, SPORTS, foundTeam, upgradeTeam, dissolveTeam } from './game.js?v=0.4.22';
+import { initGame, nextTurn, getState, setState, applyDecision, assignCourses, applyQuotas, assignDeptHead, reassignFacultyToDept, generateAdminCandidates, hireAdminStaff, upgradeAdminUnit, promoteAdminStaff, fireAdminStaff, updateAdminStaffSalary, assignUnitManager, RANDOM_EVENTS, ACHIEVEMENTS, getAchievementStats, organizeAlumniEvent, applyRandomEventChoice, ACCREDITATION_BODIES, applyForAccreditation, checkAccreditationRequirements, establishTTO, upgradeTTO, acceptDeal, rejectDeal, foundClub, upgradeClub, dissolveClub, CLUB_TYPES, CLUB_CATEGORIES, SPORTS, foundTeam, upgradeTeam, dissolveTeam } from './game.js?v=0.4.23';
 
 import {
   showScreen,
@@ -48,17 +48,17 @@ import {
   showChangelogModal,
   el,
   on,
-} from './ui.js?v=0.4.22';
+} from './ui.js?v=0.4.23';
 
-import { CHANGELOG, hasUnseenChanges, setLastSeenVersion } from './changelog.js?v=0.4.22';
+import { CHANGELOG, hasUnseenChanges, setLastSeenVersion } from './changelog.js?v=0.4.23';
 
-import { saveGame, loadGame, autoSave, getSaveSlots, deleteSave, exportSave, importSave, sanitizeForSave } from './save.js?v=0.4.22';
-import { calculateScore, scoreBreakdown, submitScore, getTopScores, initFirebase, isLeaderboardUnavailable, saveLocalScore, getLocalScores } from './leaderboard.js?v=0.4.22';
-import { showTutorialIfNeeded, replayTutorial } from './tutorial.js?v=0.4.22';
-import { initAudio, playSound, toggleMute, isMuted, startMusic, stopMusic, setMusicVolume, setSFXVolume, getAudioSettings } from './audio.js?v=0.4.22';
+import { saveGame, loadGame, autoSave, getSaveSlots, deleteSave, exportSave, importSave, sanitizeForSave } from './save.js?v=0.4.23';
+import { calculateScore, scoreBreakdown, submitScore, getTopScores, initFirebase, isLeaderboardUnavailable, saveLocalScore, getLocalScores } from './leaderboard.js?v=0.4.23';
+import { showTutorialIfNeeded, replayTutorial } from './tutorial.js?v=0.4.23';
+import { initAudio, playSound, toggleMute, isMuted, startMusic, stopMusic, setMusicVolume, setSFXVolume, getAudioSettings } from './audio.js?v=0.4.23';
 
-import { generateTransferMarket, renderFacultyAvatar, calculateOverallRating, getFacultyRatingTrend } from './faculty.js?v=0.4.22';
-import { resolveDecision } from './events.js?v=0.4.22';
+import { generateTransferMarket, renderFacultyAvatar, calculateOverallRating, getFacultyRatingTrend } from './faculty.js?v=0.4.23';
+import { resolveDecision } from './events.js?v=0.4.23';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // UYGULAMA DURUMU

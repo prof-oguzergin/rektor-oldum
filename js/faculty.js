@@ -9,7 +9,7 @@ import {
   FACULTY_TITLES,
   DEPARTMENTS,
   SALARY_SCALES,
-} from './data.js?v=0.4.22';
+} from './data.js?v=0.4.23';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // YARDIMCI FONKSİYONLAR

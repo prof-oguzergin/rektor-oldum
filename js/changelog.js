@@ -6,6 +6,14 @@
 
 export const CHANGELOG = [
   {
+    version: '0.4.23',
+    date: '2026-05-04',
+    title: 'Akreditasyon erken yenileme düzeltildi',
+    items: [
+      { type: 'fix', text: 'Akreditasyon süresi yaklaştığında "Yenile" butonu görünüyordu ama tıklayınca "akreditasyon zaten mevcut" hatası alınıyordu (Erdinç raporu). Son 2 dönem kala erken yenileme artık kabul ediliyor; renewal maliyeti ile yeni başvuru başlatılıyor.' },
+    ],
+  },
+  {
     version: '0.4.22',
     date: '2026-05-04',
     title: 'MÜDEK ve idari ekranda öğrenci memnuniyeti yanlış görünüyordu',
