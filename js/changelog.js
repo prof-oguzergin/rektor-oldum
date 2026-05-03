@@ -6,6 +6,16 @@
 
 export const CHANGELOG = [
   {
+    version: '0.4.29',
+    date: '2026-05-04',
+    title: 'Sonradan açılan bölümlere öğrenci yerleşmiyor + fakülteler ekranında görünmüyor',
+    items: [
+      { type: 'fix', text: 'Oyunun başında açılmayıp sonradan YÖK onayı ile eklenen bölümlere — müfredat ve hocası olsa bile — öğrenci yerleşmiyordu (R-Fatih Issue #10). Kök neden: bölüm açıldığında `students.byDepartment[deptId]` yapısı kurulmuyordu, `processNewEnrollment` bu eksiklik nedeniyle bölümü atlıyordu. Artık YÖK onayı geldiğinde 4 yıllık öğrenci yapısı (year1-4) hemen oluşturuluyor.' },
+      { type: 'fix', text: 'Sonradan açılan 3. bir bölüm fakülteler ekranında listelenmiyordu, bu yüzden bölüm başkanı atanamıyordu (Emir raporu). YÖK onayı sonrası `state.fakulteler[faculty].departments` push\'u duplicate kontrolü ile düzeltildi.' },
+      { type: 'fix', text: 'Eski kayıtlar için iki katmanlı güvenlik: (1) state migration sırasında her açık bölüm için byDepartment + fakulteler tutarlılığı kontrol edilip eksikse otomatik tamamlanıyor; (2) processNewEnrollment içinde lazy init defansif katmanı. Bu sayede mevcut oyuncuların bozuk kayıtları sayfayı yenilediklerinde otomatik düzeliyor.' },
+    ],
+  },
+  {
     version: '0.4.28',
     date: '2026-05-04',
     title: 'Oyun bitti/kazanıldı sonrası boş dönem özeti açılması düzeltildi',

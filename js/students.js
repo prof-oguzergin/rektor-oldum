@@ -533,18 +533,28 @@ export function processNewEnrollment(state) {
       state.students.starStudents.push(star);
     }
 
-    const deptData = state.students.byDepartment[deptId];
-    if (deptData) {
-      deptData.year1 = {
-        count:       total,
-        avgYKS,
-        avgGPA:      0,
-        satisfaction: 70,
-        tamBurslu,
-        yariBurslu,
-        ucretli,
+    // Defansif lazy init: byDepartment[deptId] yoksa oluştur (R-Fatih Issue #10).
+    // Eski kayıtlardan açılan ve byDepartment'a hiç eklenmemiş bölümler için
+    // — game.js YÖK onayı artık init ediyor, bu son güvenlik ağı.
+    let deptData = state.students.byDepartment[deptId];
+    if (!deptData) {
+      deptData = state.students.byDepartment[deptId] = {
+        year1: { count: 0, avgYKS: 0, avgGPA: 0, satisfaction: 70, tamBurslu: 0, yariBurslu: 0, ucretli: 0 },
+        year2: { count: 0, avgYKS: 0, avgGPA: 0, satisfaction: 70, tamBurslu: 0, yariBurslu: 0, ucretli: 0 },
+        year3: { count: 0, avgYKS: 0, avgGPA: 0, satisfaction: 70, tamBurslu: 0, yariBurslu: 0, ucretli: 0 },
+        year4: { count: 0, avgYKS: 0, avgGPA: 0, satisfaction: 70, tamBurslu: 0, yariBurslu: 0, ucretli: 0 },
       };
+      console.warn(`[students] byDepartment[${deptId}] eksikti, lazy init edildi (yeni bölüm açılış akışı bug'ı).`);
     }
+    deptData.year1 = {
+      count:       total,
+      avgYKS,
+      avgGPA:      0,
+      satisfaction: 70,
+      tamBurslu,
+      yariBurslu,
+      ucretli,
+    };
 
     summary.enrolled.push({ departmentId: deptId, total, avgYKS, tamBurslu, yariBurslu, ucretli });
     summary.totalAdmitted += total;

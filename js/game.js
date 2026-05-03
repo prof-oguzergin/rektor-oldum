@@ -3167,16 +3167,37 @@ function _processYokApplications(state, results) {
             newDept.isOpen   = true;
             newDept.turnsOpen = 0;
             state.departments.push(newDept);
-            // Fakülte yapısını güncelle
-            const fak = state.fakulteler[template.faculty];
+
+            // Öğrenci yapısını init et — yoksa processNewEnrollment skip eder
+            // ve hiç öğrenci alımı yapılmaz (R-Fatih Issue #10).
+            if (!state.students) state.students = { byDepartment: {}, quotas: {}, starStudents: [], overallSatisfaction: 70, totalEnrolled: 0 };
+            if (!state.students.byDepartment) state.students.byDepartment = {};
+            if (!state.students.byDepartment[newDept.id]) {
+              state.students.byDepartment[newDept.id] = {
+                year1: { count: 0, avgYKS: 0, avgGPA: 0, satisfaction: 70, tamBurslu: 0, yariBurslu: 0, ucretli: 0 },
+                year2: { count: 0, avgYKS: 0, avgGPA: 0, satisfaction: 70, tamBurslu: 0, yariBurslu: 0, ucretli: 0 },
+                year3: { count: 0, avgYKS: 0, avgGPA: 0, satisfaction: 70, tamBurslu: 0, yariBurslu: 0, ucretli: 0 },
+                year4: { count: 0, avgYKS: 0, avgGPA: 0, satisfaction: 70, tamBurslu: 0, yariBurslu: 0, ucretli: 0 },
+              };
+            }
+
+            // Fakülte yapısını güncelle (Emir raporu — 3. mühendislik fakülteler
+            // ekranında listelenmiyordu çünkü fak.departments push'u
+            // duplicate'a karşı korumalıydı; ayrıca yeni fakülte için Türkçe
+            // ad daha doğru: template.faculty key'inden okunamayan bölüm adı yerine).
+            const fak = state.fakulteler?.[template.faculty];
             if (fak) {
-              fak.departments.push(app.deptId);
+              if (!Array.isArray(fak.departments)) fak.departments = [];
+              if (!fak.departments.includes(newDept.id)) {
+                fak.departments.push(newDept.id);
+              }
             } else {
+              if (!state.fakulteler) state.fakulteler = {};
               state.fakulteler[template.faculty] = {
                 id: template.faculty,
                 name: template.name,
                 icon: '🏫',
-                departments: [app.deptId],
+                departments: [newDept.id],
                 deanId: null,
                 headCount: 0,
                 studentCount: 0,
@@ -4156,6 +4177,35 @@ export function setState(loadedState) {
       if (s.students.quotas           === undefined) s.students.quotas           = {};
       if (s.students.starStudents     === undefined) s.students.starStudents     = [];
       if (s.students.overallSatisfaction === undefined) s.students.overallSatisfaction = 70;
+      if (!s.students.byDepartment)   s.students.byDepartment = {};
+    }
+
+    // Açık bölümler için byDepartment + fakulteler tutarlılığı (R-Fatih Issue #10
+    // + Emir raporu — sonradan açılan bölümler öğrenci almıyor / fakülteler
+    // ekranında listelenmiyordu).
+    if (Array.isArray(s.departments) && s.students?.byDepartment) {
+      for (const dept of s.departments) {
+        if (!dept || !dept.id || !dept.isOpen) continue;
+        // 1) byDepartment eksikse boş yapı oluştur
+        if (!s.students.byDepartment[dept.id]) {
+          s.students.byDepartment[dept.id] = {
+            year1: { count: 0, avgYKS: 0, avgGPA: 0, satisfaction: 70, tamBurslu: 0, yariBurslu: 0, ucretli: 0 },
+            year2: { count: 0, avgYKS: 0, avgGPA: 0, satisfaction: 70, tamBurslu: 0, yariBurslu: 0, ucretli: 0 },
+            year3: { count: 0, avgYKS: 0, avgGPA: 0, satisfaction: 70, tamBurslu: 0, yariBurslu: 0, ucretli: 0 },
+            year4: { count: 0, avgYKS: 0, avgGPA: 0, satisfaction: 70, tamBurslu: 0, yariBurslu: 0, ucretli: 0 },
+          };
+        }
+        // 2) Fakülteler ekranında bölüm görünüyor mu? Görünmüyorsa ekle.
+        if (s.fakulteler && dept.faculty) {
+          const fak = s.fakulteler[dept.faculty];
+          if (fak) {
+            if (!Array.isArray(fak.departments)) fak.departments = [];
+            if (!fak.departments.includes(dept.id)) {
+              fak.departments.push(dept.id);
+            }
+          }
+        }
+      }
     }
     if (!s.economy)      s.economy      = {};
     if (!s.research)     s.research     = { activeProjects: [], completedProjects: [], budget: 0 };

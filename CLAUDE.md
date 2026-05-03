@@ -50,6 +50,7 @@ Tam liste: `js/changelog.js` (oyun içi "Yenilikler" panelinde de gösterilir, b
   - v0.4.26: Siyaset Bilimi bölümü tam veri (8 ders müfredatı + 7 uzmanlık: Siyaset Teorisi, Siyasi Düşünce, Karşılaştırmalı Siyaset, Türk Siyasal Hayatı, Uluslararası İlişkiler, Kamu Yönetimi, Siyaset Sosyolojisi) — Issue #5 (seyrekilyas09)
   - v0.4.27: Leaderboard'da kullanıcı başına yalnızca en iyi skor (R-Fatih önerisi). Doc id `uid_gameId` → `uid`. Yeni rules: create/update/delete + update koşulu `score > resource.data.score`. Migration: `scripts/migrate-leaderboard.js` (Node + firebase-admin, service-account.json gerektirir, .gitignore'da). 54 belge → 51 (3 duplicate silindi). Rules deploy: scripts/deploy-rules.js (REST API, geçici — sonra silindi).
   - v0.4.28: Oyun bitti/kazanıldı sonrası boş Dönem Özeti açılması düzeltildi (Emir raporu, console log ile teşhis). _onNextTurn handler en başta gameOver/gameWon kontrolü + nextTurn sonrası defensive katman. Bonus: main.js'deki save.js cache-bust sürümü 0.4.24'te kalmış, 0.4.28'e güncellendi.
+  - v0.4.29: Sonradan açılan bölümlere öğrenci yerleşmiyor + fakülteler ekranında görünmüyor (R-Fatih Issue #10 + Emir raporu). 3 katman: (1) game.js YÖK onayında byDepartment[deptId] init + fakulteler.departments duplicate koruma; (2) students.js processNewEnrollment lazy init defansif; (3) game.js state migration'da her açık bölüm için byDepartment + fakulteler tutarlılığı.
 
 ## Aktif Oyuncu Raporcuları
 Erdinç (en yoğun), AkaDemi, Emir, Burak Gökalp, Yusuf Sertkaya, R-Fatih (Issue #7, #9), X, serhattural
@@ -61,6 +62,8 @@ Erdinç (en yoğun), AkaDemi, Emir, Burak Gökalp, Yusuf Sertkaya, R-Fatih (Issu
 
 ## Çözülmüş (sonraki cleanup'a kadar burada)
 - Emir (özet ekranında tüm değerler 0) → v0.4.28'de gameOver/gameWon erken çıkış
+- R-Fatih Issue #10 (sonradan açılan bölümlere öğrenci yerleşmiyor) → v0.4.29 byDepartment init
+- Emir (3. mühendislik fakülteler ekranında listelenmiyor) → v0.4.29 fakulteler.departments duplicate koruma + state migration
 
 ## Sonraki Adımlar
 - Ek senaryo paketleri
