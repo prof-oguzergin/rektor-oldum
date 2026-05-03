@@ -6,6 +6,16 @@
 
 export const CHANGELOG = [
   {
+    version: '0.4.10',
+    date: '2026-05-03',
+    title: 'Dönem geçiş takılması ve erken kapanma düzeltmeleri',
+    items: [
+      { type: 'fix', text: '"Sonraki Dönem"e basıldığında oyun ilerlemiyor, sayfayı kapatıp açmak gerekiyordu. Simülasyonda hata olunca state önceki döneme geri alınıyor ve net bir uyarı gösteriliyor. Sayfa yenilemeye gerek kalmadı.' },
+      { type: 'balance', text: 'Yeni kurulan üniversitelerde ilk 6 dönem (3 yıl) "öğrenci az" oyun bitti kontrolüne tabi olmayacak. Ayrıca eşik %40\'tan %25\'e, üst üste düşük dönem sayısı 3\'ten 6\'ya çekildi: kuruluş döneminde yanlışlıkla "üniversite kapandı" çıkmıyor.' },
+      { type: 'fix', text: 'Kayıt yüklendikten sonra eski "oyun bitti" bayrağı bazen kalıcı kalıyordu. Yükleme sırasında temizleniyor.' },
+    ],
+  },
+  {
     version: '0.4.9',
     date: '2026-05-03',
     title: 'Sürüm notları Türkçeleştirildi',

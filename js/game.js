@@ -32,10 +32,10 @@ import {
   ACCREDITATION_BODIES,
   SCENARIOS,
   BANKS,
-} from './data.js?v=0.4.9';
+} from './data.js?v=0.4.10';
 
-import { calculateEconomy, applyBudget, calculateLoanPayment, processLoanPayments } from './economy.js?v=0.4.9';
-import { generateInitialFaculty, updateAllFacultyHappiness, generateApplicants, generateFaculty, getSalaryRange, calculateOverallRating, getFacultyRatingTrend } from './faculty.js?v=0.4.9';
+import { calculateEconomy, applyBudget, calculateLoanPayment, processLoanPayments } from './economy.js?v=0.4.10';
+import { generateInitialFaculty, updateAllFacultyHappiness, generateApplicants, generateFaculty, getSalaryRange, calculateOverallRating, getFacultyRatingTrend } from './faculty.js?v=0.4.10';
 import {
   generateInitialStudents,
   getTotalEnrolled,
@@ -52,9 +52,9 @@ import {
   updateCohorts,
   processGraduation,
   processAdmissions,
-} from './students.js?v=0.4.9';
-import { calculatePrestige, updateRivals } from './ranking.js?v=0.4.9';
-import { checkForEvents, applyEventEffects } from './events.js?v=0.4.9';
+} from './students.js?v=0.4.10';
+import { calculatePrestige, updateRivals } from './ranking.js?v=0.4.10';
+import { checkForEvents, applyEventEffects } from './events.js?v=0.4.10';
 import {
   initAlumniState,
   processGraduatesForAlumni,
@@ -66,20 +66,20 @@ import {
   getAchievementStats,
   RANDOM_EVENTS,
   ACHIEVEMENTS,
-} from './alumni_events_achievements.js?v=0.4.9';
+} from './alumni_events_achievements.js?v=0.4.10';
 
 export { RANDOM_EVENTS, ACHIEVEMENTS, getAchievementStats, organizeAlumniEvent, applyRandomEventChoice, ACCREDITATION_BODIES };
 
-import { initTTOState, establishTTO, upgradeTTO, processTTO, acceptDeal, rejectDeal, TTO_CONFIG } from './tto.js?v=0.4.9';
+import { initTTOState, establishTTO, upgradeTTO, processTTO, acceptDeal, rejectDeal, TTO_CONFIG } from './tto.js?v=0.4.10';
 export { establishTTO, upgradeTTO, acceptDeal, rejectDeal, TTO_CONFIG };
 
-import { initClubsState, foundClub, upgradeClub, dissolveClub, processClubs, CLUB_TYPES, CLUB_CATEGORIES } from './clubs.js?v=0.4.9';
+import { initClubsState, foundClub, upgradeClub, dissolveClub, processClubs, CLUB_TYPES, CLUB_CATEGORIES } from './clubs.js?v=0.4.10';
 export { foundClub, upgradeClub, dissolveClub, CLUB_TYPES, CLUB_CATEGORIES };
 
-import { SPORTS, initSportsState, foundTeam, upgradeTeam, dissolveTeam, processSports } from './sports.js?v=0.4.9';
+import { SPORTS, initSportsState, foundTeam, upgradeTeam, dissolveTeam, processSports } from './sports.js?v=0.4.10';
 export { SPORTS, foundTeam, upgradeTeam, dissolveTeam };
 
-import { initCampusState, assignBuildingPosition, BUILDING_FOOTPRINTS } from './campus-layout.js?v=0.4.9';
+import { initCampusState, assignBuildingPosition, BUILDING_FOOTPRINTS } from './campus-layout.js?v=0.4.10';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // YARDİMCI: Derin kopya (state immutability için)
@@ -3235,13 +3235,37 @@ export function nextTurn() {
     };
   }
 
+  // Simülasyon başlamadan önce state snapshot'ı al — herhangi bir alt fonksiyonda
+  // exception fırlarsa state'i geri alıp kullanıcıya net hata mesajı dönelim.
+  // (Sayfa yenilemeden devam edememe sorunu için savunma — Issue #2, #4.)
+  let _stateSnapshot;
+  try {
+    _stateSnapshot = JSON.parse(JSON.stringify(_state));
+  } catch (snapErr) {
+    console.warn('[game] State snapshot başarısız (cyclic ref?):', snapErr);
+    _stateSnapshot = null;
+  }
+
   // Dönem başı: bölüm açılma süre sayacını artır
   _state.departments.forEach(dept => {
     if (dept.isOpen) dept.turnsOpen++;
   });
 
-  // Simülasyonu çalıştır
-  const simResults = runSimulation();
+  let simResults;
+  try {
+    simResults = runSimulation();
+  } catch (err) {
+    console.error('[game] Simülasyon hatası — state geri alınıyor:', err);
+    if (_stateSnapshot) {
+      _state = _stateSnapshot;  // önceki dönemin state'ine geri dön
+    }
+    return {
+      error:    true,
+      blocked:  true,
+      message:  `Dönem ilerletilemedi: ${err.message || 'beklenmeyen hata'}. State geri alındı, sayfa yenilemeye gerek yok — tekrar deneyebilirsiniz.`,
+      stack:    err.stack,
+    };
+  }
 
   // Dönem sonu: öğrenci toplamını güncelle (yeni byDepartment yapısı)
   _state.students.totalEnrolled = getTotalEnrolled(_state);
@@ -3669,12 +3693,22 @@ export function checkWinLose() {
   }
 
   // ── KAYBETME KOŞULU 2: Öğrenci kaybı ──────────────────────────────────────
-  // 3 dönem üst üste kapasitenin %40'ından az öğrenci
-  const STUDENT_CAPACITY_THRESHOLD = 0.40;
-  const STUDENT_TURNS_LIMIT = 3;
-  const capacityRatio = _state.students.totalEnrolled / _state.university.totalStudentCapacity;
+  // 6 dönem üst üste kapasitenin %25'inden az öğrenci.
+  // İlk 6 dönem (3 yıl) grace period: yeni kurulan üniversiteler doğal olarak
+  // başlangıçta düşük kapasiteyle çalışır, oyun erkenden bitirmemeli.
+  const STUDENT_CAPACITY_THRESHOLD = 0.25;
+  const STUDENT_TURNS_LIMIT        = 6;
+  const STUDENT_GRACE_TURNS        = 6;
 
-  if (capacityRatio < STUDENT_CAPACITY_THRESHOLD) {
+  const capacity     = Math.max(1, Number(_state.university.totalStudentCapacity) || 1);
+  const enrolled     = Math.max(0, Number(_state.students.totalEnrolled) || 0);
+  const capacityRatio = enrolled / capacity;
+  const currentTurn  = Number(_state.meta?.turn) || 1;
+
+  if (currentTurn <= STUDENT_GRACE_TURNS) {
+    // Grace period: sayaç sıfırlanır, kontrol yapılmaz
+    _state._internal.consecutiveLowStudentTurns = 0;
+  } else if (capacityRatio < STUDENT_CAPACITY_THRESHOLD) {
     _state._internal.consecutiveLowStudentTurns++;
   } else {
     _state._internal.consecutiveLowStudentTurns = 0;
@@ -4138,6 +4172,13 @@ export function setState(loadedState) {
     _lowStudentTurns = 0;
     _gameOver        = false;
     _gameWon         = false;
+
+    // Iç bayrakları da temizle: yüklenen state'te eski bir game over/win flag'ı
+    // kalmışsa nextTurn döngüsü bozulur.
+    if (s._internal) {
+      s._internal.gameOver = false;
+      s._internal.gameWon  = false;
+    }
 
     _state = s;
     console.log(`[game] setState() tamamlandı → ${s.university?.name}, Tur ${s.meta?.turn}`);
