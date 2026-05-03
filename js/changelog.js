@@ -6,6 +6,16 @@
 
 export const CHANGELOG = [
   {
+    version: '0.4.24',
+    date: '2026-05-04',
+    title: 'Ulaşım merkezi, idari bina ve araştırma merkezi etkin',
+    items: [
+      { type: 'fix', text: 'Ulaşım merkezi binası kuruluyordu ama memnuniyete hiçbir etkisi yoktu (Erdinç raporu). Artık inşa edildiğinde "Ulaşım" memnuniyet skorunu artırıyor; her seviye yükseldiğinde etki büyüyor.' },
+      { type: 'fix', text: 'İdari bina memnuniyet bonusu da hesaba bağlanmamıştı. Artık idari hizmetler memnuniyetine doğrudan katkıda bulunuyor.' },
+      { type: 'feat', text: 'Araştırma merkezi artık "Bölüm Ata" ile etkin: atanan bölümün hocalarına araştırma çağrısı başarı şansında %15 bonus uygulanıyor (Erdinç raporu, "yakında" beklemesi sona erdi).' },
+    ],
+  },
+  {
     version: '0.4.23',
     date: '2026-05-04',
     title: 'Akreditasyon erken yenileme düzeltildi',

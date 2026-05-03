@@ -8,7 +8,7 @@ import {
   STUDENT_NAME_POOL,
   TURNS_PER_YEAR,
   ADMIN_UNITS,
-} from './data.js?v=0.4.23';
+} from './data.js?v=0.4.24';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // YARDIMCILAR
@@ -785,9 +785,18 @@ export function calculateStudentSatisfaction(state) {
     : 0;
   const sosyalScore      = clamp(42 + libBonus + konferansBonus + kutuphaneAdminBonus, 42, 75);
 
-  // Ulaşım skoru: idari birim varsa birim performansını kullan
+  // Ulaşım skoru: idari birim performansı + ulasim_merkezi binasının fiziksel etkisi
+  // (Erdinç raporu: ulasim_merkezi inşa edildiği halde işlevsiz görünüyordu — bina
+  //  effects'leri hesaba bağlanmamıştı.)
   const ulasimAdminScore = getAdminUnitScore(state, 'ulasim');
-  const ulasimScore = state.adminUnits?.ulasim ? ulasimAdminScore : 55;
+  const ulasimMerkeziLevels = completedBuildings
+    .filter(b => b.type === 'ulasim_merkezi')
+    .reduce((s, b) => s + (b.level || 1), 0);
+  const ulasimMerkeziBonus = ulasimMerkeziLevels > 0
+    ? Math.min(25, 12 + (ulasimMerkeziLevels - 1) * 6)
+    : 0;
+  const ulasimBaseScore = state.adminUnits?.ulasim ? ulasimAdminScore : 55;
+  const ulasimScore = clamp(ulasimBaseScore + ulasimMerkeziBonus, 0, 100);
 
   // Kariyer skoru: kariyer merkezi + mezun ağı + teknokent
   const alumniCount   = state.alumni.length;
@@ -821,9 +830,16 @@ export function calculateStudentSatisfaction(state) {
   const temizlikScore    = getAdminUnitScore(state, 'temizlik_bakim');
   const itScore          = getAdminUnitScore(state, 'bilgi_teknolojileri');
   const intlScore        = getAdminUnitScore(state, 'uluslararasi_ofis');
+
+  // İdari bina varsa idari hizmetlere bonus (Erdinç raporu: bina effects bağlı değildi)
+  const idariBinaLevels = completedBuildings
+    .filter(b => b.type === 'idari_bina')
+    .reduce((s, b) => s + (b.level || 1), 0);
+  const idariBinaBonus  = idariBinaLevels > 0 ? Math.min(15, 6 + (idariBinaLevels - 1) * 4) : 0;
+
   const adminHizmetScore = state.adminUnits
-    ? clamp(Math.round((saglikScore + guvenlikScore + temizlikScore + itScore + intlScore) / 5), 30, 90)
-    : 55;
+    ? clamp(Math.round((saglikScore + guvenlikScore + temizlikScore + itScore + intlScore) / 5) + idariBinaBonus, 30, 95)
+    : clamp(55 + idariBinaBonus, 30, 95);
 
   const satisfaction =
     egitimScore      * 0.27 +

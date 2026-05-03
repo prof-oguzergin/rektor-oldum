@@ -4,7 +4,7 @@
  * ES module, Firebase SDK'yı CDN'den dinamik olarak yükler.
  */
 
-import { firebaseConfig, APP_CHECK_SITE_KEY } from './firebase-config.js?v=0.4.23';
+import { firebaseConfig, APP_CHECK_SITE_KEY } from './firebase-config.js?v=0.4.24';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // TEKİL BAŞLATMA

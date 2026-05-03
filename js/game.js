@@ -32,10 +32,10 @@ import {
   ACCREDITATION_BODIES,
   SCENARIOS,
   BANKS,
-} from './data.js?v=0.4.23';
+} from './data.js?v=0.4.24';
 
-import { calculateEconomy, applyBudget, calculateLoanPayment, processLoanPayments } from './economy.js?v=0.4.23';
-import { generateInitialFaculty, updateAllFacultyHappiness, generateApplicants, generateFaculty, getSalaryRange, calculateOverallRating, getFacultyRatingTrend } from './faculty.js?v=0.4.23';
+import { calculateEconomy, applyBudget, calculateLoanPayment, processLoanPayments } from './economy.js?v=0.4.24';
+import { generateInitialFaculty, updateAllFacultyHappiness, generateApplicants, generateFaculty, getSalaryRange, calculateOverallRating, getFacultyRatingTrend } from './faculty.js?v=0.4.24';
 import {
   generateInitialStudents,
   getTotalEnrolled,
@@ -52,9 +52,9 @@ import {
   updateCohorts,
   processGraduation,
   processAdmissions,
-} from './students.js?v=0.4.23';
-import { calculatePrestige, updateRivals } from './ranking.js?v=0.4.23';
-import { checkForEvents, applyEventEffects } from './events.js?v=0.4.23';
+} from './students.js?v=0.4.24';
+import { calculatePrestige, updateRivals } from './ranking.js?v=0.4.24';
+import { checkForEvents, applyEventEffects } from './events.js?v=0.4.24';
 import {
   initAlumniState,
   processGraduatesForAlumni,
@@ -66,20 +66,20 @@ import {
   getAchievementStats,
   RANDOM_EVENTS,
   ACHIEVEMENTS,
-} from './alumni_events_achievements.js?v=0.4.23';
+} from './alumni_events_achievements.js?v=0.4.24';
 
 export { RANDOM_EVENTS, ACHIEVEMENTS, getAchievementStats, organizeAlumniEvent, applyRandomEventChoice, ACCREDITATION_BODIES };
 
-import { initTTOState, establishTTO, upgradeTTO, processTTO, acceptDeal, rejectDeal, TTO_CONFIG } from './tto.js?v=0.4.23';
+import { initTTOState, establishTTO, upgradeTTO, processTTO, acceptDeal, rejectDeal, TTO_CONFIG } from './tto.js?v=0.4.24';
 export { establishTTO, upgradeTTO, acceptDeal, rejectDeal, TTO_CONFIG };
 
-import { initClubsState, foundClub, upgradeClub, dissolveClub, processClubs, CLUB_TYPES, CLUB_CATEGORIES } from './clubs.js?v=0.4.23';
+import { initClubsState, foundClub, upgradeClub, dissolveClub, processClubs, CLUB_TYPES, CLUB_CATEGORIES } from './clubs.js?v=0.4.24';
 export { foundClub, upgradeClub, dissolveClub, CLUB_TYPES, CLUB_CATEGORIES };
 
-import { SPORTS, initSportsState, foundTeam, upgradeTeam, dissolveTeam, processSports } from './sports.js?v=0.4.23';
+import { SPORTS, initSportsState, foundTeam, upgradeTeam, dissolveTeam, processSports } from './sports.js?v=0.4.24';
 export { SPORTS, foundTeam, upgradeTeam, dissolveTeam };
 
-import { initCampusState, assignBuildingPosition, BUILDING_FOOTPRINTS } from './campus-layout.js?v=0.4.23';
+import { initCampusState, assignBuildingPosition, BUILDING_FOOTPRINTS } from './campus-layout.js?v=0.4.24';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // YARDİMCI: Derin kopya (state immutability için)
@@ -2049,8 +2049,25 @@ function _calcSuccessProb(faculty, call, state) {
   const researchScore = faculty.stats?.research || faculty.researchScore || 40;
   const prestige      = isNaN(state.university.prestige) ? 0 : (state.university.prestige || 0);
   const base          = call.baseSuccessChance || 0.30;
-  const prob          = base * (1 + researchScore / 100) * (1 + prestige / 200);
+  // Araştırma merkezine atanan bölümlerin hocalarına +%15 başarı çarpanı
+  // (data.js arastirma_merkezi.benefitText: "atanan bölümün araştırma çıktısı %15 artar")
+  const researchCenterBonus = _getResearchCenterBonus(state, faculty.department);
+  const prob          = base * (1 + researchScore / 100) * (1 + prestige / 200) * researchCenterBonus;
   return Math.min(0.92, parseFloat(prob.toFixed(2)));
+}
+
+/** Bölüm bir araştırma merkezine atanmışsa 1.15 (her ek merkezde +0.05'e kadar
+ *  toplam 1.30 cap), atanmamışsa 1.0 döner. */
+function _getResearchCenterBonus(state, deptId) {
+  if (!deptId) return 1.0;
+  const centers = (state.buildings || []).filter(b =>
+    b.type === 'arastirma_merkezi' &&
+    b.isCompleted &&
+    Array.isArray(b.assignedDepartments) &&
+    b.assignedDepartments.includes(deptId),
+  );
+  if (centers.length === 0) return 1.0;
+  return Math.min(1.30, 1.0 + 0.15 * centers.length);
 }
 
 /**
