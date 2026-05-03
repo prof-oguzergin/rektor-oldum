@@ -8,7 +8,7 @@ import {
   STUDENT_NAME_POOL,
   TURNS_PER_YEAR,
   ADMIN_UNITS,
-} from './data.js?v=0.4.8';
+} from './data.js?v=0.4.9';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // YARDIMCILAR

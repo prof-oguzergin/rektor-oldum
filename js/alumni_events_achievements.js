@@ -3,8 +3,8 @@
  * v0.2 — Üç yeni özellik tek modülde.
  */
 
-import { STUDENT_NAME_POOL } from './data.js?v=0.4.8';
-import { CLUB_TYPES } from './clubs.js?v=0.4.8';
+import { STUDENT_NAME_POOL } from './data.js?v=0.4.9';
+import { CLUB_TYPES } from './clubs.js?v=0.4.9';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // YARDIMCI
