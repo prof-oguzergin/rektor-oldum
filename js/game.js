@@ -1139,8 +1139,10 @@ let _gameWon           = false;
  */
 export function initGame(playerName, universityName, universityType, difficulty, selectedDepartments, scenarioId = null) {
   // Geçerlilik kontrolleri
-  // us_private için UNIVERSITY_TYPES'ta doğrudan karşılık yok; vakif template'ini baz al
-  const baseTypeKey  = universityType === 'us_private' ? 'vakif' : universityType;
+  // us_private ve coop için UNIVERSITY_TYPES'ta doğrudan karşılık yok; vakif template'ini baz al
+  const baseTypeKey  = (universityType === 'us_private' || universityType === 'coop')
+    ? 'vakif'
+    : universityType;
   if (!UNIVERSITY_TYPES[baseTypeKey]) {
     throw new Error(`Bilinmeyen üniversite tipi: ${universityType}`);
   }
@@ -4181,7 +4183,7 @@ export function applyDecision(decision) {
       const dept = _state.departments.find(d => d.id === facultyData.departmentId);
       if (!dept) return { success: false, message: `Bölüm bulunamadı: ${facultyData.departmentId}` };
 
-      const uniTemplate = UNIVERSITY_TYPES[_state.meta.universityType];
+      const uniTemplate = UNIVERSITY_TYPES[_state.meta.universityType] || UNIVERSITY_TYPES.vakif;
 
       // Maaş tavanı kontrolü (devlet üniversiteleri için)
       if (uniTemplate.facultySalaryCap && facultyData.salary > uniTemplate.facultySalaryCap) {
@@ -4254,7 +4256,7 @@ export function applyDecision(decision) {
       const idx = _state.faculty.findIndex(f => f.id === facultyId);
       if (idx === -1) return { success: false, message: `Hoca bulunamadı: ${facultyId}` };
 
-      const uniTemplate = UNIVERSITY_TYPES[_state.meta.universityType];
+      const uniTemplate = UNIVERSITY_TYPES[_state.meta.universityType] || UNIVERSITY_TYPES.vakif;
 
       // Kadrolu (devlet) personeli çıkarma zorluğu
       if (uniTemplate.firingDifficulty === 'very_high') {
@@ -4589,7 +4591,7 @@ export function applyDecision(decision) {
       }
 
       // YÖK kısıtı (devlet üniversiteleri)
-      const uniTemplate = UNIVERSITY_TYPES[_state.meta.universityType];
+      const uniTemplate = UNIVERSITY_TYPES[_state.meta.universityType] || UNIVERSITY_TYPES.vakif;
       if (uniTemplate.yokRestrictions) {
         // TODO: YÖK onay simülasyonu — şimdilik %70 onay şansı
         if (Math.random() > 0.7) {
