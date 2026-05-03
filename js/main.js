@@ -8,7 +8,7 @@ console.log('[main] main.js modülü yükleniyor...');
 // IMPORT
 // ─────────────────────────────────────────────────────────────────────────────
 
-import { initGame, nextTurn, getState, setState, applyDecision, assignCourses, applyQuotas, assignDeptHead, reassignFacultyToDept, generateAdminCandidates, hireAdminStaff, upgradeAdminUnit, promoteAdminStaff, fireAdminStaff, updateAdminStaffSalary, assignUnitManager, RANDOM_EVENTS, ACHIEVEMENTS, getAchievementStats, organizeAlumniEvent, applyRandomEventChoice, ACCREDITATION_BODIES, applyForAccreditation, checkAccreditationRequirements, establishTTO, upgradeTTO, acceptDeal, rejectDeal, foundClub, upgradeClub, dissolveClub, CLUB_TYPES, CLUB_CATEGORIES, SPORTS, foundTeam, upgradeTeam, dissolveTeam } from './game.js?v=0.4.7';
+import { initGame, nextTurn, getState, setState, applyDecision, assignCourses, applyQuotas, assignDeptHead, reassignFacultyToDept, generateAdminCandidates, hireAdminStaff, upgradeAdminUnit, promoteAdminStaff, fireAdminStaff, updateAdminStaffSalary, assignUnitManager, RANDOM_EVENTS, ACHIEVEMENTS, getAchievementStats, organizeAlumniEvent, applyRandomEventChoice, ACCREDITATION_BODIES, applyForAccreditation, checkAccreditationRequirements, establishTTO, upgradeTTO, acceptDeal, rejectDeal, foundClub, upgradeClub, dissolveClub, CLUB_TYPES, CLUB_CATEGORIES, SPORTS, foundTeam, upgradeTeam, dissolveTeam } from './game.js?v=0.4.8';
 
 import {
   showScreen,
@@ -45,17 +45,20 @@ import {
   renderRandomEventModal,
   showAccreditationModal,
   renderLeaderboardPanel,
+  showChangelogModal,
   el,
   on,
-} from './ui.js?v=0.4.7';
+} from './ui.js?v=0.4.8';
 
-import { saveGame, loadGame, autoSave, getSaveSlots, deleteSave, exportSave, importSave, sanitizeForSave } from './save.js?v=0.4.7';
-import { calculateScore, scoreBreakdown, submitScore, getTopScores, initFirebase, isLeaderboardUnavailable, saveLocalScore, getLocalScores } from './leaderboard.js?v=0.4.7';
-import { showTutorialIfNeeded, replayTutorial } from './tutorial.js?v=0.4.7';
-import { initAudio, playSound, toggleMute, isMuted, startMusic, stopMusic, setMusicVolume, setSFXVolume, getAudioSettings } from './audio.js?v=0.4.7';
+import { CHANGELOG, hasUnseenChanges, setLastSeenVersion } from './changelog.js?v=0.4.8';
 
-import { generateTransferMarket, renderFacultyAvatar, calculateOverallRating, getFacultyRatingTrend } from './faculty.js?v=0.4.7';
-import { resolveDecision } from './events.js?v=0.4.7';
+import { saveGame, loadGame, autoSave, getSaveSlots, deleteSave, exportSave, importSave, sanitizeForSave } from './save.js?v=0.4.8';
+import { calculateScore, scoreBreakdown, submitScore, getTopScores, initFirebase, isLeaderboardUnavailable, saveLocalScore, getLocalScores } from './leaderboard.js?v=0.4.8';
+import { showTutorialIfNeeded, replayTutorial } from './tutorial.js?v=0.4.8';
+import { initAudio, playSound, toggleMute, isMuted, startMusic, stopMusic, setMusicVolume, setSFXVolume, getAudioSettings } from './audio.js?v=0.4.8';
+
+import { generateTransferMarket, renderFacultyAvatar, calculateOverallRating, getFacultyRatingTrend } from './faculty.js?v=0.4.8';
+import { resolveDecision } from './events.js?v=0.4.8';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // UYGULAMA DURUMU
@@ -144,11 +147,20 @@ function init() {
     _openFeedback();
   });
 
+  // Ana menüdeki Yenilikler butonu — sürüm notları modalı
+  on(el('btn-changelog'), 'click', () => {
+    playSound('click');
+    _showChangelog();
+  });
+
   // Klavye kısayolları
   _bindKeyboardShortcuts();
 
   // Sayfa yüklendiğinde kayıt varlığını kontrol et
   _checkSaveOnLoad();
+
+  // Yeni sürüm yüklendiyse otomatik aç (ilk ziyaret veya APP_VERSION değiştiyse)
+  _checkChangelogOnLoad();
 
   // Firebase'i arka planda sessizce başlat (ilk tıklamada gecikmeyi önler)
   initFirebase().catch(err => console.warn('[main] Firebase önyükleme başarısız (önemli değil):', err.message));
@@ -273,6 +285,39 @@ function _toggleMainMenuDropdown() {
     };
     document.addEventListener('click', closeOnOutside);
   }, 0);
+}
+
+/**
+ * Sürüm notları modalını gösterir.
+ * Mevcut sürüm changelog'un ilk entry'sinden alınır.
+ */
+function _showChangelog() {
+  const currentVersion = CHANGELOG[0]?.version || '?';
+  showChangelogModal(CHANGELOG, currentVersion);
+  setLastSeenVersion(currentVersion);
+}
+
+/**
+ * Sayfa açılışında yeni sürüm yüklendiyse changelog'u otomatik göster.
+ * Kullanıcı önceki sürümü görmüşse (lastSeen === current) sessizce geçer.
+ */
+function _checkChangelogOnLoad() {
+  const currentVersion = CHANGELOG[0]?.version;
+  if (!currentVersion) return;
+  if (!hasUnseenChanges(currentVersion)) return;
+
+  // İlk ziyareti yorma — sadece sürüm değişiminde aç
+  // (boş localStorage'da kullanıcıyı oyunla buluşmaya bırak, ilk seferde popup spam yok)
+  // Ama Yusuf/SerHan vb. için: önceki sürümleri görmüş olduklarını varsay
+  const seen = (() => { try { return localStorage.getItem('rektor_oldum_last_seen_version'); } catch { return null; } })();
+  if (seen === null) {
+    // İlk ziyaret: otomatik açma, sadece "görüldü" olarak işaretle ki sonraki sürümlerde popup gelsin
+    setLastSeenVersion(currentVersion);
+    return;
+  }
+
+  // 1.5 sn gecikme — menü ekranı oturana kadar
+  setTimeout(() => _showChangelog(), 1500);
 }
 
 /**

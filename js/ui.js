@@ -4,11 +4,11 @@
  * Vanilla JS, framework yok.
  */
 
-import { DEPARTMENTS, DEPARTMENT_CURRICULA, UNIVERSITY_TYPES, UNIVERSITY_MODELS, USD_TO_TL, DIFFICULTY_SETTINGS, BUILDINGS, SEMESTER_MONTHS, FACULTIES, DEPT_TO_FACULTY, SALARY_SCALES, ADMIN_UNITS, ADMIN_TITLES, ADMIN_UNIT_BUILDINGS, ACCREDITATION_BODIES, SCENARIOS, BANKS } from './data.js?v=0.4.7';
-import { DEPARTMENT_FIELDS, getSalaryRange, renderFacultyAvatar, calculateOverallRating, getFacultyRatingTrend } from './faculty.js?v=0.4.7';
-import { AVAILABLE_NEW_DEPARTMENTS } from './game.js?v=0.4.7';
-import { calculateIncome, calculateExpenses, calculateLoanPayment } from './economy.js?v=0.4.7';
-import { renderCampusMap, handleCampusClick, handleCampusHover, clearHover } from './campus-renderer.js?v=0.4.7';
+import { DEPARTMENTS, DEPARTMENT_CURRICULA, UNIVERSITY_TYPES, UNIVERSITY_MODELS, USD_TO_TL, DIFFICULTY_SETTINGS, BUILDINGS, SEMESTER_MONTHS, FACULTIES, DEPT_TO_FACULTY, SALARY_SCALES, ADMIN_UNITS, ADMIN_TITLES, ADMIN_UNIT_BUILDINGS, ACCREDITATION_BODIES, SCENARIOS, BANKS } from './data.js?v=0.4.8';
+import { DEPARTMENT_FIELDS, getSalaryRange, renderFacultyAvatar, calculateOverallRating, getFacultyRatingTrend } from './faculty.js?v=0.4.8';
+import { AVAILABLE_NEW_DEPARTMENTS } from './game.js?v=0.4.8';
+import { calculateIncome, calculateExpenses, calculateLoanPayment } from './economy.js?v=0.4.8';
+import { renderCampusMap, handleCampusClick, handleCampusHover, clearHover } from './campus-renderer.js?v=0.4.8';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // DOM YARDIMCILARI
@@ -193,6 +193,70 @@ export function hideModal() {
     overlay.classList.add('hidden');
     overlay.classList.remove('active');
   }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// SÜRÜM NOTLARI (CHANGELOG) MODALI
+// ─────────────────────────────────────────────────────────────────────────────
+
+const _CHANGELOG_TYPE_META = {
+  feat:     { icon: '✨', label: 'Yeni',      color: '#5dd6c0' },
+  fix:      { icon: '🛠️', label: 'Düzeltme',  color: '#f5a623' },
+  balance:  { icon: '⚖️', label: 'Denge',     color: '#7e57c2' },
+  security: { icon: '🔒', label: 'Güvenlik',  color: '#e74c3c' },
+};
+
+/**
+ * Sürüm notları modalını gösterir.
+ * @param {Array} changelog — CHANGELOG dizisi (changelog.js)
+ * @param {string} currentVersion — Aktif sürüm (en üstte vurgulanır)
+ */
+export function showChangelogModal(changelog, currentVersion) {
+  const safeList = Array.isArray(changelog) ? changelog : [];
+
+  const html = `
+    <div style="max-width:680px;">
+      <p style="color:var(--text-muted,#aaa);font-size:13px;margin:0 0 16px;">
+        En son değişiklikler aşağıda. Yeni sürüm yüklendiğinde bu pencere otomatik açılır.
+      </p>
+      ${safeList.map((entry, i) => {
+        const isCurrent = entry.version === currentVersion;
+        const dateStr   = entry.date || '';
+        const items = (entry.items || []).map(it => {
+          const meta = _CHANGELOG_TYPE_META[it.type] || _CHANGELOG_TYPE_META.fix;
+          return `
+            <li style="display:flex;gap:10px;align-items:flex-start;margin-bottom:8px;line-height:1.5;">
+              <span style="flex-shrink:0;display:inline-flex;align-items:center;gap:4px;
+                           background:rgba(255,255,255,0.05);padding:2px 8px;border-radius:4px;
+                           font-size:11px;font-weight:600;color:${meta.color};
+                           border:1px solid ${meta.color}33;min-width:80px;justify-content:center;">
+                ${meta.icon} ${meta.label}
+              </span>
+              <span style="flex:1;font-size:13px;color:var(--text,#e0e0e0);">${_escHtml(it.text || '')}</span>
+            </li>`;
+        }).join('');
+        return `
+          <div style="margin-bottom:${i === safeList.length - 1 ? '0' : '20px'};
+                      padding:14px;border-radius:8px;
+                      background:${isCurrent ? 'rgba(93,214,192,0.06)' : 'rgba(255,255,255,0.02)'};
+                      border:1px solid ${isCurrent ? 'rgba(93,214,192,0.25)' : 'rgba(255,255,255,0.06)'};">
+            <div style="display:flex;justify-content:space-between;align-items:baseline;
+                        margin-bottom:${entry.title ? '4px' : '12px'};gap:12px;flex-wrap:wrap;">
+              <div style="display:flex;align-items:baseline;gap:10px;">
+                <span style="font-size:16px;font-weight:700;color:${isCurrent ? '#5dd6c0' : 'var(--text)'};">
+                  v${_escHtml(entry.version || '?')}
+                </span>
+                ${isCurrent ? '<span style="font-size:10px;background:#5dd6c0;color:#0a0a0a;padding:2px 8px;border-radius:10px;font-weight:700;">ŞU AN</span>' : ''}
+              </div>
+              <span style="font-size:11px;color:var(--text-muted,#888);">${_escHtml(dateStr)}</span>
+            </div>
+            ${entry.title ? `<div style="font-size:13px;color:var(--text-muted,#aaa);margin-bottom:12px;">${_escHtml(entry.title)}</div>` : ''}
+            <ul style="list-style:none;padding:0;margin:0;">${items}</ul>
+          </div>`;
+      }).join('')}
+    </div>`;
+
+  showModal('📋 Yenilikler', html, { wide: true });
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
