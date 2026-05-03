@@ -32,10 +32,10 @@ import {
   ACCREDITATION_BODIES,
   SCENARIOS,
   BANKS,
-} from './data.js?v=0.4.12';
+} from './data.js?v=0.4.13';
 
-import { calculateEconomy, applyBudget, calculateLoanPayment, processLoanPayments } from './economy.js?v=0.4.12';
-import { generateInitialFaculty, updateAllFacultyHappiness, generateApplicants, generateFaculty, getSalaryRange, calculateOverallRating, getFacultyRatingTrend } from './faculty.js?v=0.4.12';
+import { calculateEconomy, applyBudget, calculateLoanPayment, processLoanPayments } from './economy.js?v=0.4.13';
+import { generateInitialFaculty, updateAllFacultyHappiness, generateApplicants, generateFaculty, getSalaryRange, calculateOverallRating, getFacultyRatingTrend } from './faculty.js?v=0.4.13';
 import {
   generateInitialStudents,
   getTotalEnrolled,
@@ -52,9 +52,9 @@ import {
   updateCohorts,
   processGraduation,
   processAdmissions,
-} from './students.js?v=0.4.12';
-import { calculatePrestige, updateRivals } from './ranking.js?v=0.4.12';
-import { checkForEvents, applyEventEffects } from './events.js?v=0.4.12';
+} from './students.js?v=0.4.13';
+import { calculatePrestige, updateRivals } from './ranking.js?v=0.4.13';
+import { checkForEvents, applyEventEffects } from './events.js?v=0.4.13';
 import {
   initAlumniState,
   processGraduatesForAlumni,
@@ -66,20 +66,20 @@ import {
   getAchievementStats,
   RANDOM_EVENTS,
   ACHIEVEMENTS,
-} from './alumni_events_achievements.js?v=0.4.12';
+} from './alumni_events_achievements.js?v=0.4.13';
 
 export { RANDOM_EVENTS, ACHIEVEMENTS, getAchievementStats, organizeAlumniEvent, applyRandomEventChoice, ACCREDITATION_BODIES };
 
-import { initTTOState, establishTTO, upgradeTTO, processTTO, acceptDeal, rejectDeal, TTO_CONFIG } from './tto.js?v=0.4.12';
+import { initTTOState, establishTTO, upgradeTTO, processTTO, acceptDeal, rejectDeal, TTO_CONFIG } from './tto.js?v=0.4.13';
 export { establishTTO, upgradeTTO, acceptDeal, rejectDeal, TTO_CONFIG };
 
-import { initClubsState, foundClub, upgradeClub, dissolveClub, processClubs, CLUB_TYPES, CLUB_CATEGORIES } from './clubs.js?v=0.4.12';
+import { initClubsState, foundClub, upgradeClub, dissolveClub, processClubs, CLUB_TYPES, CLUB_CATEGORIES } from './clubs.js?v=0.4.13';
 export { foundClub, upgradeClub, dissolveClub, CLUB_TYPES, CLUB_CATEGORIES };
 
-import { SPORTS, initSportsState, foundTeam, upgradeTeam, dissolveTeam, processSports } from './sports.js?v=0.4.12';
+import { SPORTS, initSportsState, foundTeam, upgradeTeam, dissolveTeam, processSports } from './sports.js?v=0.4.13';
 export { SPORTS, foundTeam, upgradeTeam, dissolveTeam };
 
-import { initCampusState, assignBuildingPosition, BUILDING_FOOTPRINTS } from './campus-layout.js?v=0.4.12';
+import { initCampusState, assignBuildingPosition, BUILDING_FOOTPRINTS } from './campus-layout.js?v=0.4.13';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // YARDİMCI: Derin kopya (state immutability için)
@@ -4100,6 +4100,11 @@ export function setState(loadedState) {
     // Eksik üst düzey alanları varsayılanlarla tamamla
     if (!s.meta)         s.meta         = { turn: 1, year: 1, semester: 'güz', difficulty: 'normal' };
     if (s.meta.semester === 'guz') s.meta.semester = 'güz'; // eski kayıtları düzelt
+    // gameId yoksa ata (eski kayıtlar için): aynı oyundan tek skor için zorunlu
+    if (!s.meta.gameId) {
+      s.meta.gameId = `${Date.now().toString(36)}_legacy_${Math.random().toString(36).slice(2, 8)}`;
+    }
+    if (s.meta.scoreSubmitted === undefined) s.meta.scoreSubmitted = false;
     if (!s.university)   s.university   = {};
     if (!s.departments)  s.departments  = [];
     if (!s.faculty)      s.faculty      = [];

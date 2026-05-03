@@ -6,6 +6,14 @@
 
 export const CHANGELOG = [
   {
+    version: '0.4.13',
+    date: '2026-05-03',
+    title: 'Eski oyun kayıtlarına da mükerrer skor koruması',
+    items: [
+      { type: 'fix', text: 'v0.4.12 öncesi başlamış oyun kayıtlarında oyun kimliği bulunmuyordu; bu kayıtlardan skor gönderildiğinde mükerrer kayıt önleme tetiklenmiyordu. Artık kayıt yüklenirken eksik kimlik otomatik tamamlanıyor.' },
+    ],
+  },
+  {
     version: '0.4.12',
     date: '2026-05-03',
     title: 'Mükerrer skor kaydı engellendi (hem oyun içinde hem sunucuda)',
