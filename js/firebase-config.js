@@ -8,7 +8,7 @@
  */
 
 export const firebaseConfig = {
-  apiKey:            "AIzaSyAt9LcbuSLYwcwyeKX-kWb3ZyoomXI7RVE",
+  apiKey:            "AIzaSyAt9lcbuSLYwcwyeKX-kWb3ZyoomXI7RVE",
   authDomain:        "rektor-oldum.firebaseapp.com",
   projectId:         "rektor-oldum",
   storageBucket:     "rektor-oldum.firebasestorage.app",
