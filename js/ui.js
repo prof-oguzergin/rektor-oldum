@@ -406,14 +406,14 @@ export function initSetupScreen(onStart) {
   // ── ADIM 0: Senaryo seçimi ────────────────────────────────────────────────
   _renderScenarioCards();
 
-  on(el('btn-skip-scenario'), 'click', () => {
-    _setup.scenarioId = null;
-    _showSetupStep(1);
-  });
-
   on(el('btn-scenario-next'), 'click', () => {
     if (!_setup.scenarioId) return;
-    _applyScenarioToSetup(_setup.scenarioId);
+    if (_setup.scenarioId === 'serbest') {
+      // Serbest oyun: senaryo uygulanmaz
+      _setup.scenarioId = null;
+    } else {
+      _applyScenarioToSetup(_setup.scenarioId);
+    }
     _showSetupStep(1);
   });
 
@@ -483,10 +483,28 @@ function _renderScenarioCards() {
   const container = el('scenario-cards');
   if (!container) return;
 
-  const diffLabels = { kolay: 'Kolay', normal: 'Normal', zor: 'Zor' };
-  const diffClass  = { kolay: 'easy', normal: 'normal', zor: 'hard' };
+  const diffLabels = { kolay: 'Kolay', normal: 'Normal', zor: 'Zor', serbest: 'Serbest' };
+  const diffClass  = { kolay: 'easy', normal: 'normal', zor: 'hard', serbest: 'easy' };
 
-  container.innerHTML = Object.values(SCENARIOS).map(s => `
+  // "Serbest Oyun" sanal kartı: senaryo olmadan başlangıç
+  const serbestCard = `
+    <div class="scenario-card" data-scenario-id="serbest">
+      <div class="scenario-card-header">
+        <span class="scenario-card-icon">🎮</span>
+        <div class="scenario-card-title-block">
+          <div class="scenario-card-name">Serbest Oyun</div>
+          <div class="scenario-card-subtitle">Hazır senaryosuz, sıfırdan</div>
+        </div>
+        <span class="scenario-diff-badge scenario-diff-easy">Serbest</span>
+      </div>
+      <div class="scenario-card-desc">Üniversite tipini, zorluğu ve bölümleri sen seç. Hiçbir senaryo kısıtı yok, klasik açılış.</div>
+      <div class="scenario-card-footer">
+        <span class="scenario-flavor">"Boş tuval, sınırsız olasılık."</span>
+      </div>
+    </div>
+  `;
+
+  const realCards = Object.values(SCENARIOS).map(s => `
     <div class="scenario-card" data-scenario-id="${s.id}">
       <div class="scenario-card-header">
         <span class="scenario-card-icon">${s.icon}</span>
@@ -503,22 +521,29 @@ function _renderScenarioCards() {
     </div>
   `).join('');
 
+  container.innerHTML = serbestCard + realCards;
+
+  // Varsayılan seçim: Serbest Oyun
+  if (!_setup.scenarioId) _setup.scenarioId = 'serbest';
+  const initial = container.querySelector(`.scenario-card[data-scenario-id="${_setup.scenarioId}"]`);
+  if (initial) initial.classList.add('selected');
+  _updateScenarioNextButton();
+
   delegate(container, '.scenario-card', 'click', (e, card) => {
     const id = card.dataset.scenarioId;
-    if (_setup.scenarioId === id) {
-      // Deselect
-      _setup.scenarioId = null;
-      card.classList.remove('selected');
-      const nextBtn = el('btn-scenario-next');
-      if (nextBtn) nextBtn.disabled = true;
-    } else {
-      qsa('#scenario-cards .scenario-card').forEach(c => c.classList.remove('selected'));
-      card.classList.add('selected');
-      _setup.scenarioId = id;
-      const nextBtn = el('btn-scenario-next');
-      if (nextBtn) nextBtn.disabled = false;
-    }
+    qsa('#scenario-cards .scenario-card').forEach(c => c.classList.remove('selected'));
+    card.classList.add('selected');
+    _setup.scenarioId = id;
+    _updateScenarioNextButton();
   });
+}
+
+function _updateScenarioNextButton() {
+  const btn = el('btn-scenario-next');
+  if (!btn) return;
+  const isSerbest = !_setup.scenarioId || _setup.scenarioId === 'serbest';
+  btn.textContent = isSerbest ? '🎮 Serbest Oyna →' : 'Senaryoyla Başla →';
+  btn.disabled = !_setup.scenarioId;
 }
 
 /** Senaryo seçimini _setup state'ine uygula (uni tipi, zorluk) */
