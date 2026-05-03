@@ -4,7 +4,7 @@ Bir üniversiteyi sıfırdan kurup dünya sıralamasında zirveye taşıyın!
 
 ## 🎮 Oyna / Play
 
-👉 **[Hemen Oyna](https://prof-oguzergin.github.io/university-tycoon/)**
+👉 **[Hemen Oyna](https://prof-oguzergin.github.io/rektor-oldum/)**
 
 Tarayıcınızda çalışır, kurulum gerekmez.
 
@@ -73,8 +73,8 @@ Bu oyun, bir üniversite rektörü olarak akademik kurumunuzu yönetmenizi sağl
 ## 🚀 Yerel Kurulum
 
 ```bash
-git clone https://github.com/prof-oguzergin/university-tycoon.git
-cd university-tycoon
+git clone https://github.com/prof-oguzergin/rektor-oldum.git
+cd rektor-oldum
 npx serve
 # veya python -m http.server 8000
 ```
