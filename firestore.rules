@@ -1,0 +1,76 @@
+// Rektör Oldum — Firestore Security Rules
+//
+// Deploy: Firebase Console → Firestore Database → Rules → bu içeriği yapıştır → Yayınla
+// Veya CLI: firebase deploy --only firestore:rules
+//
+// Korumalar (serhattural raporu — client-only kontrol yetersiz):
+//  1) Yalnızca anonim auth ile yazılabilir
+//  2) Doc ID `${uid}_${gameId}` formatında olmalı, request.auth.uid ile eşleşmeli
+//  3) Aynı oyundan ikinci kayıt reddedilir (`if !exists`) — mükerrer skor önleme
+//  4) Score 0..100000, year 1..200, prestige -100..200, rank 1..1000 aralığında
+//  5) Name 1-30 karakter string
+//  6) Read herkese açık (skor tablosu publik)
+//  7) Update/delete kapalı (kayıt sabit)
+
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    match /scores/{scoreId} {
+
+      // Skor tablosu okuması herkese açık
+      allow read: if true;
+
+      // Yeni skor yazımı: katı validasyon
+      allow create: if
+        // Anonim auth zorunlu
+        request.auth != null
+
+        // Doc ID = `${uid}_${gameId}` ile başlamalı
+        && scoreId.matches('^' + request.auth.uid + '_[A-Za-z0-9_-]{1,150}$')
+
+        // Mükerrer engel: aynı doc ID daha önce yazılmamış olmalı
+        && !exists(/databases/$(database)/documents/scores/$(scoreId))
+
+        // Required fields
+        && request.resource.data.keys().hasOnly(
+            ['uid', 'gameId', 'name', 'score', 'year', 'rank', 'prestige', 'createdAt'])
+        && request.resource.data.keys().hasAll(
+            ['uid', 'gameId', 'name', 'score', 'year', 'rank', 'prestige', 'createdAt'])
+
+        // uid eşleşmeli
+        && request.resource.data.uid == request.auth.uid
+
+        // Type + aralık kontrolleri (saldırgan parametreleri istediği gibi gönderemesin)
+        && request.resource.data.gameId is string
+        && request.resource.data.gameId.size() >= 1
+        && request.resource.data.gameId.size() <= 100
+
+        && request.resource.data.name is string
+        && request.resource.data.name.size() >= 1
+        && request.resource.data.name.size() <= 30
+
+        && request.resource.data.score is int
+        && request.resource.data.score >= 0
+        && request.resource.data.score <= 100000
+
+        && request.resource.data.year is int
+        && request.resource.data.year >= 1
+        && request.resource.data.year <= 200
+
+        && request.resource.data.rank is int
+        && request.resource.data.rank >= 1
+        && request.resource.data.rank <= 1000
+
+        && request.resource.data.prestige is int
+        && request.resource.data.prestige >= -100
+        && request.resource.data.prestige <= 200
+
+        // Server-side timestamp zorunlu (client kendi tarihini yazamaz)
+        && request.resource.data.createdAt == request.time;
+
+      // Güncelleme/silme yasak
+      allow update, delete: if false;
+    }
+  }
+}

@@ -17,7 +17,7 @@ import {
   TUITION_MULTIPLIER_FEN,
   TUITION_MULTIPLIER_SOS,
   DIFFICULTY_SETTINGS,
-} from './data.js?v=0.4.11';
+} from './data.js?v=0.4.12';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // EKONOMİ SABİTLERİ

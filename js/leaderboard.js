@@ -4,7 +4,7 @@
  * ES module, Firebase SDK'yı CDN'den dinamik olarak yükler.
  */
 
-import { firebaseConfig } from './firebase-config.js?v=0.4.11';
+import { firebaseConfig } from './firebase-config.js?v=0.4.12';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // TEKİL BAŞLATMA
@@ -172,13 +172,21 @@ export async function submitScore(name, state) {
   const trimmed = name.trim().slice(0, 30);
   const score   = calculateScore(state);
 
-  await ensureAnonAuth();
+  const uid = await ensureAnonAuth();
   const { db } = await initFirebase();
 
-  const { collection, addDoc, serverTimestamp } = await import('https://www.gstatic.com/firebasejs/11.0.2/firebase-firestore.js');
+  const { doc, setDoc, serverTimestamp } = await import('https://www.gstatic.com/firebasejs/11.0.2/firebase-firestore.js');
 
-  // Tüm sayısal alanları NaN/undefined'a karşı güvene al (Firestore rules tip kontrolü yapıyor)
+  // gameId yoksa fallback (eski kayıtlar): zaman tabanlı.
+  const gameId = String(state?.meta?.gameId || Date.now().toString(36));
+  // Doc ID `${uid}_${gameId}`. Firestore Rules `if !exists` ile aynı oyundan
+  // ikinci yazımı reddeder — client-side flag bypass edilse bile server-side
+  // mükerrer kayıt korunması (R-Fatih + serhattural raporları).
+  const docId  = `${uid}_${gameId}`.replace(/[^A-Za-z0-9_-]/g, '_').slice(0, 200);
+
   const payload = {
+    uid,                                  // Rules'da request.auth.uid ile eşleşmeli
+    gameId:    String(gameId).slice(0, 100),
     name:      trimmed,
     score:     _safeNum(score, 0),
     year:      Math.round(_safeNum(state?.meta?.year, 1)),
@@ -188,13 +196,14 @@ export async function submitScore(name, state) {
   };
 
   try {
-    const docRef = await addDoc(collection(db, 'scores'), payload);
-    return docRef.id;
+    await setDoc(doc(db, 'scores', docId), payload);
+    return docId;
   } catch (err) {
     console.error('[leaderboard] Skor gönderilirken hata:', err, 'payload:', payload);
     let msg;
     if (err?.code === 'permission-denied') {
-      msg = 'Skor gönderme reddedildi. Geçersiz veri gönderildi olabilir.';
+      // Rules `if !exists` veya range/type kontrolü reddi de buraya düşer
+      msg = 'Skor gönderme reddedildi. Bu oyun için skor zaten gönderilmiş veya veri geçersiz.';
     } else if (err?.code === 'unauthenticated') {
       msg = 'Anonim oturum açılamadı. Lütfen sayfayı yenileyip tekrar dene.';
     } else if (err?.code === 'unavailable' || /network|offline/i.test(err?.message || '')) {

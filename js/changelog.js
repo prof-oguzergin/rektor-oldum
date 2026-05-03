@@ -6,6 +6,16 @@
 
 export const CHANGELOG = [
   {
+    version: '0.4.12',
+    date: '2026-05-03',
+    title: 'Mükerrer skor kaydı engellendi (hem oyun içinde hem sunucuda)',
+    items: [
+      { type: 'fix', text: 'Bir oyundan birden fazla kez skor gönderilebiliyor, sıralama bozuluyordu (R-Fatih raporu). Oyun içinde gönderildi bayrağı tutuldu; modal ikinci açılışta gönderim bilgisini gösterip yeni kayda izin vermiyor.' },
+      { type: 'security', text: 'Sunucu tarafı koruma da eklendi (serhattural geri bildirimi): her skor için "kullanıcı + oyun kimliği" benzersiz belge kimliği kullanılıyor. Tarayıcı tarafındaki kontrol atlatılsa bile aynı oyundan ikinci kayıt sunucuda reddediliyor.' },
+      { type: 'security', text: 'Sunucu yetkilendirme kuralları (firestore.rules) yazıldı: skor alanı 0–100.000, yıl 1–200, isim 1–30 karakter aralığında olmak zorunda. Ayrıca tarih sunucu zamanından alınıyor; istemci kendi tarihini yazamıyor.' },
+    ],
+  },
+  {
     version: '0.4.11',
     date: '2026-05-03',
     title: 'Kadroda yanlış hoca açılması düzeltildi',

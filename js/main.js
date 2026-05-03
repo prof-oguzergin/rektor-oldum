@@ -8,7 +8,7 @@ console.log('[main] main.js modülü yükleniyor...');
 // IMPORT
 // ─────────────────────────────────────────────────────────────────────────────
 
-import { initGame, nextTurn, getState, setState, applyDecision, assignCourses, applyQuotas, assignDeptHead, reassignFacultyToDept, generateAdminCandidates, hireAdminStaff, upgradeAdminUnit, promoteAdminStaff, fireAdminStaff, updateAdminStaffSalary, assignUnitManager, RANDOM_EVENTS, ACHIEVEMENTS, getAchievementStats, organizeAlumniEvent, applyRandomEventChoice, ACCREDITATION_BODIES, applyForAccreditation, checkAccreditationRequirements, establishTTO, upgradeTTO, acceptDeal, rejectDeal, foundClub, upgradeClub, dissolveClub, CLUB_TYPES, CLUB_CATEGORIES, SPORTS, foundTeam, upgradeTeam, dissolveTeam } from './game.js?v=0.4.11';
+import { initGame, nextTurn, getState, setState, applyDecision, assignCourses, applyQuotas, assignDeptHead, reassignFacultyToDept, generateAdminCandidates, hireAdminStaff, upgradeAdminUnit, promoteAdminStaff, fireAdminStaff, updateAdminStaffSalary, assignUnitManager, RANDOM_EVENTS, ACHIEVEMENTS, getAchievementStats, organizeAlumniEvent, applyRandomEventChoice, ACCREDITATION_BODIES, applyForAccreditation, checkAccreditationRequirements, establishTTO, upgradeTTO, acceptDeal, rejectDeal, foundClub, upgradeClub, dissolveClub, CLUB_TYPES, CLUB_CATEGORIES, SPORTS, foundTeam, upgradeTeam, dissolveTeam } from './game.js?v=0.4.12';
 
 import {
   showScreen,
@@ -48,17 +48,17 @@ import {
   showChangelogModal,
   el,
   on,
-} from './ui.js?v=0.4.11';
+} from './ui.js?v=0.4.12';
 
-import { CHANGELOG, hasUnseenChanges, setLastSeenVersion } from './changelog.js?v=0.4.11';
+import { CHANGELOG, hasUnseenChanges, setLastSeenVersion } from './changelog.js?v=0.4.12';
 
-import { saveGame, loadGame, autoSave, getSaveSlots, deleteSave, exportSave, importSave, sanitizeForSave } from './save.js?v=0.4.11';
-import { calculateScore, scoreBreakdown, submitScore, getTopScores, initFirebase, isLeaderboardUnavailable, saveLocalScore, getLocalScores } from './leaderboard.js?v=0.4.11';
-import { showTutorialIfNeeded, replayTutorial } from './tutorial.js?v=0.4.11';
-import { initAudio, playSound, toggleMute, isMuted, startMusic, stopMusic, setMusicVolume, setSFXVolume, getAudioSettings } from './audio.js?v=0.4.11';
+import { saveGame, loadGame, autoSave, getSaveSlots, deleteSave, exportSave, importSave, sanitizeForSave } from './save.js?v=0.4.12';
+import { calculateScore, scoreBreakdown, submitScore, getTopScores, initFirebase, isLeaderboardUnavailable, saveLocalScore, getLocalScores } from './leaderboard.js?v=0.4.12';
+import { showTutorialIfNeeded, replayTutorial } from './tutorial.js?v=0.4.12';
+import { initAudio, playSound, toggleMute, isMuted, startMusic, stopMusic, setMusicVolume, setSFXVolume, getAudioSettings } from './audio.js?v=0.4.12';
 
-import { generateTransferMarket, renderFacultyAvatar, calculateOverallRating, getFacultyRatingTrend } from './faculty.js?v=0.4.11';
-import { resolveDecision } from './events.js?v=0.4.11';
+import { generateTransferMarket, renderFacultyAvatar, calculateOverallRating, getFacultyRatingTrend } from './faculty.js?v=0.4.12';
+import { resolveDecision } from './events.js?v=0.4.12';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // UYGULAMA DURUMU
@@ -861,6 +861,12 @@ function _showLeaderboardSubmitModal(isGameOver = false) {
     return;
   }
 
+  // Bu oyundan skor zaten gönderildi mi? (Mükerrer kayıt önleme — R-Fatih raporu)
+  const alreadySubmitted = !!state.meta?.scoreSubmitted;
+  const submittedAt      = state.meta?.scoreSubmittedAt;
+  const submittedName    = state.meta?.scoreSubmittedName;
+  const submittedScore   = state.meta?.scoreSubmittedScore;
+
   const score     = calculateScore(state);
   const breakdown = scoreBreakdown(state);
   const heading   = isGameOver ? '🎓 Oyun Bitti!' : '🏆 Skorunu Gönder';
@@ -869,10 +875,29 @@ function _showLeaderboardSubmitModal(isGameOver = false) {
     .map(line => `<li style="font-size:12px;color:var(--text-muted,#aaa);margin:2px 0;">${line}</li>`)
     .join('');
 
+  const submittedDateStr = submittedAt
+    ? new Date(submittedAt).toLocaleString('tr-TR', { dateStyle: 'short', timeStyle: 'short' })
+    : '';
+  const alreadyBanner = alreadySubmitted
+    ? `<div style="background:rgba(245,166,35,0.1);border:1px solid rgba(245,166,35,0.3);
+                  padding:12px;border-radius:8px;font-size:13px;line-height:1.5;">
+         ✅ Bu oyun için skor zaten gönderildi.<br>
+         <span style="color:var(--text-muted,#aaa);font-size:12px;">
+           ${submittedName ? `<strong>${submittedName}</strong> — ` : ''}${submittedScore != null ? `${submittedScore.toLocaleString('tr-TR')} puan` : ''}${submittedDateStr ? ` · ${submittedDateStr}` : ''}
+         </span><br>
+         <span style="color:var(--text-muted,#aaa);font-size:12px;">
+           Yeni bir kayıt için yeni bir oyun başlatman gerekiyor.
+         </span>
+       </div>`
+    : '';
+
   const bodyHtml = `
     <div style="display:flex;flex-direction:column;gap:16px;padding:4px 0;">
+      ${alreadyBanner}
       <p style="margin:0;font-size:14px;line-height:1.5;">
-        Skorunu küresel skor tablosuna ekle. İsim girip <strong>Gönder</strong>'e bas.
+        ${alreadySubmitted
+          ? 'Aşağıda bu oyunun puanı görünüyor. Yeni gönderim yapılamaz.'
+          : 'Skorunu küresel skor tablosuna ekle. İsim girip <strong>Gönder</strong>\'e bas.'}
       </p>
       <div style="background:rgba(255,255,255,0.04);border-radius:10px;padding:14px;">
         <div style="font-size:28px;font-weight:700;text-align:center;color:var(--accent,#5dd6c0);">
@@ -892,12 +917,15 @@ function _showLeaderboardSubmitModal(isGameOver = false) {
           maxlength="30"
           placeholder="Anonim Rektör"
           value="${state.meta?.playerName ? state.meta.playerName.slice(0, 30) : ''}"
-          style="width:100%;box-sizing:border-box;padding:9px 12px;border-radius:8px;border:1px solid rgba(255,255,255,0.15);background:rgba(255,255,255,0.06);color:inherit;font-size:14px;"
+          ${alreadySubmitted ? 'disabled' : ''}
+          style="width:100%;box-sizing:border-box;padding:9px 12px;border-radius:8px;border:1px solid rgba(255,255,255,0.15);background:rgba(255,255,255,0.06);color:inherit;font-size:14px;${alreadySubmitted ? 'opacity:0.5;cursor:not-allowed;' : ''}"
         />
       </div>
       <div style="display:flex;gap:10px;justify-content:flex-end;">
-        <button id="lb-cancel-btn" class="btn btn-ghost btn-sm">❌ Vazgeç</button>
-        <button id="lb-submit-btn" class="btn btn-primary btn-sm">🏆 Gönder</button>
+        <button id="lb-cancel-btn" class="btn btn-ghost btn-sm">${alreadySubmitted ? '✖️ Kapat' : '❌ Vazgeç'}</button>
+        <button id="lb-submit-btn" class="btn btn-primary btn-sm" ${alreadySubmitted ? 'disabled style="opacity:0.5;cursor:not-allowed;"' : ''}>
+          ${alreadySubmitted ? '✅ Gönderildi' : '🏆 Gönder'}
+        </button>
       </div>
       <div id="lb-submit-status" style="font-size:12px;color:var(--text-muted,#aaa);min-height:16px;"></div>
     </div>`;
@@ -925,6 +953,18 @@ function _showLeaderboardSubmitModal(isGameOver = false) {
       await initFirebase();
       if (statusEl) statusEl.textContent = 'Skor yükleniyor…';
       await submitScore(name, state);
+
+      // Mükerrer kayıt önleme: bu oyun için skor gönderildiğini state'e işaretle.
+      // autoSave ile localStorage'a yazılır; sayfa yenilense de korunur.
+      const liveState = getState();
+      if (liveState?.meta) {
+        liveState.meta.scoreSubmitted      = true;
+        liveState.meta.scoreSubmittedAt    = Date.now();
+        liveState.meta.scoreSubmittedName  = name;
+        liveState.meta.scoreSubmittedScore = score;
+        const safe = sanitizeForSave ? sanitizeForSave(liveState) : liveState;
+        autoSave(safe);
+      }
 
       hideModal();
       showNotification(`🏆 ${name} — ${score.toLocaleString('tr-TR')} puan kaydedildi!`, 'success', 5000);
