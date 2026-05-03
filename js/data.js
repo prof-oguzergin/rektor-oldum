@@ -617,6 +617,25 @@ export const DEPARTMENTS = {
     tuitionMultiplier:       1.0,
   },
 
+  siyaset_bilimi: {
+    id:                      'siyaset_bilimi',
+    name:                    'Siyaset Bilimi',
+    shortName:               'Siyaset',
+    category:                'sosyal',
+    icon:                    '🏛️',
+    startCost:               5_500_000,
+    annualOperatingCost:     1_500_000,
+    researchPotential:       2,
+    labRequirement:          0,
+    avgPublicationPerFaculty: 1.4,
+    projectBudgetRange:      [80_000, 1_500_000],
+    facultyRetentionDifficulty: 3,
+    revenueEfficiency:       1.1,
+    baseStudentDemand:       1.1,
+    baseEntryScore:          [340, 420],
+    tuitionMultiplier:       0.95,
+  },
+
   tip: {
     id:                      'tip',
     name:                    'Tıp',
@@ -840,6 +859,16 @@ export const DEPARTMENT_CURRICULA = {
     { id: 'ilt06', name: 'Yeni Medya ve Dijital İletişim', type: 'seçmeli', difficulty: 2, requiredExpertise: 'Yeni Medya',        idealClassSize: 45, hoursPerWeek: 3 },
     { id: 'ilt07', name: 'Görsel İletişim Tasarımı',    type: 'seçmeli', difficulty: 3, requiredExpertise: 'İletişim Tasarımı',    idealClassSize: 35, hoursPerWeek: 3 },
     { id: 'ilt08', name: 'Siyasal İletişim',             type: 'seçmeli', difficulty: 3, requiredExpertise: 'Medya Çalışmaları',   idealClassSize: 40, hoursPerWeek: 3 },
+  ],
+  siyaset_bilimi: [
+    { id: 'syb01', name: 'Siyaset Bilimine Giriş',       type: 'zorunlu', difficulty: 2, requiredExpertise: 'Siyaset Teorisi',         idealClassSize: 60, hoursPerWeek: 3 },
+    { id: 'syb02', name: 'Siyasi Düşünceler Tarihi',     type: 'zorunlu', difficulty: 3, requiredExpertise: 'Siyasi Düşünce',          idealClassSize: 50, hoursPerWeek: 3 },
+    { id: 'syb03', name: 'Karşılaştırmalı Siyaset',      type: 'zorunlu', difficulty: 3, requiredExpertise: 'Karşılaştırmalı Siyaset', idealClassSize: 45, hoursPerWeek: 3 },
+    { id: 'syb04', name: 'Türk Siyasal Hayatı',          type: 'zorunlu', difficulty: 2, requiredExpertise: 'Türk Siyasal Hayatı',     idealClassSize: 55, hoursPerWeek: 3 },
+    { id: 'syb05', name: 'Uluslararası İlişkilere Giriş', type: 'zorunlu', difficulty: 2, requiredExpertise: 'Uluslararası İlişkiler', idealClassSize: 50, hoursPerWeek: 3 },
+    { id: 'syb06', name: 'Kamu Yönetimi',                type: 'seçmeli', difficulty: 2, requiredExpertise: 'Kamu Yönetimi',           idealClassSize: 50, hoursPerWeek: 3 },
+    { id: 'syb07', name: 'Siyaset Sosyolojisi',          type: 'seçmeli', difficulty: 3, requiredExpertise: 'Siyaset Sosyolojisi',     idealClassSize: 40, hoursPerWeek: 3 },
+    { id: 'syb08', name: 'Siyaset Felsefesi',            type: 'seçmeli', difficulty: 4, requiredExpertise: 'Siyaset Teorisi',         idealClassSize: 35, hoursPerWeek: 3 },
   ],
   tip: [
     { id: 'tip01', name: 'Temel Tıp Bilimleri',       type: 'zorunlu', difficulty: 5, requiredExpertise: 'Dahiliye',            idealClassSize: 30, hoursPerWeek: 6 },

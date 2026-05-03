@@ -6,6 +6,14 @@
 
 export const CHANGELOG = [
   {
+    version: '0.4.26',
+    date: '2026-05-04',
+    title: 'Siyaset Bilimi bölümü tam veri ile destekleniyor',
+    items: [
+      { type: 'fix', text: 'Siyaset Bilimi bölümü açılabiliyordu ama bölüm tanımı, ders müfredatı ve uzmanlık alanları eksikti — bölüm açıldıktan sonra hoca/öğrenci akışı düşük uyumda kalıyordu (seyrekilyas09 raporu, Issue #5). Bölüm artık tam veri ile destekleniyor: 8 ders müfredatı, 7 uzmanlık alanı (Siyaset Teorisi, Siyasi Düşünce, Karşılaştırmalı Siyaset, Türk Siyasal Hayatı, Uluslararası İlişkiler, Kamu Yönetimi, Siyaset Sosyolojisi).' },
+    ],
+  },
+  {
     version: '0.4.25',
     date: '2026-05-04',
     title: 'İletişim bölümü tam veri ile destekleniyor',

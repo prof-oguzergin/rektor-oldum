@@ -47,6 +47,7 @@ Tam liste: `js/changelog.js` (oyun içi "Yenilikler" panelinde de gösterilir, b
   - v0.4.23: Akreditasyon erken yenileme — son 2 dönem kala renewal kabul (Erdinç)
   - v0.4.24: Ulaşım merkezi memnuniyet katkı, idari bina memnuniyet, araştırma merkezi "Bölüm Ata" → +%15 dış proje şansı (iki merkez +%30)
   - v0.4.25: İletişim bölümü tam veri (8 ders müfredatı + 7 uzmanlık alanı: Gazetecilik, Halkla İlişkiler, Reklam, Radyo-TV, Yeni Medya, İletişim Tasarımı, Medya Çalışmaları) — hoca alımında "ders örtüşmesi yok" uyarısı kapandı (Erdinç)
+  - v0.4.26: Siyaset Bilimi bölümü tam veri (8 ders müfredatı + 7 uzmanlık: Siyaset Teorisi, Siyasi Düşünce, Karşılaştırmalı Siyaset, Türk Siyasal Hayatı, Uluslararası İlişkiler, Kamu Yönetimi, Siyaset Sosyolojisi) — Issue #5 (seyrekilyas09)
 
 ## Aktif Oyuncu Raporcuları
 Erdinç (en yoğun), AkaDemi, Emir, Burak Gökalp, Yusuf Sertkaya, R-Fatih (Issue #7, #9), X, serhattural
