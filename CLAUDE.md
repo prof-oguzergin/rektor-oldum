@@ -52,13 +52,14 @@ Tam liste: `js/changelog.js` (oyun içi "Yenilikler" panelinde de gösterilir, b
   - v0.4.28: Oyun bitti/kazanıldı sonrası boş Dönem Özeti açılması düzeltildi (Emir raporu, console log ile teşhis). _onNextTurn handler en başta gameOver/gameWon kontrolü + nextTurn sonrası defensive katman. Bonus: main.js'deki save.js cache-bust sürümü 0.4.24'te kalmış, 0.4.28'e güncellendi.
   - v0.4.29: Sonradan açılan bölümlere öğrenci yerleşmiyor + fakülteler ekranında görünmüyor (R-Fatih Issue #10 + Emir raporu). 3 katman: (1) game.js YÖK onayında byDepartment[deptId] init + fakulteler.departments duplicate koruma; (2) students.js processNewEnrollment lazy init defansif; (3) game.js state migration'da her açık bölüm için byDepartment + fakulteler tutarlılığı.
   - v0.4.30: Kütüphane `canHaveMultiple: true` (Erdinç raporu). Spor tesisi (v0.4.20) pattern'ı.
+  - v0.4.31: Mekatronik Müh., Mimarlık, Güzel Sanatlar bölümleri tam veri (her biri 8 ders + 7-8 uzmanlık). İletişim/Siyaset Bilimi pattern'ının aynısı (Erdinç raporu).
 
 ## Aktif Oyuncu Raporcuları
 Erdinç (en yoğun), AkaDemi, Emir, Burak Gökalp, Yusuf Sertkaya, R-Fatih (Issue #7, #9), X, serhattural
 
 ## Bekleyen Raporlar
 - Burak — kontenjan modal ilerlemiyor, console log bekleniyor
-- App Check — 200/403 doğrulaması kullanıcı browser'ında
+- App Check — 4 May 2026 gece doğrulandı: **Auth %100 verified, 0% Unverified (Monitoring)**, entegrasyon çalışıyor. Cloud Firestore hâlâ **Unenforced**. Sabah Firebase Console > App Check > Cloud Firestore satırına tıklayıp **Enforce** edilecek (gece yapılmadı çünkü eski cache'li client riski). Sonra birkaç oyuncudan skor gönderme doğrulaması al.
 
 ## Çözülmüş (sonraki cleanup'a kadar burada)
 - Emir (özet ekranında tüm değerler 0) → v0.4.28'de gameOver/gameWon erken çıkış

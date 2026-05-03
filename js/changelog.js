@@ -6,6 +6,14 @@
 
 export const CHANGELOG = [
   {
+    version: '0.4.31',
+    date: '2026-05-04',
+    title: 'Mekatronik, Mimarlık, Güzel Sanatlar bölümleri tam veri ile destekleniyor',
+    items: [
+      { type: 'fix', text: 'Mekatronik Mühendisliği, Mimarlık ve Güzel Sanatlar bölümleri açılabiliyordu ama bölüm tanımı, ders müfredatı ve uzmanlık alanları eksikti — hoca alımında "ders örtüşmesi yok" uyarısı çıkıp uyum hep düşük kalıyordu (Erdinç raporu — daha önce İletişim ve Siyaset Bilimi için yapılan fix\'in aynısı). Üç bölüm artık tam veri ile destekleniyor: her biri için 8 ders müfredatı + 7-8 uzmanlık alanı. Mekatronik için: Mekatronik, Mekanik Sistemler, Devre Tasarımı, Mikrodenetleyiciler, Otomatik Kontrol, Robotik, Hidrolik-Pnömatik, Endüstriyel Otomasyon. Mimarlık için: Mimari Tasarım, Mimarlık Tarihi, Yapı Teknolojileri, Şehir Planlama, İç Mimari, Sürdürülebilir Mimari, Restorasyon. Güzel Sanatlar için: Resim, Heykel, Grafik Tasarım, Sanat Tarihi, Fotoğraf, Görsel Sanatlar, Çağdaş Sanat.' },
+    ],
+  },
+  {
     version: '0.4.30',
     date: '2026-05-04',
     title: 'Birden fazla kütüphane inşa edilebilir',
