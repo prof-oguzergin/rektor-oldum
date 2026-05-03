@@ -6,6 +6,14 @@
 
 export const CHANGELOG = [
   {
+    version: '0.4.25',
+    date: '2026-05-04',
+    title: 'İletişim bölümü tam veri ile destekleniyor',
+    items: [
+      { type: 'fix', text: 'İletişim bölümü açılabiliyordu ama bölüm tanımı, ders müfredatı ve uzmanlık alanları eksikti. Bu yüzden hoca alımında "mevcut müfredatla ders örtüşmesi yok" uyarısı çıkıp uyum hep düşük kalıyordu (Erdinç raporu). Bölüm artık tam veri ile destekleniyor: 8 ders müfredatı, 7 uzmanlık alanı (Gazetecilik, Halkla İlişkiler, Reklam, Radyo-TV, Yeni Medya, İletişim Tasarımı, Medya Çalışmaları).' },
+    ],
+  },
+  {
     version: '0.4.24',
     date: '2026-05-04',
     title: 'Ulaşım merkezi, idari bina ve araştırma merkezi etkin',

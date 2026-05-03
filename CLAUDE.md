@@ -1,7 +1,8 @@
 # Rektör Oldum — Üniversite Yönetim Oyunu
 
 - GitHub: https://github.com/prof-oguzergin/rektor-oldum (private)
-- Durum: v0.3 tamamlandı
+- Yayında: https://prof-oguzergin.github.io/rektor-oldum/
+- Durum: v0.4.24 — aktif geliştirme, oyuncu rapor akışı (Erdinç, Emir, Burak, AkaDemi, Yusuf, Fatih)
 - Dizin: C:\Users\Z GAMES\Yapay Zeka\university-tycoon
 
 ## Teknik
@@ -28,14 +29,36 @@ GDD.md: 4300+ satırlık tasarım belgesi. README.md: genel açıklama.
 `OYUNU-BASLAT.bat` çift tıkla → tarayıcıda `localhost:8080`
 
 ## Sürüm Geçmişi
+
+Tam liste: `js/changelog.js` (oyun içi "Yenilikler" panelinde de gösterilir, başa eklenir).
+
 - v0.1: Hata temizliği, oyun dengesi, zorluk seçimi, tutorial
 - v0.2: Mezun sistemi, 16 rastgele olay, 25 başarım, idari birimler, proje sistemi
 - v0.3: Senaryolar, akreditasyon UI, TTO, öğrenci kulüpleri, ses efektleri
+- v0.4.x (3-4 May 2026, 22 sürüm — yoğun oyuncu rapor akışı):
+  - v0.4.3-4.4: Mobil uyumluluk (kaydırma, alt gezinme, 44px dokunma), Co-op tipi fix, "Bahar undefined" başlık
+  - v0.4.5-4.7: Skor hata iletisi, Firebase API key tipo, kredi amortizasyon + %5 erken kapatma cezası (exploit kapatıldı)
+  - v0.4.8-4.9: Oyun içi "Yenilikler" modali (otomatik açılır), sürüm notları Türkçeleştirme
+  - v0.4.10-4.13: Dönem geçiş takılması, erken oyun bitti eşiği (%40→%25, 3→6 dönem), hoca id çakışması, mükerrer skor + Firestore rules
+  - v0.4.14: App Check (reCAPTCHA v3) — bot/betiklere karşı görünmez koruma
+  - v0.4.16-4.18: Bütçe dağılımı aksiyon adı, "Bahar undefined" state migration + cache header, harç slider state
+  - v0.4.19-4.21: Memnuniyet integer + spor beraberlik (R-Fatih), spor tesisi canHaveMultiple (AkaDemi), Yazılım Müh. tam veri + idari bina UI (Erdinç)
+  - v0.4.22: AkaDemi MÜDEK + Emir idari memnuniyet 50 takılı kalma — bölüm yoksa overall'a fallback
+  - v0.4.23: Akreditasyon erken yenileme — son 2 dönem kala renewal kabul (Erdinç)
+  - v0.4.24: Ulaşım merkezi memnuniyet katkı, idari bina memnuniyet, araştırma merkezi "Bölüm Ata" → +%15 dış proje şansı (iki merkez +%30)
+  - v0.4.25: İletişim bölümü tam veri (8 ders müfredatı + 7 uzmanlık alanı: Gazetecilik, Halkla İlişkiler, Reklam, Radyo-TV, Yeni Medya, İletişim Tasarımı, Medya Çalışmaları) — hoca alımında "ders örtüşmesi yok" uyarısı kapandı (Erdinç)
 
-## Sonraki Adımlar (v0.4)
-- Çok oyunculu skor tablosu
+## Aktif Oyuncu Raporcuları
+Erdinç (en yoğun), AkaDemi, Emir, Burak Gökalp, Yusuf Sertkaya, R-Fatih (Issue #7, #9), X, serhattural
+
+## Bekleyen Raporlar
+- Burak — kontenjan modal ilerlemiyor, console log bekleniyor
+- Emir — özet ekranında tüm değerler 0, console log bekleniyor
+- App Check — 200/403 doğrulaması kullanıcı browser'ında
+
+## Sonraki Adımlar
 - Ek senaryo paketleri
-- Mobil uyumluluk iyileştirmeleri
+- Mobil uyumluluk iyileştirmeleri (v0.4.3'te temel atıldı, derinleştirilecek)
 
 ## Terminoloji
 - "Prestij" → "Saygınlık" kullanılıyor

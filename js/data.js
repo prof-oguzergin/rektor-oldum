@@ -598,6 +598,25 @@ export const DEPARTMENTS = {
     tuitionMultiplier:       0.9,
   },
 
+  iletisim: {
+    id:                      'iletisim',
+    name:                    'İletişim',
+    shortName:               'İletişim',
+    category:                'sosyal',
+    icon:                    '📡',
+    startCost:               5_500_000,
+    annualOperatingCost:     1_600_000,
+    researchPotential:       2,
+    labRequirement:          1,
+    avgPublicationPerFaculty: 1.3,
+    projectBudgetRange:      [100_000, 2_000_000],
+    facultyRetentionDifficulty: 3,
+    revenueEfficiency:       1.2,
+    baseStudentDemand:       1.3,
+    baseEntryScore:          [360, 430],
+    tuitionMultiplier:       1.0,
+  },
+
   tip: {
     id:                      'tip',
     name:                    'Tıp',
@@ -811,6 +830,16 @@ export const DEPARTMENT_CURRICULA = {
     { id: 'psi03', name: 'Sosyal Psikoloji',          type: 'zorunlu', difficulty: 2, requiredExpertise: 'Sosyal Psikoloji',   idealClassSize: 50, hoursPerWeek: 3 },
     { id: 'psi04', name: 'Nöropsikoloji',             type: 'seçmeli', difficulty: 4, requiredExpertise: 'Nöropsikoloji',      idealClassSize: 30, hoursPerWeek: 3 },
     { id: 'psi05', name: 'Gelişim Psikolojisi',       type: 'seçmeli', difficulty: 3, requiredExpertise: 'Gelişim Psikolojisi', idealClassSize: 40, hoursPerWeek: 3 },
+  ],
+  iletisim: [
+    { id: 'ilt01', name: 'Kitle İletişim Kuramları',    type: 'zorunlu', difficulty: 2, requiredExpertise: 'Medya Çalışmaları',    idealClassSize: 55, hoursPerWeek: 3 },
+    { id: 'ilt02', name: 'Gazetecilik ve Habercilik',   type: 'zorunlu', difficulty: 2, requiredExpertise: 'Gazetecilik',          idealClassSize: 50, hoursPerWeek: 4 },
+    { id: 'ilt03', name: 'Halkla İlişkiler',             type: 'zorunlu', difficulty: 2, requiredExpertise: 'Halkla İlişkiler',    idealClassSize: 55, hoursPerWeek: 3 },
+    { id: 'ilt04', name: 'Reklam Kuramı ve Uygulaması', type: 'zorunlu', difficulty: 2, requiredExpertise: 'Reklam',               idealClassSize: 50, hoursPerWeek: 3 },
+    { id: 'ilt05', name: 'Radyo-Televizyon Yapımı',     type: 'zorunlu', difficulty: 2, requiredExpertise: 'Radyo-TV',             idealClassSize: 40, hoursPerWeek: 4 },
+    { id: 'ilt06', name: 'Yeni Medya ve Dijital İletişim', type: 'seçmeli', difficulty: 2, requiredExpertise: 'Yeni Medya',        idealClassSize: 45, hoursPerWeek: 3 },
+    { id: 'ilt07', name: 'Görsel İletişim Tasarımı',    type: 'seçmeli', difficulty: 3, requiredExpertise: 'İletişim Tasarımı',    idealClassSize: 35, hoursPerWeek: 3 },
+    { id: 'ilt08', name: 'Siyasal İletişim',             type: 'seçmeli', difficulty: 3, requiredExpertise: 'Medya Çalışmaları',   idealClassSize: 40, hoursPerWeek: 3 },
   ],
   tip: [
     { id: 'tip01', name: 'Temel Tıp Bilimleri',       type: 'zorunlu', difficulty: 5, requiredExpertise: 'Dahiliye',            idealClassSize: 30, hoursPerWeek: 6 },
