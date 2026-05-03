@@ -1519,7 +1519,7 @@ export const BUILDINGS = {
     capacityPerLevel:      { dailyUsers: 250 },
     maintenanceCostPerM2:  30,
     constructionTurns:     1,
-    canHaveMultiple:       false,
+    canHaveMultiple:       true,   // birden fazla spor tesisi inşa edilebilir (AkaDemi raporu)
     effects: { studentSatisfaction: 6, prestige: 2 },
     // Geriye dönük uyumluluk
     constructionCost:      5_000_000,

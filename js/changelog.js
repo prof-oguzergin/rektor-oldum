@@ -6,6 +6,14 @@
 
 export const CHANGELOG = [
   {
+    version: '0.4.20',
+    date: '2026-05-04',
+    title: 'Birden fazla spor tesisi inşa edilebilir',
+    items: [
+      { type: 'fix', text: 'Spor tesisi tek tek yapılabiliyordu, yenisi reddediliyordu (AkaDemi raporu). Artık birden fazla spor tesisi inşa edilebilir; mevcut tesis tamamlandıktan sonra yenisi başlatılabilir.' },
+    ],
+  },
+  {
     version: '0.4.19',
     date: '2026-05-04',
     title: 'Memnuniyet sayısı + spor beraberliği',
