@@ -129,6 +129,13 @@ function init() {
     showSettingsModal();
   });
 
+  // Oyun içi Ana Menü butonu (top-bar'daki ☰) — açılır menü gösterir
+  on(el('btn-main-menu'), 'click', (e) => {
+    e.stopPropagation();
+    playSound('click');
+    _toggleMainMenuDropdown();
+  });
+
   // Klavye kısayolları
   _bindKeyboardShortcuts();
 
@@ -160,6 +167,130 @@ function _checkSaveOnLoad() {
   }, 300);
 
   console.log('[main] Kayıtlı oyun bulundu:', slots.filter(s => !s.isEmpty).map(s => s.slotName).join(', '));
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// OYUN İÇİ ANA MENÜ DROPDOWN (top-bar ☰)
+// ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * Top-bar'daki ☰ butonuna tıklayınca açılan küçük dropdown menü.
+ * Tekrar tıklanırsa veya dış alana tıklanırsa kapanır.
+ */
+function _toggleMainMenuDropdown() {
+  const existing = document.getElementById('main-menu-dropdown');
+  if (existing) {
+    existing.remove();
+    return;
+  }
+
+  const btn = el('btn-main-menu');
+  if (!btn) return;
+  const rect = btn.getBoundingClientRect();
+
+  const dd = document.createElement('div');
+  dd.id = 'main-menu-dropdown';
+  dd.style.cssText = `
+    position: fixed;
+    top: ${rect.bottom + 6}px;
+    right: ${window.innerWidth - rect.right}px;
+    z-index: 9999;
+    min-width: 220px;
+    background: var(--surface, #1a2332);
+    border: 1px solid var(--border-color, rgba(255,255,255,0.1));
+    border-radius: 10px;
+    box-shadow: 0 8px 24px rgba(0,0,0,0.4);
+    padding: 6px;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  `;
+
+  const items = [
+    { action: 'settings', icon: '⚙️',  label: 'Ayarlar' },
+    { action: 'save',     icon: '💾',  label: 'Kaydet' },
+    { action: 'load',     icon: '📂',  label: 'Kayıt Yükle' },
+    { action: 'export',   icon: '📤',  label: 'Kaydı Dışa Aktar' },
+    { action: 'tutorial', icon: '📚',  label: 'Tutorial Tekrarla' },
+    { action: 'separator' },
+    { action: 'menu',     icon: '🚪',  label: 'Ana Menüye Dön' },
+  ];
+
+  items.forEach(it => {
+    if (it.action === 'separator') {
+      const hr = document.createElement('div');
+      hr.style.cssText = 'height:1px;background:var(--border-color,rgba(255,255,255,0.08));margin:4px 0;';
+      dd.appendChild(hr);
+      return;
+    }
+    const b = document.createElement('button');
+    b.className = 'btn btn-ghost';
+    b.dataset.action = it.action;
+    b.innerHTML = `<span style="margin-right:8px;">${it.icon}</span>${it.label}`;
+    b.style.cssText = `
+      display:flex;align-items:center;justify-content:flex-start;
+      width:100%;padding:8px 12px;font-size:13px;text-align:left;
+      background:transparent;border:none;border-radius:6px;cursor:pointer;
+      color:var(--text,#fff);
+    `;
+    b.addEventListener('mouseenter', () => { b.style.background = 'rgba(255,255,255,0.06)'; });
+    b.addEventListener('mouseleave', () => { b.style.background = 'transparent'; });
+    dd.appendChild(b);
+  });
+
+  document.body.appendChild(dd);
+
+  // Eylem yöneticisi
+  dd.addEventListener('click', (ev) => {
+    const action = ev.target.closest('button')?.dataset?.action;
+    if (!action) return;
+    dd.remove();
+    playSound('click');
+    _handleMainMenuAction(action);
+  });
+
+  // Dışa tıklamada kapat (bir sonraki tick'te dinleyici kur, mevcut click'i yutmasın)
+  setTimeout(() => {
+    const closeOnOutside = (ev) => {
+      if (!dd.contains(ev.target) && ev.target.id !== 'btn-main-menu') {
+        dd.remove();
+        document.removeEventListener('click', closeOnOutside);
+      }
+    };
+    document.addEventListener('click', closeOnOutside);
+  }, 0);
+}
+
+function _handleMainMenuAction(action) {
+  switch (action) {
+    case 'settings':
+      showSettingsModal();
+      break;
+    case 'save':
+      _showSaveModal();
+      break;
+    case 'load':
+      _showLoadModal();
+      break;
+    case 'export':
+      try {
+        exportSave(getState());
+        showNotification('Kayıt JSON olarak indirildi.', 'success');
+      } catch (e) {
+        showNotification('Dışa aktarma başarısız.', 'error');
+      }
+      break;
+    case 'tutorial':
+      try { replayTutorial(); }
+      catch (e) { showNotification('Tutorial başlatılamadı.', 'error'); }
+      break;
+    case 'menu':
+      if (confirm('Ana menüye dönmek istiyor musun? Kaydetmediğin işler korunmaz.')) {
+        stopMusic();
+        showScreen('screen-menu');
+      }
+      break;
+  }
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
