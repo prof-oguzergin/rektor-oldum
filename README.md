@@ -1,6 +1,6 @@
 # 🎓 Rektör Oldum
 
-[![Rektör Oldum — Üniversite Yönetim Oyunu](og-image.jpg)](https://prof-oguzergin.github.io/rektor-oldum/)
+[![Rektör Oldum: Üniversite Yönetim Oyunu](og-image.jpg)](https://prof-oguzergin.github.io/rektor-oldum/)
 
 > **Bir üniversiteyi sıfırdan kurup dünya sıralamasında zirveye taşı.**  
 > Tarayıcında çalışır, kurulum yok.
@@ -109,7 +109,7 @@ Katkılarınızı bekliyoruz!
 
 ## 📄 Lisans
 
-MIT License — Dilediğiniz gibi kullanabilirsiniz.
+MIT License. Dilediğiniz gibi kullanabilirsiniz.
 
 ## 👨‍💻 Geliştirici
 
