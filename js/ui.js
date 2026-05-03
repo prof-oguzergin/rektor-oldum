@@ -313,7 +313,10 @@ export function initMenuScreen(onNewGame, onLoadGame) {
 /**
  * Ses ayarlarını içeren ayarlar modalını göster.
  * window._onMusicVolChange / _onSFXVolChange / _onToggleMute callback'lerine bağlanır.
+ * Hem ana menüden hem oyun içinden çağrılabilir.
  */
+export function showSettingsModal() { _showSettingsModal(); }
+
 function _showSettingsModal() {
   // Mevcut ses ayarlarını al (window üzerinden, yoksa varsayılan)
   const audioSettings = (typeof window.getAudioSettings === 'function')

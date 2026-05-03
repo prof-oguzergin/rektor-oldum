@@ -15,6 +15,7 @@ import {
   showModal,
   hideModal,
   showNotification,
+  showSettingsModal,
   initMenuScreen,
   initSetupScreen,
   initTabNavigation,
@@ -120,6 +121,12 @@ function init() {
   on(el('modal-backdrop'), 'click', (e) => {
     // Backdrop'a tıklanırsa kapat (modal içine tıklanırsa kapatma)
     if (e.target.id === 'modal-backdrop') hideModal();
+  });
+
+  // Oyun içi Ayarlar butonu (top-bar'daki ⚙️) — ses ayarları modalını açar
+  on(el('btn-game-settings'), 'click', () => {
+    playSound('click');
+    showSettingsModal();
   });
 
   // Klavye kısayolları
