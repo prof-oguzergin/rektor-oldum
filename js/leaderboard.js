@@ -57,17 +57,24 @@ export async function ensureAnonAuth() {
 // ─────────────────────────────────────────────────────────────────────────────
 
 /**
+ * Sayısal değer güvenlik filtresi: NaN, Infinity, undefined, null hepsi fallback'e döner.
+ */
+function _safeNum(v, fallback) {
+  const n = Number(v);
+  if (!Number.isFinite(n)) return fallback;
+  return n;
+}
+
+/**
  * Oyun state'inden skor hesapla.
  * @param {object} state
  * @returns {number} 0-100000 arasında tam sayı
  */
 export function calculateScore(state) {
-  const prestige = state.university?.prestige ?? 0;
-  const ranking  = state.university?.ranking  ?? 50;
-  const mezun    = state.alumniData?.totalGraduates
-                ?? state.alumni?.length
-                ?? 0;
-  const yil      = state.meta?.year ?? 1;
+  const prestige = _safeNum(state?.university?.prestige, 0);
+  const ranking  = _safeNum(state?.university?.ranking, 50);
+  const mezun    = _safeNum(state?.alumniData?.totalGraduates ?? state?.alumni?.length, 0);
+  const yil      = _safeNum(state?.meta?.year, 1);
 
   let score = Math.round(
     prestige * 10
@@ -76,10 +83,11 @@ export function calculateScore(state) {
     + yil * 2,
   );
 
-  if ((state.university?.budget ?? 0) < 0) {
+  if (_safeNum(state?.university?.budget, 0) < 0) {
     score = Math.round(score * 0.8);
   }
 
+  if (!Number.isFinite(score)) score = 0;
   return Math.max(0, Math.min(100000, score));
 }
 
@@ -127,19 +135,32 @@ export async function submitScore(name, state) {
 
   const { collection, addDoc, serverTimestamp } = await import('https://www.gstatic.com/firebasejs/11.0.2/firebase-firestore.js');
 
+  // Tüm sayısal alanları NaN/undefined'a karşı güvene al (Firestore rules tip kontrolü yapıyor)
+  const payload = {
+    name:      trimmed,
+    score:     _safeNum(score, 0),
+    year:      Math.round(_safeNum(state?.meta?.year, 1)),
+    rank:      Math.round(_safeNum(state?.university?.ranking, 50)),
+    prestige:  Math.round(_safeNum(state?.university?.prestige, 0)),
+    createdAt: serverTimestamp(),
+  };
+
   try {
-    const docRef = await addDoc(collection(db, 'scores'), {
-      name:      trimmed,
-      score,
-      year:      state.meta?.year      ?? 1,
-      rank:      state.university?.ranking  ?? 50,
-      prestige:  state.university?.prestige ?? 0,
-      createdAt: serverTimestamp(),
-    });
+    const docRef = await addDoc(collection(db, 'scores'), payload);
     return docRef.id;
   } catch (err) {
-    console.error('[leaderboard] Skor gönderilirken hata:', err);
-    throw new Error('Skor gönderilemedi. Lütfen internet bağlantını kontrol et.');
+    console.error('[leaderboard] Skor gönderilirken hata:', err, 'payload:', payload);
+    let msg;
+    if (err?.code === 'permission-denied') {
+      msg = 'Skor gönderme reddedildi. Geçersiz veri gönderildi olabilir.';
+    } else if (err?.code === 'unauthenticated') {
+      msg = 'Anonim oturum açılamadı. Lütfen sayfayı yenileyip tekrar dene.';
+    } else if (err?.code === 'unavailable' || /network|offline/i.test(err?.message || '')) {
+      msg = 'İnternet bağlantısı yok. Lütfen kontrol edip tekrar dene.';
+    } else {
+      msg = `Skor gönderilemedi: ${err?.message || err?.code || 'bilinmeyen hata'}`;
+    }
+    throw new Error(msg);
   }
 }
 
