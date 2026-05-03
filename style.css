@@ -1887,3 +1887,315 @@ body {
   box-shadow: 0 4px 16px rgba(0, 0, 0, 0.5);
   backdrop-filter: blur(4px);
 }
+
+/* ─────────────────────────────────────────────────────────────────────────
+   MOBİL UYUMLULUK — max-width: 900px
+   Masaüstü davranışı korunur, yalnızca mobilde değişir.
+───────────────────────────────────────────────────────────────────────── */
+@media (max-width: 900px) {
+  /* html/body scroll kilidi kaldır */
+  html, body {
+    height: auto;
+    overflow-y: auto;
+  }
+
+  /* Ekranlar: fixed + overflow:hidden yerine relative + scroll */
+  .screen {
+    position: relative;
+    height: auto;
+    min-height: 100svh;
+    overflow-y: auto;
+  }
+  .screen.active {
+    overflow-y: auto;
+  }
+
+  /* Ana menü: arka plan tüm min-yüksekliği kaplasın */
+  #screen-menu .menu-bg {
+    min-height: 100svh;
+  }
+
+  /* Modal ekranlar sabit konumda kalmalı */
+  .modal-screen {
+    position: fixed;
+    height: 100%;
+  }
+
+  /* Form input'ları: iOS otomatik zoom'u önle */
+  .form-input,
+  input[type="text"],
+  input[type="number"],
+  input[type="email"],
+  select,
+  textarea {
+    font-size: 16px;
+  }
+
+  /* Butonlar: minimum 44px dokunma hedefi */
+  .btn {
+    min-height: 44px;
+  }
+  .btn-sm,
+  .btn-small {
+    min-height: 36px;
+  }
+
+  /* Setup ekranı */
+  .setup-container {
+    max-width: 100%;
+    padding: var(--space-lg) var(--space-md);
+  }
+
+  .setup-header {
+    flex-wrap: wrap;
+    gap: var(--space-sm);
+  }
+
+  .setup-step-indicator {
+    font-size: var(--font-size-xs);
+    flex-wrap: wrap;
+  }
+
+  /* Tip kartları: tek sütun */
+  .type-cards {
+    grid-template-columns: 1fr;
+  }
+
+  /* Zorluk kartları: dikey yığma */
+  .difficulty-cards {
+    flex-direction: column;
+  }
+
+  /* Bölüm grid'i: 1-2 sütun */
+  .dept-selection-grid {
+    grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+    max-height: none;
+  }
+
+  /* Setup nav butonları: tam genişlik */
+  .setup-nav {
+    flex-wrap: wrap;
+  }
+  .setup-nav .btn {
+    flex: 1;
+    justify-content: center;
+    min-width: 120px;
+  }
+
+  /* Üst bar: sarma ve boyut */
+  .top-bar {
+    flex-wrap: wrap;
+    gap: var(--space-sm);
+    padding: var(--space-sm) var(--space-md);
+    height: auto;
+    min-height: var(--top-bar-height);
+  }
+
+  .top-bar-left {
+    min-width: 0;
+    flex: 1;
+  }
+
+  .top-bar-stats {
+    width: 100%;
+    justify-content: flex-start;
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    order: 3;
+    /* Kaydırma çubuğunu gizle */
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+  .top-bar-stats::-webkit-scrollbar {
+    display: none;
+  }
+
+  .top-stat {
+    min-width: 60px;
+    padding: 4px var(--space-sm);
+    font-size: var(--font-size-xs);
+  }
+
+  .top-bar-right {
+    gap: var(--space-xs);
+  }
+
+  .top-bar-right .btn-icon {
+    min-height: 40px;
+    padding: 8px;
+  }
+
+  /* Oyun ana ekranı: grid yerine flex-column */
+  #screen-game.active {
+    display: flex;
+    flex-direction: column;
+    grid-template-rows: none;
+    overflow: visible;
+  }
+
+  /* Oyun gövdesi: sidebar + içerik dikeyde yığılır */
+  .game-body {
+    display: flex;
+    flex-direction: column;
+    overflow: visible;
+    min-height: 0;
+    flex: 1;
+  }
+
+  /* Sidebar: alt gezinme çubuğu (sabit, yatay scroll) */
+  .sidebar {
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    width: 100%;
+    height: 56px;
+    flex-direction: row;
+    overflow-x: auto;
+    overflow-y: hidden;
+    z-index: 50;
+    border-right: none;
+    border-top: 1px solid var(--border);
+    /* Kaydırma çubuğunu gizle ama scroll çalışsın */
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+  .sidebar::-webkit-scrollbar {
+    display: none;
+  }
+
+  .sidebar-inner {
+    flex-direction: row;
+    padding: 0;
+    min-width: max-content;
+  }
+
+  .sidebar-tab {
+    flex: 0 0 auto;
+    min-width: 70px;
+    flex-direction: column;
+    gap: 2px;
+    padding: var(--space-xs) var(--space-sm);
+    border-left: none;
+    border-top: 3px solid transparent;
+    justify-content: center;
+    align-items: center;
+    text-align: center;
+    height: 56px;
+    font-size: 10px;
+  }
+
+  .sidebar-tab.active {
+    border-left-color: transparent;
+    border-top-color: var(--accent-green);
+  }
+
+  .tab-label {
+    display: block;
+    font-size: 9px;
+    white-space: nowrap;
+  }
+
+  .tab-icon {
+    font-size: 18px;
+  }
+
+  /* İçerik: alt nav için padding bırak */
+  .main-content {
+    overflow-y: visible;
+    min-height: 60vh;
+  }
+
+  .tab-panel {
+    padding: var(--space-md);
+  }
+
+  /* Alt bar: sabit konumda değil, normal akışta */
+  .bottom-bar {
+    flex-wrap: wrap;
+    height: auto;
+    padding: var(--space-sm) var(--space-md);
+    margin-bottom: 56px; /* sidebar yüksekliği kadar boşluk */
+  }
+
+  .btn-next-turn {
+    flex: 1;
+    justify-content: center;
+  }
+
+  /* Tüm sayfanın alt kısmı sidebar'ın altına kaymayı önle */
+  #screen-game.active .bottom-bar {
+    padding-bottom: calc(var(--space-sm) + 56px);
+  }
+
+  /* Modal: dar ekranda tam genişlik */
+  .modal {
+    max-width: 95vw;
+    max-height: 90svh;
+    width: 95vw;
+  }
+
+  .modal-body {
+    overflow-y: auto;
+  }
+
+  .modal.modal-wide {
+    max-width: 95vw;
+    width: 95vw;
+  }
+
+  /* Transfer pazarı ızgarası: dikey */
+  .transfer-grid {
+    grid-template-columns: 1fr;
+  }
+
+  /* Kampüs: tek sütun */
+  .campus-layout {
+    flex-direction: column;
+  }
+
+  .campus-map-sidebar {
+    width: 100%;
+    position: static;
+  }
+
+  /* Toast konumu: üst nav ile çakışmasın */
+  .toast-container {
+    bottom: calc(56px + var(--space-md));
+    right: var(--space-md);
+  }
+
+  /* Rehber butonu: alt nav üstünde */
+  .tutorial-replay-btn {
+    bottom: calc(56px + 12px);
+  }
+
+  /* Dashboard ve panel içi 2 sütunlu grid'ler: tek sütuna indir
+     JS inline style'larını override etmek için !important gerekli */
+  .tab-panel [style*="grid-template-columns:1fr 1fr"],
+  .tab-panel [style*="grid-template-columns: 1fr 1fr"],
+  .tab-panel [style*="grid-template-columns:2fr 1fr"],
+  .tab-panel [style*="grid-template-columns: 2fr 1fr"] {
+    grid-template-columns: 1fr !important;
+  }
+
+  /* 3-5 sütunlu stat grid'leri: 2 sütuna indir */
+  .tab-panel [style*="grid-template-columns:repeat(3,1fr)"],
+  .tab-panel [style*="grid-template-columns: repeat(3, 1fr)"],
+  .tab-panel [style*="grid-template-columns:repeat(4,1fr)"],
+  .tab-panel [style*="grid-template-columns:repeat(5,1fr)"] {
+    grid-template-columns: repeat(2, 1fr) !important;
+  }
+
+  /* Dashboard istatistik kartları (auto-fill) */
+  .dashboard-grid {
+    grid-template-columns: repeat(2, 1fr) !important;
+  }
+
+  /* Veri tabloları yatay scroll'a izin ver */
+  .data-table-wrapper,
+  .tab-panel table {
+    overflow-x: auto;
+    display: block;
+    max-width: 100%;
+  }
+}
