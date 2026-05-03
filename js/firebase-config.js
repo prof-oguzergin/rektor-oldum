@@ -15,3 +15,15 @@ export const firebaseConfig = {
   messagingSenderId: "641061692471",
   appId:             "1:641061692471:web:56e31a04f7df597ee60bb2",
 };
+
+/**
+ * App Check (reCAPTCHA v3) — bot/script saldırılarına karşı koruma.
+ * Site key reCAPTCHA Admin Console'da v3 olarak oluşturulup buraya konur.
+ * Boş bırakılırsa App Check devre dışı kalır (geriye dönük uyumluluk).
+ *
+ * Localhost'ta debug token kullanmak için:
+ *   self.FIREBASE_APPCHECK_DEBUG_TOKEN = true;
+ * Konsola çıkan token'ı Firebase Console > App Check > Apps > ⋮ > Debug
+ * sayfasında ekle.
+ */
+export const APP_CHECK_SITE_KEY = '';  // ← reCAPTCHA v3 site key buraya gelecek

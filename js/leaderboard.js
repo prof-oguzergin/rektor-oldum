@@ -4,7 +4,7 @@
  * ES module, Firebase SDK'yı CDN'den dinamik olarak yükler.
  */
 
-import { firebaseConfig } from './firebase-config.js?v=0.4.13';
+import { firebaseConfig, APP_CHECK_SITE_KEY } from './firebase-config.js?v=0.4.14';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // TEKİL BAŞLATMA
@@ -58,6 +58,8 @@ export function getLocalScores() {
 
 /**
  * Firebase'i başlatır (lazy single-init).
+ * APP_CHECK_SITE_KEY tanımlıysa App Check (reCAPTCHA v3) etkinleştirilir;
+ * boş ise eski davranış (geriye dönük uyumluluk).
  * @returns {{ app, auth, db }}
  */
 export async function initFirebase() {
@@ -70,6 +72,25 @@ export async function initFirebase() {
   ]);
 
   _app  = initializeApp(firebaseConfig);
+
+  // App Check — bot/script saldırıları için reCAPTCHA v3 doğrulaması.
+  // initializeApp'ten hemen sonra, getAuth/getFirestore'dan ÖNCE çağrılmalı
+  // ki sonraki tüm istekler App Check token'ı taşısın.
+  if (APP_CHECK_SITE_KEY) {
+    try {
+      const { initializeAppCheck, ReCaptchaV3Provider } = await import(
+        'https://www.gstatic.com/firebasejs/11.0.2/firebase-app-check.js'
+      );
+      initializeAppCheck(_app, {
+        provider: new ReCaptchaV3Provider(APP_CHECK_SITE_KEY),
+        isTokenAutoRefreshEnabled: true,
+      });
+    } catch (err) {
+      // App Check başarısız olsa bile uygulamanın çalışmasını engelleme
+      console.warn('[leaderboard] App Check başlatılamadı (devam ediliyor):', err.message);
+    }
+  }
+
   _auth = getAuth(_app);
   _db   = getFirestore(_app);
 

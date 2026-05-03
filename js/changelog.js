@@ -6,6 +6,14 @@
 
 export const CHANGELOG = [
   {
+    version: '0.4.14',
+    date: '2026-05-03',
+    title: 'App Check (reCAPTCHA v3) altyapısı eklendi',
+    items: [
+      { type: 'security', text: 'Bot ve betiklere karşı koruma için App Check (reCAPTCHA v3) entegrasyonu kondu. Site anahtarı yapılandırılınca etkinleşir; tarayıcı dışından gönderilen sahte istekler reddedilecek. Oyuncu için görünmez (görünür bir doğrulama yok).' },
+    ],
+  },
+  {
     version: '0.4.13',
     date: '2026-05-03',
     title: 'Eski oyun kayıtlarına da mükerrer skor koruması',
