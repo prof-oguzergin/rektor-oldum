@@ -3814,8 +3814,16 @@ export function getTurnSummary(simResults = {}) {
 
   // Tamamlanan dönem bilgisi: nextTurn() sayaçları artırdıktan sonra çağrılır,
   // bu yüzden mevcut semester/year bir sonraki dönemi gösterir → tersine çevir
-  const completedSemester = _state.meta.semester === 'güz' ? 'bahar' : 'güz';
-  const completedYear     = _state.meta.year;  // yıl sadece bahar→güz geçişinde artar
+  const _curSem = _state.meta?.semester;
+  const completedSemester = (_curSem === 'güz')   ? 'bahar'
+                          : (_curSem === 'bahar') ? 'güz'
+                          : 'güz';  // fallback (state corruption durumu)
+  // Yıl: bahar→güz geçişinde artar, dolayısıyla "tamamlanan bahar"ın yılı bir azdır
+  const _curYear = (typeof _state.meta?.year === 'number' && _state.meta.year > 0)
+                  ? _state.meta.year : 1;
+  const completedYear = (completedSemester === 'bahar' && _curYear > 1)
+                       ? _curYear - 1
+                       : _curYear;
 
   // Mali veriler: runSimulation()'dan gelen economyResult veya geriye dönük hesap
   // Use || 0 instead of ?? 0 to catch NaN (which ?? does NOT catch)

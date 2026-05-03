@@ -5894,7 +5894,14 @@ export function renderTurnSummary(summary, onNextTurn) {
 
   const meta = summary.meta || {};
   if (titleEl) {
-    titleEl.textContent = `Dönem Özeti — ${meta.semester === 'güz' ? 'Güz' : 'Bahar'} ${meta.year}`;
+    const sem = meta.semester === 'güz'   ? 'Güz'
+              : meta.semester === 'bahar' ? 'Bahar'
+              : '';
+    const yil = (typeof meta.year === 'number' && meta.year > 0) ? `${meta.year}. Yıl ` : '';
+    const baslik = (yil || sem)
+      ? `${yil}${sem}${sem ? ' Dönemi ' : ''}Özeti`.replace(/\s+/g, ' ').trim()
+      : 'Dönem Özeti';
+    titleEl.textContent = baslik;
   }
 
   const fin   = summary.financial || {};
