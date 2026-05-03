@@ -32,10 +32,10 @@ import {
   ACCREDITATION_BODIES,
   SCENARIOS,
   BANKS,
-} from './data.js?v=0.4.10';
+} from './data.js?v=0.4.11';
 
-import { calculateEconomy, applyBudget, calculateLoanPayment, processLoanPayments } from './economy.js?v=0.4.10';
-import { generateInitialFaculty, updateAllFacultyHappiness, generateApplicants, generateFaculty, getSalaryRange, calculateOverallRating, getFacultyRatingTrend } from './faculty.js?v=0.4.10';
+import { calculateEconomy, applyBudget, calculateLoanPayment, processLoanPayments } from './economy.js?v=0.4.11';
+import { generateInitialFaculty, updateAllFacultyHappiness, generateApplicants, generateFaculty, getSalaryRange, calculateOverallRating, getFacultyRatingTrend } from './faculty.js?v=0.4.11';
 import {
   generateInitialStudents,
   getTotalEnrolled,
@@ -52,9 +52,9 @@ import {
   updateCohorts,
   processGraduation,
   processAdmissions,
-} from './students.js?v=0.4.10';
-import { calculatePrestige, updateRivals } from './ranking.js?v=0.4.10';
-import { checkForEvents, applyEventEffects } from './events.js?v=0.4.10';
+} from './students.js?v=0.4.11';
+import { calculatePrestige, updateRivals } from './ranking.js?v=0.4.11';
+import { checkForEvents, applyEventEffects } from './events.js?v=0.4.11';
 import {
   initAlumniState,
   processGraduatesForAlumni,
@@ -66,20 +66,20 @@ import {
   getAchievementStats,
   RANDOM_EVENTS,
   ACHIEVEMENTS,
-} from './alumni_events_achievements.js?v=0.4.10';
+} from './alumni_events_achievements.js?v=0.4.11';
 
 export { RANDOM_EVENTS, ACHIEVEMENTS, getAchievementStats, organizeAlumniEvent, applyRandomEventChoice, ACCREDITATION_BODIES };
 
-import { initTTOState, establishTTO, upgradeTTO, processTTO, acceptDeal, rejectDeal, TTO_CONFIG } from './tto.js?v=0.4.10';
+import { initTTOState, establishTTO, upgradeTTO, processTTO, acceptDeal, rejectDeal, TTO_CONFIG } from './tto.js?v=0.4.11';
 export { establishTTO, upgradeTTO, acceptDeal, rejectDeal, TTO_CONFIG };
 
-import { initClubsState, foundClub, upgradeClub, dissolveClub, processClubs, CLUB_TYPES, CLUB_CATEGORIES } from './clubs.js?v=0.4.10';
+import { initClubsState, foundClub, upgradeClub, dissolveClub, processClubs, CLUB_TYPES, CLUB_CATEGORIES } from './clubs.js?v=0.4.11';
 export { foundClub, upgradeClub, dissolveClub, CLUB_TYPES, CLUB_CATEGORIES };
 
-import { SPORTS, initSportsState, foundTeam, upgradeTeam, dissolveTeam, processSports } from './sports.js?v=0.4.10';
+import { SPORTS, initSportsState, foundTeam, upgradeTeam, dissolveTeam, processSports } from './sports.js?v=0.4.11';
 export { SPORTS, foundTeam, upgradeTeam, dissolveTeam };
 
-import { initCampusState, assignBuildingPosition, BUILDING_FOOTPRINTS } from './campus-layout.js?v=0.4.10';
+import { initCampusState, assignBuildingPosition, BUILDING_FOOTPRINTS } from './campus-layout.js?v=0.4.11';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // YARDİMCI: Derin kopya (state immutability için)
@@ -4112,6 +4112,24 @@ export function setState(loadedState) {
     if (!s.rankings)     s.rankings     = { national: 999, international: null };
     if (!s.rivals)       s.rivals       = [];
     if (!s.events)       s.events       = { history: [], pending: [] };
+    // Yinelenen hoca ID'lerini düzelt (eski kayıtlarda sayfa yenileme sonrası
+    // counter sıfırlandığı için aynı id birden fazla hocaya verilmiş olabilir;
+    // kadroda yanlış hoca açılmasına yol açıyordu — Emir/X raporu).
+    if (Array.isArray(s.faculty)) {
+      const seenIds = new Set();
+      const _seedDup = Date.now().toString(36);
+      let _dupCount = 0;
+      for (const f of s.faculty) {
+        if (!f || typeof f !== 'object') continue;
+        if (!f.id || seenIds.has(f.id)) {
+          const newId = `fac_${_seedDup}_dup_${++_dupCount}`;
+          if (f.id) console.warn(`[game] Yinelenen hoca id'si yenilendi: ${f.id} → ${newId} (${f.name})`);
+          f.id = newId;
+        }
+        seenIds.add(f.id);
+      }
+    }
+
     if (!s.adminUnits)   s.adminUnits   = {};
     else if (Array.isArray(s.adminUnits)) s.adminUnits = {}; // eski dizi kayıtlarını düzelt
     if (!s.adminStaff)   s.adminStaff   = [];

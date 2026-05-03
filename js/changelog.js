@@ -6,6 +6,14 @@
 
 export const CHANGELOG = [
   {
+    version: '0.4.11',
+    date: '2026-05-03',
+    title: 'Kadroda yanlış hoca açılması düzeltildi',
+    items: [
+      { type: 'fix', text: 'Bir hocaya tıklayınca başka bir hocanın profili açılıyordu (Emir/X raporu). Sebep: kayıt yüklendikten sonra yeni gelen adaylara mevcut hocalarla aynı kimlik veriliyordu. Hem yeni kimlikler artık çakışmaz hale getirildi hem de eski kayıtlardaki yinelenen kimlikler yükleme sırasında otomatik düzeltiliyor.' },
+    ],
+  },
+  {
     version: '0.4.10',
     date: '2026-05-03',
     title: 'Dönem geçiş takılması ve erken kapanma düzeltmeleri',

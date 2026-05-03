@@ -9,7 +9,7 @@ import {
   FACULTY_TITLES,
   DEPARTMENTS,
   SALARY_SCALES,
-} from './data.js?v=0.4.10';
+} from './data.js?v=0.4.11';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // YARDIMCI FONKSİYONLAR
@@ -30,10 +30,23 @@ function pick(arr) {
   return arr[Math.floor(Math.random() * arr.length)];
 }
 
-/** Benzersiz sayısal ID üreteci */
+/** Benzersiz hoca ID üreteci.
+ *  Eski sürümlerde sadece artan sayaç kullanılıyordu; sayfa yenilendiğinde
+ *  veya kayıt yüklendiğinde sayaç 1'e sıfırlanıyor, yeni adayların id'si
+ *  mevcut hocalarla çakışıyordu (kadroda yanlış hoca açılması — Emir/X 03.05).
+ *  Şimdi zaman + sayaç birleşimi: aynı oturumda da çakışmaz, oturumlar
+ *  arasında da çakışmaz. */
 let _idCounter = 1;
+const _idSessionSeed = Date.now().toString(36);
 function nextId() {
-  return _idCounter++;
+  return `${_idSessionSeed}_${_idCounter++}`;
+}
+
+/** Mevcut state'i tarayıp en yüksek sayıyı bulamayız çünkü artık ID format'ı
+ *  rasgele. Çakışma migration'ı game.js setState içinde id seti üzerinden
+ *  yapılır (yinelenen id'lere yeni unique id atanır). */
+export function generateUniqueFacultyId() {
+  return `fac_${nextId()}`;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
