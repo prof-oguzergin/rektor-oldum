@@ -608,9 +608,14 @@ function _renderDeptSelection(filter = 'hepsi') {
     const sel    = _setup.departments.has(d.id);
     const forced = forcedDepts.has(d.id);
     const dis    = !sel && _setup.departments.size >= maxDepts;
+    const title  = dis
+      ? `Limit doldu (${maxDepts}/${maxDepts}). Başka bölüm seçmek için önce bir tanesini kaldırman gerek.`
+      : forced
+      ? 'Bu bölüm senaryo için zorunludur.'
+      : (sel ? 'Seçili. Kaldırmak için tekrar tıkla.' : 'Tıkla, seç.');
     return `
       <div class="dept-option${sel ? ' selected' : ''}${dis ? ' disabled' : ''}${forced ? ' forced' : ''}"
-           data-dept-id="${d.id}">
+           data-dept-id="${d.id}" title="${title}">
         <span class="dept-option-icon">${d.icon || '🏫'}</span>
         <div class="dept-option-info">
           <div class="dept-option-name">${d.name}${forced ? ' <span class="forced-badge">Zorunlu</span>' : ''}</div>
@@ -650,16 +655,32 @@ function _renderDeptSelection(filter = 'hepsi') {
 
 /** Bölüm seçim bilgisini güncelle */
 function _updateDeptSelectionInfo() {
-  const countEl = el('dept-selected-count');
-  const namesEl = el('dept-selection-names');
-  const startBtn = el('btn-start-game');
+  const countEl   = el('dept-selected-count');
+  const maxEl     = el('dept-max-count');
+  const namesEl   = el('dept-selection-names');
+  const startBtn  = el('btn-start-game');
+  const hintEl    = el('dept-selection-limit-hint');
+
+  const activeScenario = _setup.scenarioId ? SCENARIOS[_setup.scenarioId] : null;
+  const maxDepts = activeScenario?.maxStartDepartments ?? 6;
 
   const count = _setup.departments.size;
   if (countEl) countEl.textContent = count;
+  if (maxEl)   maxEl.textContent   = maxDepts;
 
   if (namesEl) {
     const names = [..._setup.departments].map(id => DEPARTMENTS[id]?.shortName || id);
-    namesEl.textContent = names.length > 0 ? '— ' + names.join(', ') : '';
+    namesEl.textContent = names.length > 0 ? ', ' + names.join(', ') : '';
+  }
+
+  if (hintEl) {
+    if (activeScenario) {
+      hintEl.textContent = `📌 "${activeScenario.name}" senaryosu en fazla ${maxDepts} bölümle başlamana izin veriyor (küçük bütçe, hızlı büyüme).`;
+      hintEl.style.display = 'block';
+    } else {
+      hintEl.textContent = `📌 Serbest oyunda en fazla ${maxDepts} bölümle başlayabilirsin. Sonradan yeni bölüm açılabilir.`;
+      hintEl.style.display = 'block';
+    }
   }
 
   if (startBtn) {
