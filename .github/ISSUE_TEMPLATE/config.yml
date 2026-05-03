@@ -1,0 +1,8 @@
+blank_issues_enabled: true
+contact_links:
+  - name: 📋 Mevcut Bildirimleri İncele
+    url: https://github.com/prof-oguzergin/rektor-oldum/issues
+    about: Önce başkalarının bildirdiği sorun/öneriler arasında olup olmadığına bak.
+  - name: 🎓 Oyunu Oyna
+    url: https://prof-oguzergin.github.io/rektor-oldum/
+    about: Oyunu doğrudan tarayıcında oyna.

@@ -1,0 +1,57 @@
+name: 🐛 Hata Bildirimi
+description: Oyunda karşılaştığın bir sorunu bildir
+title: "[Hata]: "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Geri bildirimin için teşekkürler! Lütfen aşağıdaki bilgileri doldur ki sorunu hızlı çözebilelim.
+
+  - type: textarea
+    id: description
+    attributes:
+      label: Sorun nedir?
+      description: Ne olduğunu kısaca anlat. (Ne yapıyordun, ne oldu, ne bekliyordun?)
+      placeholder: |
+        Örn: "Bina inşa ettiğimde bütçe negatif olduğu hâlde hata vermedi."
+    validations:
+      required: true
+
+  - type: textarea
+    id: steps
+    attributes:
+      label: Tekrar etme adımları
+      description: Sorunu yeniden oluşturmak için adım adım ne yapmak gerek?
+      placeholder: |
+        1. Yeni oyun başlat (Devlet üniversitesi)
+        2. Bütçe panelini aç
+        3. Yetersiz parayla derslik inşa et
+        4. ...
+    validations:
+      required: false
+
+  - type: input
+    id: browser
+    attributes:
+      label: Tarayıcı
+      description: Hangi tarayıcı ve sürümü kullanıyorsun?
+      placeholder: Chrome 120 / Firefox 121 / Safari 17 vb.
+    validations:
+      required: false
+
+  - type: textarea
+    id: screenshot
+    attributes:
+      label: Ekran görüntüsü
+      description: Varsa buraya sürükle-bırak yapabilirsin (zorunlu değil).
+    validations:
+      required: false
+
+  - type: checkboxes
+    id: terms
+    attributes:
+      label: Onay
+      options:
+        - label: Bu sorunu daha önce bildirmediğimi kontrol ettim.
+          required: true

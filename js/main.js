@@ -136,6 +136,12 @@ function init() {
     _toggleMainMenuDropdown();
   });
 
+  // Ana menüdeki Geri Bildirim butonu — GitHub Issues sayfasını yeni sekmede açar
+  on(el('btn-feedback'), 'click', () => {
+    playSound('click');
+    _openFeedback();
+  });
+
   // Klavye kısayolları
   _bindKeyboardShortcuts();
 
@@ -212,6 +218,7 @@ function _toggleMainMenuDropdown() {
     { action: 'load',     icon: '📂',  label: 'Kayıt Yükle' },
     { action: 'export',   icon: '📤',  label: 'Kaydı Dışa Aktar' },
     { action: 'tutorial', icon: '📚',  label: 'Tutorial Tekrarla' },
+    { action: 'feedback', icon: '💬',  label: 'Geri Bildirim' },
     { action: 'separator' },
     { action: 'menu',     icon: '🚪',  label: 'Ana Menüye Dön' },
   ];
@@ -261,6 +268,59 @@ function _toggleMainMenuDropdown() {
   }, 0);
 }
 
+/**
+ * Geri Bildirim modali — kullanıcıyı GitHub Issues'a yönlendirir.
+ * 3 kategori (hata / öneri / genel) ayrı template'lere link verir.
+ */
+function _openFeedback() {
+  const REPO = 'prof-oguzergin/rektor-oldum';
+  const baseUrl = `https://github.com/${REPO}/issues/new`;
+
+  const body = `
+    <div style="display:flex;flex-direction:column;gap:14px;padding:4px 0;">
+      <p style="margin:0;font-size:14px;color:var(--text-muted,#aaa);line-height:1.5;">
+        Oyunla ilgili hata bildirebilir, öneri yazabilir veya soru sorabilirsin.
+        Yorumların <strong>GitHub</strong>'da herkese açık olarak görünür.
+        Yanıt almak için GitHub hesabın gerekir (1 dakikada açılır).
+      </p>
+      <div style="display:flex;flex-direction:column;gap:10px;">
+        <a href="${baseUrl}?template=bug.yml&labels=bug" target="_blank" rel="noopener"
+           class="btn btn-secondary"
+           style="display:flex;align-items:center;justify-content:flex-start;gap:10px;padding:12px 14px;text-decoration:none;">
+          <span style="font-size:22px;">🐛</span>
+          <div style="display:flex;flex-direction:column;align-items:flex-start;gap:2px;">
+            <strong style="font-size:14px;">Hata Bildir</strong>
+            <span style="font-size:11px;opacity:0.7;">Oyunda bir şey çalışmıyor mu?</span>
+          </div>
+        </a>
+        <a href="${baseUrl}?template=feature.yml&labels=enhancement" target="_blank" rel="noopener"
+           class="btn btn-secondary"
+           style="display:flex;align-items:center;justify-content:flex-start;gap:10px;padding:12px 14px;text-decoration:none;">
+          <span style="font-size:22px;">💡</span>
+          <div style="display:flex;flex-direction:column;align-items:flex-start;gap:2px;">
+            <strong style="font-size:14px;">Öneri / Yeni Özellik</strong>
+            <span style="font-size:11px;opacity:0.7;">Hangi özellik eklensin?</span>
+          </div>
+        </a>
+        <a href="${baseUrl}?labels=question" target="_blank" rel="noopener"
+           class="btn btn-secondary"
+           style="display:flex;align-items:center;justify-content:flex-start;gap:10px;padding:12px 14px;text-decoration:none;">
+          <span style="font-size:22px;">❓</span>
+          <div style="display:flex;flex-direction:column;align-items:flex-start;gap:2px;">
+            <strong style="font-size:14px;">Genel Soru / Yorum</strong>
+            <span style="font-size:11px;opacity:0.7;">Aklındaki başka bir şey</span>
+          </div>
+        </a>
+      </div>
+      <div style="display:flex;justify-content:space-between;font-size:11px;color:var(--text-muted,#888);margin-top:6px;">
+        <a href="https://github.com/${REPO}/issues" target="_blank" rel="noopener" style="color:var(--accent,#5dd6c0);text-decoration:none;">📋 Tüm Bildirimleri Gör</a>
+        <span>Yöneticiler bildirimleri inceler.</span>
+      </div>
+    </div>
+  `;
+  showModal('💬 Geri Bildirim', body);
+}
+
 function _handleMainMenuAction(action) {
   switch (action) {
     case 'settings':
@@ -283,6 +343,9 @@ function _handleMainMenuAction(action) {
     case 'tutorial':
       try { replayTutorial(); }
       catch (e) { showNotification('Tutorial başlatılamadı.', 'error'); }
+      break;
+    case 'feedback':
+      _openFeedback();
       break;
     case 'menu':
       if (confirm('Ana menüye dönmek istiyor musun? Kaydetmediğin işler korunmaz.')) {

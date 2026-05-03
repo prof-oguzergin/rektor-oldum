@@ -1,0 +1,44 @@
+name: 💡 Öneri / Yeni Özellik
+description: Eklenmesini istediğin bir özellik veya iyileştirme öner
+title: "[Öneri]: "
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Önerin için teşekkürler! Birkaç soruya cevap ver, fikrini daha iyi anlayalım.
+
+  - type: textarea
+    id: idea
+    attributes:
+      label: Önerin nedir?
+      description: Eklenmesini istediğin özelliği tarif et.
+      placeholder: |
+        Örn: "Öğrenci kulüpleri arası rekabet etkinliği ekleyin"
+    validations:
+      required: true
+
+  - type: textarea
+    id: motivation
+    attributes:
+      label: Neden faydalı olur?
+      description: Bu özellik oyuna ne katar? Hangi sorunu çözer?
+      placeholder: Oyun çeşitliliği artar, sosyal kulüpler daha anlamlı olur...
+    validations:
+      required: false
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatifler
+      description: Aklında başka çözümler de var mı?
+    validations:
+      required: false
+
+  - type: checkboxes
+    id: terms
+    attributes:
+      label: Onay
+      options:
+        - label: Bu öneriyi daha önce vermediğimi kontrol ettim.
+          required: true
