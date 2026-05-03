@@ -6,6 +6,15 @@
 
 export const CHANGELOG = [
   {
+    version: '0.4.21',
+    date: '2026-05-04',
+    title: 'Yazılım Mühendisliği bölümü tamamlandı + İdari bina detayı',
+    items: [
+      { type: 'fix', text: 'Yazılım Mühendisliği bölümü açılabiliyordu ama bölüm tanımı, ders müfredatı ve uzmanlık alanı eksikti. Bu yüzden bölüm açıldıktan sonra hoca/öğrenci alınamıyordu (Erdinç raporu). Bölüm artık tam veri ile destekleniyor: 8 ders müfredatı, 7 uzmanlık alanı.' },
+      { type: 'fix', text: 'İdari binanın ofis kapasitesi ve idari personel doluluğu yerleşke kartında görünmüyordu (Erdinç raporu). Yeni özel kart: ofis sayısı, mevcut idari personel, doluluk oranı, bir üst düzeyin kapasitesi.' },
+    ],
+  },
+  {
     version: '0.4.20',
     date: '2026-05-04',
     title: 'Birden fazla spor tesisi inşa edilebilir',

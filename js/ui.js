@@ -4,11 +4,11 @@
  * Vanilla JS, framework yok.
  */
 
-import { DEPARTMENTS, DEPARTMENT_CURRICULA, UNIVERSITY_TYPES, UNIVERSITY_MODELS, USD_TO_TL, DIFFICULTY_SETTINGS, BUILDINGS, SEMESTER_MONTHS, FACULTIES, DEPT_TO_FACULTY, SALARY_SCALES, ADMIN_UNITS, ADMIN_TITLES, ADMIN_UNIT_BUILDINGS, ACCREDITATION_BODIES, SCENARIOS, BANKS } from './data.js?v=0.4.20';
-import { DEPARTMENT_FIELDS, getSalaryRange, renderFacultyAvatar, calculateOverallRating, getFacultyRatingTrend } from './faculty.js?v=0.4.20';
-import { AVAILABLE_NEW_DEPARTMENTS } from './game.js?v=0.4.20';
-import { calculateIncome, calculateExpenses, calculateLoanPayment } from './economy.js?v=0.4.20';
-import { renderCampusMap, handleCampusClick, handleCampusHover, clearHover } from './campus-renderer.js?v=0.4.20';
+import { DEPARTMENTS, DEPARTMENT_CURRICULA, UNIVERSITY_TYPES, UNIVERSITY_MODELS, USD_TO_TL, DIFFICULTY_SETTINGS, BUILDINGS, SEMESTER_MONTHS, FACULTIES, DEPT_TO_FACULTY, SALARY_SCALES, ADMIN_UNITS, ADMIN_TITLES, ADMIN_UNIT_BUILDINGS, ACCREDITATION_BODIES, SCENARIOS, BANKS } from './data.js?v=0.4.21';
+import { DEPARTMENT_FIELDS, getSalaryRange, renderFacultyAvatar, calculateOverallRating, getFacultyRatingTrend } from './faculty.js?v=0.4.21';
+import { AVAILABLE_NEW_DEPARTMENTS } from './game.js?v=0.4.21';
+import { calculateIncome, calculateExpenses, calculateLoanPayment } from './economy.js?v=0.4.21';
+import { renderCampusMap, handleCampusClick, handleCampusHover, clearHover } from './campus-renderer.js?v=0.4.21';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // DOM YARDIMCILARI
@@ -3501,6 +3501,27 @@ export function renderCampusPanel(state, onBuildStart, onDecision) {
                 <div style="font-size:11px;color:#cbd5e1;">• Öğrenci memnuniyeti: +6</div>
                 <div style="font-size:11px;color:#cbd5e1;">• Saygınlık: +2</div>
                 ${pct > 130 ? `<div style="font-size:11px;color:#ef4444;">• Kapasite aşıldı — öğrenci şikâyeti artıyor</div>` : ''}
+              </div>`;
+          } else if (b.type === 'idari_bina') {
+            const adminStaffCount = (state.adminStaff || []).length;
+            const offices         = cap.offices || 0;
+            const usedOffices     = used.offices ?? Math.min(adminStaffCount, offices);
+            const pct             = offices > 0 ? Math.round((adminStaffCount / offices) * 100) : 0;
+            const sfxIcon         = pct <= 100 ? '✅' : '❌';
+            const sfxColor        = pct <= 100 ? '#4ade80' : '#ef4444';
+            const sfxText         = pct <= 100 ? 'Yeterli' : 'Yetersiz';
+            detailsHtml = `
+              <div style="margin-bottom:6px;">
+                <div style="font-size:11px;font-weight:600;color:#94a3b8;margin-bottom:3px;">🏢 OFİS KAPASİTESİ</div>
+                <div style="font-size:11px;color:#cbd5e1;">• Toplam: ${offices} ofis (Düzey ${b.level || 1})</div>
+                <div style="font-size:11px;color:#cbd5e1;">• Mevcut idari personel: ${adminStaffCount} kişi</div>
+                <div style="font-size:11px;margin-top:3px;">Yeterlilik: <span style="color:${sfxColor};">${sfxIcon} %${pct} — ${sfxText}</span></div>
+                ${nextLevel <= maxLvl && nextLvlCap.offices ? `<div style="font-size:10px;color:#64748b;margin-top:2px;">Düzey ${nextLevel}'de: ${nextLvlCap.offices} ofis</div>` : ''}
+              </div>
+              <div style="margin-bottom:6px;">
+                <div style="font-size:11px;font-weight:600;color:#94a3b8;margin-bottom:3px;">🏛️ ETKİLERİ</div>
+                <div style="font-size:11px;color:#cbd5e1;">• İdari verimlilik: +%15</div>
+                <div style="font-size:11px;color:#cbd5e1;">• Öğrenci memnuniyeti: +3</div>
               </div>`;
           } else if (b.type === 'lab') {
             // Lab binası: bağlı bölümler ve labScore katkısı

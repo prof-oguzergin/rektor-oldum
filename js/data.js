@@ -311,6 +311,25 @@ export const DEPARTMENTS = {
     tuitionMultiplier:       1.35,
   },
 
+  yazilim_muh: {
+    id:                      'yazilim_muh',
+    name:                    'Yazılım Mühendisliği',
+    shortName:               'Yaz. Müh.',
+    category:                'muhendislik',
+    icon:                    '💻',
+    startCost:               12_000_000,
+    annualOperatingCost:     3_500_000,
+    researchPotential:       4,
+    labRequirement:          2,
+    avgPublicationPerFaculty: 2.5,
+    projectBudgetRange:      [400_000, 6_000_000],
+    facultyRetentionDifficulty: 5,
+    revenueEfficiency:       1.45,
+    baseStudentDemand:       1.7,
+    baseEntryScore:          [470, 525],
+    tuitionMultiplier:       1.30,
+  },
+
   elektrik_elektronik: {
     id:                      'elektrik_elektronik',
     name:                    'Elektrik-Elektronik Mühendisliği',
@@ -678,6 +697,16 @@ export const DEPARTMENT_CURRICULA = {
     { id: 'bm06', name: 'Bilgisayar Mimarisi',        type: 'zorunlu', difficulty: 3, requiredExpertise: 'Bilgisayar Mimarisi', idealClassSize: 45, hoursPerWeek: 3 },
     { id: 'bm07', name: 'Yapay Zekaya Giriş',         type: 'seçmeli', difficulty: 3, requiredExpertise: 'Görüntü İşleme',       idealClassSize: 40, hoursPerWeek: 3 },
     { id: 'bm08', name: 'Siber Güvenlik',             type: 'seçmeli', difficulty: 3, requiredExpertise: 'Güvenlik',             idealClassSize: 35, hoursPerWeek: 3 },
+  ],
+  yazilim_muh: [
+    { id: 'ym01', name: 'Yazılım Mühendisliği',       type: 'zorunlu', difficulty: 2, requiredExpertise: 'Yazılım Mühendisliği', idealClassSize: 50, hoursPerWeek: 4 },
+    { id: 'ym02', name: 'Yazılım Mimarisi',           type: 'zorunlu', difficulty: 3, requiredExpertise: 'Yazılım Mimarisi',     idealClassSize: 45, hoursPerWeek: 4 },
+    { id: 'ym03', name: 'Veri Yapıları ve Algoritmalar', type: 'zorunlu', difficulty: 3, requiredExpertise: 'Yazılım Mühendisliği', idealClassSize: 50, hoursPerWeek: 4 },
+    { id: 'ym04', name: 'Veritabanı Yönetim Sistemleri', type: 'zorunlu', difficulty: 2, requiredExpertise: 'Veritabanı Sistemleri', idealClassSize: 50, hoursPerWeek: 3 },
+    { id: 'ym05', name: 'Web Programlama',            type: 'zorunlu', difficulty: 2, requiredExpertise: 'Web Programlama',      idealClassSize: 45, hoursPerWeek: 3 },
+    { id: 'ym06', name: 'Mobil Uygulama Geliştirme',  type: 'seçmeli', difficulty: 3, requiredExpertise: 'Mobil Programlama',    idealClassSize: 35, hoursPerWeek: 3 },
+    { id: 'ym07', name: 'Yazılım Test Mühendisliği',  type: 'seçmeli', difficulty: 2, requiredExpertise: 'Test Mühendisliği',    idealClassSize: 35, hoursPerWeek: 3 },
+    { id: 'ym08', name: 'DevOps ve Sürüm Yönetimi',   type: 'seçmeli', difficulty: 3, requiredExpertise: 'DevOps',                idealClassSize: 35, hoursPerWeek: 3 },
   ],
   elektrik_elektronik: [
     { id: 'ee01', name: 'Devre Analizi',              type: 'zorunlu', difficulty: 3, requiredExpertise: 'Devre Tasarımı',       idealClassSize: 50, hoursPerWeek: 4 },

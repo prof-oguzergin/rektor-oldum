@@ -9,7 +9,7 @@ import {
   FACULTY_TITLES,
   DEPARTMENTS,
   SALARY_SCALES,
-} from './data.js?v=0.4.20';
+} from './data.js?v=0.4.21';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // YARDIMCI FONKSİYONLAR
@@ -56,6 +56,7 @@ export function generateUniqueFacultyId() {
 
 export const DEPARTMENT_FIELDS = {
   bilgisayar_muh:      ['Yazılım Mühendisliği', 'Ağ Sistemleri', 'Veri Tabanları', 'Gömülü Sistemler', 'Bilgisayar Mimarisi', 'Güvenlik', 'Görüntü İşleme'],
+  yazilim_muh:         ['Yazılım Mühendisliği', 'Yazılım Mimarisi', 'Web Programlama', 'Mobil Programlama', 'DevOps', 'Veritabanı Sistemleri', 'Test Mühendisliği'],
   elektrik_elektronik: ['Güç Sistemleri', 'Sinyal İşleme', 'Mikrodenetleyiciler', 'Devre Tasarımı', 'Haberleşme', 'Antenler ve Yayılım'],
   makine:              ['Termodinamik', 'Akışkanlar Mekaniği', 'Malzeme Bilimi', 'İmalat', 'Mekatronik', 'Enerji Sistemleri'],
   insaat:              ['Yapı Mühendisliği', 'Geoteknik', 'Ulaştırma', 'Su Kaynakları', 'Çevre Mühendisliği', 'Deprem Mühendisliği'],
@@ -79,6 +80,7 @@ export const DEPARTMENT_FIELDS = {
 // Ana alan adları (her bölüm için birincil alan)
 export const DEPARTMENT_MAIN_FIELD = {
   bilgisayar_muh:      'Bilgisayar Mühendisliği',
+  yazilim_muh:         'Yazılım Mühendisliği',
   elektrik_elektronik: 'Elektrik-Elektronik Mühendisliği',
   makine:              'Makine Mühendisliği',
   insaat:              'İnşaat Mühendisliği',
