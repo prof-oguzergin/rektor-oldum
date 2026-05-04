@@ -3419,11 +3419,20 @@ export function nextTurn() {
   // Özet oluştur
   const summary = getTurnSummary(simResults);
 
-  return {
+  const result = {
     ...summary,
     ...winLoseResult,
     simWarnings: simResults.warnings,
   };
+
+  // Kazanma durumunda sandbox devam: modül flag'ını sıfırla.
+  // Kazanma sonucu result'a yakalandı, UI gösterecek.
+  // Kaybetme (gameOver) kalıcıdır — oyun gerçekten biter.
+  if (_gameWon && !_gameOver) {
+    _gameWon = false;
+  }
+
+  return result;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -3732,6 +3741,12 @@ export function getAccreditationPrestigeBonus(dept) {
 export function checkWinLose() {
   if (!_state) return { gameOver: false, gameWon: false, reason: null };
 
+  // Kazanma daha önce tetiklendiyse tekrar tetikleme (sandbox devam).
+  // Kaybetme koşulları hâlâ kontrol edilir.
+  if (_state._internal?.gameWonTriggered) {
+    return { gameOver: false, gameWon: false, reason: null };
+  }
+
   // ── KAYBETME KOŞULU 1: İflas ───────────────────────────────────────────────
   // Kredi sistemi: herhangi bir kredi 3 dönem ödenemezse loanDefault = true → iflas
 
@@ -3790,6 +3805,7 @@ export function checkWinLose() {
       if (scenarioWin.type === 'prestige' && _state.university.prestige >= scenarioWin.target) {
         _gameWon = true;
         _state._internal.gameWon = true;
+        _state._internal.gameWonTriggered = true;
         return {
           gameOver: false,
           gameWon:  true,
@@ -3802,6 +3818,7 @@ export function checkWinLose() {
       if (scenarioWin.type === 'ranking' && _state.university.ranking <= scenarioWin.target) {
         _gameWon = true;
         _state._internal.gameWon = true;
+        _state._internal.gameWonTriggered = true;
         return {
           gameOver: false,
           gameWon:  true,
@@ -3820,6 +3837,7 @@ export function checkWinLose() {
         if (_state.meta.scenarioPositiveTurns >= (scenarioWin.consecutiveTurns || 10)) {
           _gameWon = true;
           _state._internal.gameWon = true;
+          _state._internal.gameWonTriggered = true;
           return {
             gameOver: false,
             gameWon:  true,
@@ -3847,6 +3865,7 @@ export function checkWinLose() {
       if (_state.university.prestige >= 90) {
         _gameWon = true;
         _state._internal.gameWon = true;
+        _state._internal.gameWonTriggered = true;
         return {
           gameOver: false,
           gameWon:  true,
@@ -3859,6 +3878,7 @@ export function checkWinLose() {
       if (_state.university.ranking === 1) {
         _gameWon = true;
         _state._internal.gameWon = true;
+        _state._internal.gameWonTriggered = true;
         return {
           gameOver: false,
           gameWon:  true,
