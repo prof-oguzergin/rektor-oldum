@@ -54,6 +54,7 @@ Tam liste: `js/changelog.js` (oyun içi "Yenilikler" panelinde de gösterilir, b
   - v0.4.30: Kütüphane `canHaveMultiple: true` (Erdinç raporu). Spor tesisi (v0.4.20) pattern'ı.
   - v0.4.31: Mekatronik Müh., Mimarlık, Güzel Sanatlar bölümleri tam veri (her biri 8 ders + 7-8 uzmanlık). İletişim/Siyaset Bilimi pattern'ının aynısı (Erdinç raporu).
   - v0.4.32: Bina upgrade'de `isCompleted` false yapılıyordu → kapasite kaybı → "Yeni Alım İçin Yer: 0" → dönem başlatılamıyordu (Can GULDOGAN). Fix: upgrade boyunca isCompleted true kalır, ilerleme `status === 'upgrading'` ile takip edilir. State migration eski kayıtları da düzeltir.
+  - v0.4.33: Mobilde modal açıkken body scroll kilitlenmiyor, arka plan kayıyordu (Lafontane6) — showModal/hideModal'da body.style.overflow toggle. Bonus: Yeni Bölüm Başvuru butonu zaten başvurulmuşsa "✅ Başvuruldu (X dönem)" disabled (Issue #6, R-Fatih).
 
 ## Aktif Oyuncu Raporcuları
 Erdinç (en yoğun), AkaDemi, Emir, Burak Gökalp, Yusuf Sertkaya, R-Fatih (Issue #7, #9), X, serhattural
@@ -69,7 +70,6 @@ Erdinç (en yoğun), AkaDemi, Emir, Burak Gökalp, Yusuf Sertkaya, R-Fatih (Issu
 - **Sosyal/bilimsel etkinlik sistemi** (Erdinç, 4 May 2026) — okul içi etkinlik düzenleme: konferans, festival, kongre, atölye. Memnuniyet/saygınlık/finansal etki.
 - **Yeni Bölüm Program Başvurusu "Başvur" butonu** ([Issue #6](https://github.com/prof-oguzergin/rektor-oldum/issues/6), R-Fatih) — UX iyileştirmesi.
 - **Ders Müfredatı + Öğretim Elemanı Manuel Ekleme** ([Issue #8](https://github.com/prof-oguzergin/rektor-oldum/issues/8), R-Fatih) — sandbox tarzı özelleştirme.
-- **Skor güncelleme/kariyer senkronu** (R-Fatih [#1 yorum](https://github.com/prof-oguzergin/rektor-oldum/issues/1)) — v0.4.27 ile büyük ölçüde çözüldü ama "kariyerle tam senkron" hâlâ açık olabilir, sonra değerlendir.
 
 ## Çözülmüş (sonraki cleanup'a kadar burada)
 - Emir (özet ekranında tüm değerler 0) → v0.4.28'de gameOver/gameWon erken çıkış

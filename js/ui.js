@@ -185,6 +185,16 @@ export function showModal(title, bodyHtml, opts = {}) {
 
   overlay.classList.remove('hidden');
   overlay.classList.add('active');
+
+  // Body scroll lock (Lafontane6 raporu — mobilde modal acikken arka plan
+  // sayfasi da kayiyordu, icerikler ust uste biniyordu).
+  document.body.style.overflow = 'hidden';
+  // Uzun modal'larda body'yi en uste kaydir
+  if (bodyEl.scrollTo) {
+    bodyEl.scrollTo({ top: 0, behavior: 'instant' });
+  } else {
+    bodyEl.scrollTop = 0;
+  }
 }
 
 export function hideModal() {
@@ -193,6 +203,8 @@ export function hideModal() {
     overlay.classList.add('hidden');
     overlay.classList.remove('active');
   }
+  // Body scroll lock kaldir
+  document.body.style.overflow = '';
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -6940,12 +6952,16 @@ export function showNewDeptProgramModal(state) {
           ${availableNewDepts.length === 0
             ? '<div style="color:var(--text-faint);font-size:12px;padding:8px;">Tüm mevcut bölümler zaten açık.</div>'
             : availableNewDepts.map(d => {
-                const canAfford = budget >= d.cost;
+                const canAfford  = budget >= d.cost;
+                // R-Fatih Issue #6 — bu bölüm için zaten YÖK'te bekleyen başvuru var mı?
+                const pendingApp = pending.find(p => p.deptId === d.id && p.type === 'yeni_bolum');
+                const isPending  = !!pendingApp;
+                const rowOpacity = isPending ? 'opacity:0.6;' : (canAfford ? '' : 'opacity:0.5;');
                 return `
                 <div style="background:var(--bg-secondary);border-radius:8px;border:1px solid var(--border);padding:10px 12px;
-                            ${canAfford ? 'cursor:pointer;' : 'opacity:0.5;'}
+                            ${rowOpacity}
                             display:flex;align-items:center;gap:10px;"
-                     class="ndp-dept-row${canAfford ? '' : ' ndp-cant-afford'}"
+                     class="ndp-dept-row${canAfford && !isPending ? '' : ' ndp-cant-afford'}"
                      data-dept-id="${d.id}" data-cost="${d.cost}">
                   <span style="font-size:20px;">${d.icon || '🏫'}</span>
                   <div style="flex:1;">
@@ -6954,9 +6970,11 @@ export function showNewDeptProgramModal(state) {
                       Min. ${d.minFaculty} öğretim üyesi · Maliyet: ${formatMoney(d.cost)}
                     </div>
                   </div>
-                  ${canAfford
-                    ? `<button class="btn btn-primary" style="font-size:10px;padding:4px 10px;" data-apply-dept="${d.id}">Başvur</button>`
-                    : `<span style="font-size:10px;color:#e53e3e;">Yetersiz bütçe</span>`
+                  ${isPending
+                    ? `<button class="btn btn-secondary" disabled style="font-size:10px;padding:4px 10px;opacity:0.7;cursor:not-allowed;">✅ Başvuruldu (${pendingApp.turnsRemaining} dönem)</button>`
+                    : canAfford
+                      ? `<button class="btn btn-primary" style="font-size:10px;padding:4px 10px;" data-apply-dept="${d.id}">Başvur</button>`
+                      : `<span style="font-size:10px;color:#e53e3e;">Yetersiz bütçe</span>`
                   }
                 </div>`;
             }).join('')

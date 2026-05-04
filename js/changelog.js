@@ -6,6 +6,15 @@
 
 export const CHANGELOG = [
   {
+    version: '0.4.33',
+    date: '2026-05-04',
+    title: 'Mobilde modal arka plan kayıyordu + bölüm başvuru butonu UX',
+    items: [
+      { type: 'fix', text: 'Mobilde herhangi bir modal (kontenjan, bölüm başvuru, vb.) açıkken arka plan sayfası da kayıyor, içerikler üst üste biniyordu — modal açıkken oyun kullanılamaz hale geliyordu (Lafontane6 raporu, "mobilden oynayamadım"). Modal açılınca `body` scroll\'u kilitleniyor, sadece modal içeriği kaydırılabiliyor. Modal kapanınca sayfa kilidi açılıyor.' },
+      { type: 'feat', text: 'Yeni Bölüm Program Başvurusu ekranında bölüm için zaten bekleyen YÖK başvurusu varsa "Başvur" butonu yerine "✅ Başvuruldu (X dönem)" disabled buton gösteriliyor — kullanıcı tıklamadan durumu görebiliyor (Issue #6, R-Fatih). Eskiden butona basınca toast mesajı çıkıyordu.' },
+    ],
+  },
+  {
     version: '0.4.32',
     date: '2026-05-04',
     title: 'Bina upgrade sırasında kapasite kayboluyor + dönem başlatılamıyor',
