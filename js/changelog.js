@@ -6,6 +6,14 @@
 
 export const CHANGELOG = [
   {
+    version: '0.4.32',
+    date: '2026-05-04',
+    title: 'Bina upgrade sırasında kapasite kayboluyor + dönem başlatılamıyor',
+    items: [
+      { type: 'fix', text: 'Bir fakülte binasına tüm bölümleri atayıp upgrade yaptıktan sonra kontenjan modal\'da "Yeni Alım İçin Yer: 0" görünüyor, dönem başlatılamıyordu (Can GULDOGAN raporu). Kök neden: upgrade başlayınca `isCompleted` false yapılıyor, kapasite hesaplarında bina düşürülüyordu — tek fakülte binası varsa toplam kapasite 0\'a düşüyordu. Artık upgrade boyunca bina aktif kalıyor (eski kapasite kullanılabiliyor); upgrade ilerlemesi `status === \'upgrading\'` ile takip ediliyor. State migration eski bozuk kayıtları da düzeltiyor — sayfa yenileme yeterli.' },
+    ],
+  },
+  {
     version: '0.4.31',
     date: '2026-05-04',
     title: 'Mekatronik, Mimarlık, Güzel Sanatlar bölümleri tam veri ile destekleniyor',

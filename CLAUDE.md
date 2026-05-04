@@ -53,19 +53,30 @@ Tam liste: `js/changelog.js` (oyun içi "Yenilikler" panelinde de gösterilir, b
   - v0.4.29: Sonradan açılan bölümlere öğrenci yerleşmiyor + fakülteler ekranında görünmüyor (R-Fatih Issue #10 + Emir raporu). 3 katman: (1) game.js YÖK onayında byDepartment[deptId] init + fakulteler.departments duplicate koruma; (2) students.js processNewEnrollment lazy init defansif; (3) game.js state migration'da her açık bölüm için byDepartment + fakulteler tutarlılığı.
   - v0.4.30: Kütüphane `canHaveMultiple: true` (Erdinç raporu). Spor tesisi (v0.4.20) pattern'ı.
   - v0.4.31: Mekatronik Müh., Mimarlık, Güzel Sanatlar bölümleri tam veri (her biri 8 ders + 7-8 uzmanlık). İletişim/Siyaset Bilimi pattern'ının aynısı (Erdinç raporu).
+  - v0.4.32: Bina upgrade'de `isCompleted` false yapılıyordu → kapasite kaybı → "Yeni Alım İçin Yer: 0" → dönem başlatılamıyordu (Can GULDOGAN). Fix: upgrade boyunca isCompleted true kalır, ilerleme `status === 'upgrading'` ile takip edilir. State migration eski kayıtları da düzeltir.
 
 ## Aktif Oyuncu Raporcuları
 Erdinç (en yoğun), AkaDemi, Emir, Burak Gökalp, Yusuf Sertkaya, R-Fatih (Issue #7, #9), X, serhattural
 
 ## Bekleyen Raporlar
-- Burak — kontenjan modal ilerlemiyor, console log bekleniyor
+- Burak — kontenjan modal ilerlemiyor, console log bekleniyor (v0.4.32'de Can GULDOGAN raporu ile birlikte çözülmüş olabilir, doğrulama bekleniyor)
 - App Check — 4 May 2026 gece doğrulandı: **Auth %100 verified, 0% Unverified (Monitoring)**, entegrasyon çalışıyor. Cloud Firestore hâlâ **Unenforced**. Sabah Firebase Console > App Check > Cloud Firestore satırına tıklayıp **Enforce** edilecek (gece yapılmadı çünkü eski cache'li client riski). Sonra birkaç oyuncudan skor gönderme doğrulaması al.
+
+## Enhancement Backlog (Sonraki Büyük Sürüm — v0.5.0?)
+
+Şu an stabilizasyon modunda; yeni özellikler eklenmiyor, biriktirilip ciddi bir sürümde topluca değerlendirilecek.
+
+- **Sosyal/bilimsel etkinlik sistemi** (Erdinç, 4 May 2026) — okul içi etkinlik düzenleme: konferans, festival, kongre, atölye. Memnuniyet/saygınlık/finansal etki.
+- **Yeni Bölüm Program Başvurusu "Başvur" butonu** ([Issue #6](https://github.com/prof-oguzergin/rektor-oldum/issues/6), R-Fatih) — UX iyileştirmesi.
+- **Ders Müfredatı + Öğretim Elemanı Manuel Ekleme** ([Issue #8](https://github.com/prof-oguzergin/rektor-oldum/issues/8), R-Fatih) — sandbox tarzı özelleştirme.
+- **Skor güncelleme/kariyer senkronu** (R-Fatih [#1 yorum](https://github.com/prof-oguzergin/rektor-oldum/issues/1)) — v0.4.27 ile büyük ölçüde çözüldü ama "kariyerle tam senkron" hâlâ açık olabilir, sonra değerlendir.
 
 ## Çözülmüş (sonraki cleanup'a kadar burada)
 - Emir (özet ekranında tüm değerler 0) → v0.4.28'de gameOver/gameWon erken çıkış
 - R-Fatih Issue #10 (sonradan açılan bölümlere öğrenci yerleşmiyor) → v0.4.29 byDepartment init
 - Emir (3. mühendislik fakülteler ekranında listelenmiyor) → v0.4.29 fakulteler.departments duplicate koruma + state migration
 - Erdinç (kütüphane tek tek inşa) → v0.4.30 canHaveMultiple: true
+- Can GULDOGAN (mavi-check, fakülte binası upgrade sonrası "Yeni Alım İçin Yer: 0" + dönem başlatılamıyor) → v0.4.32 isCompleted upgrade boyunca true
 
 ## Sonraki Adımlar
 - Ek senaryo paketleri

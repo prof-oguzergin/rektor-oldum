@@ -2735,8 +2735,10 @@ function runSimulation() {
 
   // ── 5. BİNA İNŞAAT İLERLEMESİ ─────────────────────────────────────────────
   _state.buildings.forEach(building => {
-    const isInProgress = !building.isCompleted &&
-      (building.status === 'under_construction' || building.status === 'upgrading');
+    // status'a bak; isCompleted artık upgrade sirasinda da true (Can GULDOGAN
+    // raporu — kapasite kayboluyordu). status 'upgrading' veya 'under_construction'
+    // ise ilerleme takip edilir.
+    const isInProgress = (building.status === 'under_construction' || building.status === 'upgrading');
     if (!isInProgress) return;
 
     building.turnsRemaining = Math.max(0, (building.turnsRemaining ?? 1) - 1);
@@ -4207,6 +4209,20 @@ export function setState(loadedState) {
         }
       }
     }
+    // Upgrading binalarda isCompleted=false olarak kalmis olanlari duzelt
+    // (Can GULDOGAN raporu — v0.4.31 oncesi upgrade'ler isCompleted'i false
+    // yapiyordu, kapasite hesaplari sifirlaniyordu, kontenjan ekraninda
+    // "Yeni Alim Icin Yer: 0" cikiyordu).
+    if (Array.isArray(s.buildings)) {
+      for (const b of s.buildings) {
+        if (!b) continue;
+        if (b.status === 'upgrading' && b.isCompleted === false) {
+          b.isCompleted = true;
+          console.warn(`[game] Upgrade'deki bina isCompleted duzeltildi: ${b.name || b.type}`);
+        }
+      }
+    }
+
     if (!s.economy)      s.economy      = {};
     if (!s.research)     s.research     = { activeProjects: [], completedProjects: [], budget: 0 };
     if (!s.rankings)     s.rankings     = { national: 999, international: null };
@@ -4612,7 +4628,10 @@ export function applyDecision(decision) {
       building.turnsRemaining   = totalTurns;
       building.totalTurns       = totalTurns;
       building.constructionProgress = 0;
-      building.isCompleted      = false;
+      // isCompleted = true KALSIN: upgrade sirasinda eski kapasite kullanima
+      // acik kalmali (Can GULDOGAN raporu — tek fakulte binasi upgrade edilince
+      // "Yeni Alim Icin Yer: 0" hatasi cikiyor, donem baslatilamiyor).
+      // Upgrade ilerlemesi status === 'upgrading' ile takip ediliyor.
       building._pendingLevel    = building.level + 1;
 
       return {
