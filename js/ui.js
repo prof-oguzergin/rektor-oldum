@@ -185,6 +185,10 @@ export function showModal(title, bodyHtml, opts = {}) {
 
   overlay.classList.remove('hidden');
   overlay.classList.add('active');
+
+  // Scroll'u en üste al
+  if (bodyEl) bodyEl.scrollTop = 0;
+  if (modalEl) modalEl.scrollTop = 0;
 }
 
 export function hideModal() {
@@ -6257,6 +6261,10 @@ export function renderTurnSummary(summary, onNextTurn) {
 
   overlay.classList.remove('hidden');
   overlay.classList.add('active');
+
+  // Scroll'u en üste al (içerik uzunsa altta başlamasın)
+  if (bodyEl) bodyEl.scrollTop = 0;
+  overlay.scrollTop = 0;
 
   on(el('btn-confirm-next-turn'), 'click', () => {
     overlay.classList.add('hidden');

@@ -653,7 +653,13 @@ function _onRenewAccreditation(deptId, bodyId) {
 }
 
 /** Oyun ekranına ait tüm event listener'ları bağla (bir kez çağrılır). */
+let _gameScreenEventsBound = false;
 function _bindGameScreenEvents() {
+  if (_gameScreenEventsBound) {
+    console.log('[main] Oyun ekranı event listener\'ları zaten bağlı, atlanıyor.');
+    return;
+  }
+  _gameScreenEventsBound = true;
   console.log('[main] Oyun ekranı event listener\'ları bağlanıyor...');
 
   // ── Sekme navigasyonu ───────────────────────────────────────────────────
@@ -743,11 +749,11 @@ function _onNextTurn() {
   // Oyun bittiyse/kazanıldıysa simülasyon yapma (Emir raporu — boş özet
   // modal'ı açılıyordu çünkü nextTurn() "Oyun zaten bitti." döndürüp
   // erken çıkıyor, ama UI hâlâ özet render ediyordu).
-  if (currentState.gameOver || currentState.gameWon) {
+  // Not: getState() klonu üst düzey gameOver/gameWon barındırmaz,
+  // bu bayraklar _internal altında saklanır.
+  if (currentState._internal?.gameOver) {
     showNotification(
-      currentState.gameWon
-        ? '🏆 Oyun kazanıldı. Yeni oyun başlatabilirsin.'
-        : 'Oyun bitti. Yeni oyun başlatabilirsin.',
+      'Oyun bitti. Yeni oyun başlatabilirsin.',
       'info',
       5000,
     );
@@ -784,9 +790,11 @@ function _runTurnAfterQuotas() {
 
   // Defensive: backend "Oyun zaten bitti." dönerse boş özet modal'ı açma
   // (Emir raporu — _onNextTurn'de zaten erken çıkış var, bu son güvenlik ağı).
-  if (state?.gameOver || state?.gameWon || /zaten bitti/i.test(summary?.message || '')) {
+  // Not: state (getState() klonu) üst düzey gameOver/gameWon barındırmaz,
+  // summary (nextTurn dönüşü) doğru değerleri taşır.
+  if (summary?.gameOver || /zaten bitti/i.test(summary?.message || '')) {
     showNotification(
-      state?.gameWon ? '🏆 Oyun kazanıldı. Yeni oyun başlatabilirsin.' : 'Oyun bitti. Yeni oyun başlatabilirsin.',
+      summary?.gameWon ? '🏆 Oyun kazanıldı. Yeni oyun başlatabilirsin.' : 'Oyun bitti. Yeni oyun başlatabilirsin.',
       'info',
       5000,
     );
