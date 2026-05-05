@@ -6,6 +6,14 @@
 
 export const CHANGELOG = [
   {
+    version: '0.4.34',
+    date: '2026-05-05',
+    title: 'Sıralama hesabı çalışmıyordu — herkes 50. sırada görünüyordu',
+    items: [
+      { type: 'fix', text: 'Üniversite sıralaması (state.university.ranking) başlangıç değeri olan 50\'den hiç değişmiyordu — leaderboard tablosunda tüm gerçek oyuncuların "rank" alanı 50 gözüküyordu. Kök neden: `updateRankings()` fonksiyonu yazılmıştı ama `nextTurn()` akışında hiçbir yerden çağrılmıyordu. Artık her dönem sonunda rakip AI hamlesinden hemen sonra tüm üniversiteler (oyuncu + 50+ rakip) prestige\'e göre sıralanıp `state.university.ranking` güncelleniyor. Skor hesabındaki sıralama bonusu (max +250 puan) artık gerçek performansı yansıtıyor; oyuncu yeterince prestij kazanırsa Boğaziçi Teknik gibi rakipleri geçip ilk sıralara yükselebilir. Kayıt yüklendikten sonra ilk dönemde otomatik yeniden hesaplanır.' },
+    ],
+  },
+  {
     version: '0.4.33',
     date: '2026-05-04',
     title: 'Mobilde modal arka plan kayıyordu + bölüm başvuru butonu UX',

@@ -53,7 +53,7 @@ import {
   processGraduation,
   processAdmissions,
 } from './students.js?v=0.4.24';
-import { calculatePrestige, updateRivals } from './ranking.js?v=0.4.24';
+import { calculatePrestige, updateRivals, updateRankings } from './ranking.js?v=0.4.24';
 import { checkForEvents, applyEventEffects } from './events.js?v=0.4.24';
 import {
   initAlumniState,
@@ -2802,6 +2802,13 @@ function runSimulation() {
   rivalChanges.forEach(change => {
     change.actions.forEach(msg => results.events.push({ type: 'rival_action', message: msg }));
   });
+
+  // ── 7b. SIRALAMA HESABI ────────────────────────────────────────────────────
+  // updateRivals rakip prestige'lerini günceller; sonrasinda tum universiteleri
+  // (player + rakipler) prestige'e gore sirala. Bu cagri olmadigi icin
+  // state.university.ranking baslangic 50'sinden hic degismiyor, leaderboard'da
+  // herkesin rank'i 50 gozukuyordu (kullanici raporu, 5 May 2026).
+  updateRankings(_state);
 
   // TODO: ranking.js'den: const rankResult = calculateRanking(_state);
   // Placeholder prestige güncelleme
