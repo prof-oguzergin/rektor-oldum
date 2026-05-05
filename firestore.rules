@@ -7,7 +7,8 @@
 //  1) Yalnızca anonim auth ile yazılabilir
 //  2) Doc ID = request.auth.uid (kullanıcı başına TEK kayıt)
 //  3) Update yalnızca yeni skor mevcuttan yüksekse (server-side karşılaştırma)
-//  4) Score 0..100000, year 1..200, prestige -100..200, rank 1..1000 aralığında
+//  4) Score 0..5000, year 1..200, prestige -100..200, rank 1..1000 aralığında
+//     (5 May 2026: max 100000 -> 5000, sahte yuksek skor saldirisi sonrasi)
 //  5) Name 1-30 karakter string
 //  6) Read herkese açık (skor tablosu publik)
 //  7) Delete kapalı
@@ -36,7 +37,7 @@ service cloud.firestore {
             && data.name.size() <= 30
             && data.score is int
             && data.score >= 0
-            && data.score <= 100000
+            && data.score <= 5000
             && data.year is int
             && data.year >= 1
             && data.year <= 200
