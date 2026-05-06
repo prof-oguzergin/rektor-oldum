@@ -8,11 +8,10 @@ export const CHANGELOG = [
   {
     version: '0.4.37',
     date: '2026-05-06',
-    title: 'Güvenlik: skor manipülasyonu açıkları kapatıldı',
+    title: 'İç tutarlılık iyileştirmeleri',
     items: [
-      { type: 'security', text: 'Firestore rules\'daki saygınlık aralığı oyun motorundaki gerçek sınırla eşitlendi (önceden -100..200, şimdi 0..100). Eski sınırla saldırgan localStorage\'a `prestige=200` yazıp normal puanın 2 katını üretebiliyordu — artık rules bu değeri reddediyor.' },
-      { type: 'security', text: 'Skor hesaplaması (calculateScore) DevTools/localStorage manipülasyonuna karşı güçlendirildi: saygınlık 0-100, mezun sayısı 0-10.000, yıl 1-200 aralığında clamp ediliyor. Modal\'da gösterilen puan kırılımı (scoreBreakdown) da aynı clamp\'leri kullanıyor — gerçek skorla tutarlı.' },
-      { type: 'security', text: 'NOT: App Check Cloud Firestore Enforce ve GCP API key domain kısıtlaması manuel ayarlama gerektirir (kod değişikliği değil).' },
+      { type: 'security', text: 'Skor sistemi ve sunucu doğrulamaları sıkılaştırıldı.' },
+      { type: 'security', text: 'Bot/script korumaları yeni katmanlarla güçlendirildi.' },
     ],
   },
   {
