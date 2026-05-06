@@ -4,8 +4,8 @@
  * Vanilla JS, framework yok.
  */
 
-import { DEPARTMENTS, DEPARTMENT_CURRICULA, UNIVERSITY_TYPES, UNIVERSITY_MODELS, USD_TO_TL, DIFFICULTY_SETTINGS, BUILDINGS, SEMESTER_MONTHS, FACULTIES, DEPT_TO_FACULTY, SALARY_SCALES, ADMIN_UNITS, ADMIN_TITLES, ADMIN_UNIT_BUILDINGS, ACCREDITATION_BODIES, SCENARIOS, BANKS } from './data.js?v=0.4.24';
-import { DEPARTMENT_FIELDS, getSalaryRange, renderFacultyAvatar, calculateOverallRating, getFacultyRatingTrend } from './faculty.js?v=0.4.24';
+import { DEPARTMENTS, DEPARTMENT_CURRICULA, UNIVERSITY_TYPES, UNIVERSITY_MODELS, USD_TO_TL, DIFFICULTY_SETTINGS, BUILDINGS, SEMESTER_MONTHS, FACULTIES, DEPT_TO_FACULTY, SALARY_SCALES, ADMIN_UNITS, ADMIN_TITLES, ADMIN_UNIT_BUILDINGS, ACCREDITATION_BODIES, SCENARIOS, BANKS } from './data.js?v=0.4.38';
+import { DEPARTMENT_FIELDS, getSalaryRange, renderFacultyAvatar, calculateOverallRating, getFacultyRatingTrend } from './faculty.js?v=0.4.38';
 import { AVAILABLE_NEW_DEPARTMENTS } from './game.js?v=0.4.24';
 import { calculateIncome, calculateExpenses, calculateLoanPayment } from './economy.js?v=0.4.24';
 import { renderCampusMap, handleCampusClick, handleCampusHover, clearHover } from './campus-renderer.js?v=0.4.24';
@@ -7819,16 +7819,17 @@ function _showAdminStaffDetail(staffId, adminStaff) {
 
 /**
  * İdari personel işe alma modalını render eder.
- * @param {string}   unitId     — Birim ID'si
- * @param {object}   candidates — Aday listesi
- * @param {Function} onHire     — İşe al callback (candidate)
+ * @param {string}   unitId       — Birim ID'si
+ * @param {object}   candidates   — Aday listesi
+ * @param {Function} onHire       — İşe al callback (candidate)
+ * @param {string}   currentTitle — Seçili rütbe (Yenile tuşu sonrası korunur)
  */
-export function renderAdminHireModal(unitId, candidates, onHire) {
+export function renderAdminHireModal(unitId, candidates, onHire, currentTitle) {
   const template = ADMIN_UNITS[unitId];
   if (!template) return;
 
   const titleOptions = Object.keys(ADMIN_TITLES).map(t =>
-    `<option value="${t}">${t} (${formatMoney(ADMIN_TITLES[t].min)}–${formatMoney(ADMIN_TITLES[t].max)}/ay)</option>`
+    `<option value="${t}" ${t === currentTitle ? 'selected' : ''}>${t} (${formatMoney(ADMIN_TITLES[t].min)}–${formatMoney(ADMIN_TITLES[t].max)}/ay)</option>`
   ).join('');
 
   // Adayları global cache'e yaz (güvenli onclick için)

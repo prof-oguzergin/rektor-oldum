@@ -32,10 +32,10 @@ import {
   ACCREDITATION_BODIES,
   SCENARIOS,
   BANKS,
-} from './data.js?v=0.4.24';
+} from './data.js?v=0.4.38';
 
 import { calculateEconomy, applyBudget, calculateLoanPayment, processLoanPayments } from './economy.js?v=0.4.24';
-import { generateInitialFaculty, updateAllFacultyHappiness, generateApplicants, generateFaculty, getSalaryRange, calculateOverallRating, getFacultyRatingTrend } from './faculty.js?v=0.4.24';
+import { generateInitialFaculty, updateAllFacultyHappiness, generateApplicants, generateFaculty, getSalaryRange, calculateOverallRating, getFacultyRatingTrend } from './faculty.js?v=0.4.38';
 import {
   generateInitialStudents,
   getTotalEnrolled,
@@ -2813,6 +2813,21 @@ function runSimulation() {
   // state.university.ranking baslangic 50'sinden hic degismiyor, leaderboard'da
   // herkesin rank'i 50 gozukuyordu (kullanici raporu, 5 May 2026).
   updateRankings(_state);
+
+  // ── 7c. ULUSLARARASI PUAN — STATE'E YAZ ────────────────────────────────────
+  // Uluslararasılaşma skoru calculatePrestige içinde lokal hesaplanıyor ama
+  // state.university.scores.internationalization'a hiç yazılmıyordu;
+  // her dönem başlangıç değeri olan 10'da kalıyordu (İdris Demirsoy raporu).
+  {
+    const intlRatio     = _state.university.internationalRatio || 0.02;
+    const hasConference = _state.buildings.some(b => b.type === 'konferans' && b.isCompleted);
+    const intlScore     = Math.max(0, Math.min(100,
+      Math.floor(intlRatio * 500 + (hasConference ? 15 : 0))
+    ));
+    if (_state.university.scores) {
+      _state.university.scores.internationalization = intlScore;
+    }
+  }
 
   // TODO: ranking.js'den: const rankResult = calculateRanking(_state);
   // Placeholder prestige güncelleme

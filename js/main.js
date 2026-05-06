@@ -8,7 +8,7 @@ console.log('[main] main.js modülü yükleniyor...');
 // IMPORT
 // ─────────────────────────────────────────────────────────────────────────────
 
-import { initGame, nextTurn, getState, setState, applyDecision, assignCourses, applyQuotas, assignDeptHead, reassignFacultyToDept, generateAdminCandidates, hireAdminStaff, upgradeAdminUnit, promoteAdminStaff, fireAdminStaff, updateAdminStaffSalary, assignUnitManager, RANDOM_EVENTS, ACHIEVEMENTS, getAchievementStats, organizeAlumniEvent, applyRandomEventChoice, ACCREDITATION_BODIES, applyForAccreditation, checkAccreditationRequirements, establishTTO, upgradeTTO, acceptDeal, rejectDeal, foundClub, upgradeClub, dissolveClub, CLUB_TYPES, CLUB_CATEGORIES, SPORTS, foundTeam, upgradeTeam, dissolveTeam } from './game.js?v=0.4.24';
+import { initGame, nextTurn, getState, setState, applyDecision, assignCourses, applyQuotas, assignDeptHead, reassignFacultyToDept, generateAdminCandidates, hireAdminStaff, upgradeAdminUnit, promoteAdminStaff, fireAdminStaff, updateAdminStaffSalary, assignUnitManager, RANDOM_EVENTS, ACHIEVEMENTS, getAchievementStats, organizeAlumniEvent, applyRandomEventChoice, ACCREDITATION_BODIES, applyForAccreditation, checkAccreditationRequirements, establishTTO, upgradeTTO, acceptDeal, rejectDeal, foundClub, upgradeClub, dissolveClub, CLUB_TYPES, CLUB_CATEGORIES, SPORTS, foundTeam, upgradeTeam, dissolveTeam } from './game.js?v=0.4.38';
 
 import {
   showScreen,
@@ -48,16 +48,16 @@ import {
   showChangelogModal,
   el,
   on,
-} from './ui.js?v=0.4.24';
+} from './ui.js?v=0.4.38';
 
-import { CHANGELOG, hasUnseenChanges, setLastSeenVersion } from './changelog.js?v=0.4.24';
+import { CHANGELOG, hasUnseenChanges, setLastSeenVersion } from './changelog.js?v=0.4.38';
 
 import { saveGame, loadGame, autoSave, getSaveSlots, deleteSave, exportSave, importSave, sanitizeForSave } from './save.js?v=0.4.28';
 import { calculateScore, scoreBreakdown, submitScore, getTopScores, initFirebase, isLeaderboardUnavailable, saveLocalScore, getLocalScores } from './leaderboard.js?v=0.4.27';
 import { showTutorialIfNeeded, replayTutorial } from './tutorial.js?v=0.4.24';
 import { initAudio, playSound, toggleMute, isMuted, startMusic, stopMusic, setMusicVolume, setSFXVolume, getAudioSettings } from './audio.js?v=0.4.24';
 
-import { generateTransferMarket, renderFacultyAvatar, calculateOverallRating, getFacultyRatingTrend } from './faculty.js?v=0.4.24';
+import { generateTransferMarket, renderFacultyAvatar, calculateOverallRating, getFacultyRatingTrend } from './faculty.js?v=0.4.38';
 import { resolveDecision } from './events.js?v=0.4.24';
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -2098,10 +2098,9 @@ function _formatTimestamp(timestamp) {
 
 /** İdari birim personel alımı modalını aç */
 function _onHireAdminStaff(unitId) {
-  const titleEl = document.getElementById('admin-hire-title');
-  const title   = titleEl ? titleEl.value : 'Uzman';
-  const candidates = generateAdminCandidates(unitId, title, 3);
-  renderAdminHireModal(unitId, candidates, _onHireAdminCandidate);
+  const defaultTitle = 'Uzman';
+  const candidates = generateAdminCandidates(unitId, defaultTitle, 3);
+  renderAdminHireModal(unitId, candidates, _onHireAdminCandidate, defaultTitle);
 }
 
 /** Adayı işe al (obje direkt alır) */
@@ -2124,12 +2123,12 @@ function _onUpgradeAdminUnit(unitId) {
   }
 }
 
-/** Adayları yenile (modal içi) */
+/** Adayları yenile (modal içi) — seçili rütbeyi korur */
 function _onRefreshAdminCandidates(unitId) {
   const titleEl = document.getElementById('admin-hire-title');
   const title   = titleEl ? titleEl.value : 'Uzman';
   const candidates = generateAdminCandidates(unitId, title, 3);
-  renderAdminHireModal(unitId, candidates, _onHireAdminCandidate);
+  renderAdminHireModal(unitId, candidates, _onHireAdminCandidate, title);
 }
 
 // Global erişim (ui.js'teki onclick handler'ları için)

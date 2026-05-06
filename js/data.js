@@ -774,6 +774,44 @@ export const DEPARTMENTS = {
     baseEntryScore:          [380, 440],
     tuitionMultiplier:       1.2,
   },
+
+  cevre_muh: {
+    id:                      'cevre_muh',
+    name:                    'Çevre Mühendisliği',
+    shortName:               'Çevre Müh.',
+    category:                'muhendislik',
+    icon:                    '🌿',
+    startCost:               8_000_000,
+    annualOperatingCost:     2_500_000,
+    researchPotential:       4,
+    labRequirement:          3,
+    avgPublicationPerFaculty: 2.0,
+    projectBudgetRange:      [250_000, 5_000_000],
+    facultyRetentionDifficulty: 3,
+    revenueEfficiency:       1.2,
+    baseStudentDemand:       1.1,
+    baseEntryScore:          [400, 460],
+    tuitionMultiplier:       1.1,
+  },
+
+  gida_muh: {
+    id:                      'gida_muh',
+    name:                    'Gıda Mühendisliği',
+    shortName:               'Gıda Müh.',
+    category:                'muhendislik',
+    icon:                    '🍎',
+    startCost:               7_500_000,
+    annualOperatingCost:     2_300_000,
+    researchPotential:       3,
+    labRequirement:          3,
+    avgPublicationPerFaculty: 1.8,
+    projectBudgetRange:      [200_000, 4_000_000],
+    facultyRetentionDifficulty: 3,
+    revenueEfficiency:       1.2,
+    baseStudentDemand:       1.1,
+    baseEntryScore:          [390, 450],
+    tuitionMultiplier:       1.1,
+  },
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -985,6 +1023,26 @@ export const DEPARTMENT_CURRICULA = {
     { id: 'hem03', name: 'Toplum Sağlığı',             type: 'zorunlu', difficulty: 2, requiredExpertise: 'Toplum Sağlığı',     idealClassSize: 45, hoursPerWeek: 4 },
     { id: 'hem04', name: 'Yoğun Bakım Hemşireliği',   type: 'seçmeli', difficulty: 4, requiredExpertise: 'Yoğun Bakım',        idealClassSize: 25, hoursPerWeek: 4 },
   ],
+  cevre_muh: [
+    { id: 'cev01', name: 'Çevre Mühendisliğine Giriş',  type: 'zorunlu', difficulty: 2, requiredExpertise: 'Çevre Teknolojileri', idealClassSize: 50, hoursPerWeek: 3 },
+    { id: 'cev02', name: 'Su Kirliliği ve Kontrolü',    type: 'zorunlu', difficulty: 3, requiredExpertise: 'Su Kirliliği',         idealClassSize: 45, hoursPerWeek: 4 },
+    { id: 'cev03', name: 'Hava Kirliliği ve Kontrolü',  type: 'zorunlu', difficulty: 3, requiredExpertise: 'Hava Kirliliği',       idealClassSize: 45, hoursPerWeek: 4 },
+    { id: 'cev04', name: 'Katı Atık Yönetimi',          type: 'zorunlu', difficulty: 2, requiredExpertise: 'Katı Atık',            idealClassSize: 45, hoursPerWeek: 3 },
+    { id: 'cev05', name: 'Çevre Kimyası',               type: 'zorunlu', difficulty: 3, requiredExpertise: 'Çevre Kimyası',        idealClassSize: 40, hoursPerWeek: 3 },
+    { id: 'cev06', name: 'Çevre Mikrobiyolojisi',       type: 'seçmeli', difficulty: 3, requiredExpertise: 'Çevre Mikrobiyolojisi', idealClassSize: 35, hoursPerWeek: 3 },
+    { id: 'cev07', name: 'Sürdürülebilir Kalkınma',     type: 'seçmeli', difficulty: 2, requiredExpertise: 'Sürdürülebilirlik',    idealClassSize: 45, hoursPerWeek: 3 },
+    { id: 'cev08', name: 'Çevresel Etki Değerlendirmesi', type: 'seçmeli', difficulty: 3, requiredExpertise: 'Çevre Teknolojileri', idealClassSize: 40, hoursPerWeek: 3 },
+  ],
+  gida_muh: [
+    { id: 'gida01', name: 'Gıda Mühendisliğine Giriş', type: 'zorunlu', difficulty: 2, requiredExpertise: 'Gıda İşleme',        idealClassSize: 50, hoursPerWeek: 3 },
+    { id: 'gida02', name: 'Gıda Kimyası',              type: 'zorunlu', difficulty: 3, requiredExpertise: 'Gıda Kimyası',        idealClassSize: 45, hoursPerWeek: 4 },
+    { id: 'gida03', name: 'Gıda Mikrobiyolojisi',      type: 'zorunlu', difficulty: 3, requiredExpertise: 'Gıda Mikrobiyolojisi', idealClassSize: 40, hoursPerWeek: 4 },
+    { id: 'gida04', name: 'Gıda İşleme Teknolojileri', type: 'zorunlu', difficulty: 3, requiredExpertise: 'Gıda İşleme',         idealClassSize: 45, hoursPerWeek: 4 },
+    { id: 'gida05', name: 'Gıda Güvenliği ve Hijyeni', type: 'zorunlu', difficulty: 2, requiredExpertise: 'Gıda Güvenliği',      idealClassSize: 50, hoursPerWeek: 3 },
+    { id: 'gida06', name: 'Beslenme Bilimi',           type: 'seçmeli', difficulty: 2, requiredExpertise: 'Beslenme',            idealClassSize: 45, hoursPerWeek: 3 },
+    { id: 'gida07', name: 'Gıda Ambalajlama',          type: 'seçmeli', difficulty: 2, requiredExpertise: 'Gıda Ambalajlama',    idealClassSize: 40, hoursPerWeek: 3 },
+    { id: 'gida08', name: 'Gıda Biyoteknolojisi',      type: 'seçmeli', difficulty: 4, requiredExpertise: 'Gıda Biyoteknolojisi', idealClassSize: 30, hoursPerWeek: 3 },
+  ],
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -1124,7 +1182,7 @@ export const FACULTIES = {
     id:          'muhendislik',
     name:        'Mühendislik Fakültesi',
     icon:        '⚙️',
-    departments: ['bilgisayar_muh', 'elektrik_elektronik', 'makine', 'insaat', 'endustri', 'biyomedikal', 'yapay_zeka'],
+    departments: ['bilgisayar_muh', 'yazilim_muh', 'elektrik_elektronik', 'makine', 'insaat', 'endustri', 'biyomedikal', 'yapay_zeka', 'mekatronik', 'cevre_muh', 'gida_muh'],
   },
   fen_edebiyat: {
     id:          'fen_edebiyat',

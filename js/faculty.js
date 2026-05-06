@@ -9,7 +9,7 @@ import {
   FACULTY_TITLES,
   DEPARTMENTS,
   SALARY_SCALES,
-} from './data.js?v=0.4.24';
+} from './data.js?v=0.4.38';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // YARDIMCI FONKSİYONLAR
@@ -76,6 +76,8 @@ export const DEPARTMENT_FIELDS = {
   mekatronik:          ['Mekatronik', 'Mekanik Sistemler', 'Devre Tasarımı', 'Mikrodenetleyiciler', 'Otomatik Kontrol', 'Robotik', 'Hidrolik-Pnömatik', 'Endüstriyel Otomasyon'],
   mimarlik:            ['Mimari Tasarım', 'Mimarlık Tarihi', 'Yapı Teknolojileri', 'Şehir Planlama', 'İç Mimari', 'Sürdürülebilir Mimari', 'Restorasyon'],
   guzel_sanatlar:      ['Resim', 'Heykel', 'Grafik Tasarım', 'Sanat Tarihi', 'Fotoğraf', 'Görsel Sanatlar', 'Çağdaş Sanat'],
+  cevre_muh:           ['Su Kirliliği', 'Hava Kirliliği', 'Katı Atık', 'Çevre Kimyası', 'Çevre Mikrobiyolojisi', 'Sürdürülebilirlik', 'Çevre Teknolojileri'],
+  gida_muh:            ['Gıda Kimyası', 'Gıda Mikrobiyolojisi', 'Gıda İşleme', 'Gıda Güvenliği', 'Beslenme', 'Gıda Ambalajlama', 'Gıda Biyoteknolojisi'],
   tip:                 ['Kardiyoloji', 'Onkoloji', 'Nöroloji', 'Dahiliye', 'Cerrahi', 'Pediatri', 'Radyoloji'],
   dis_hekimligi:       ['Ortodonti', 'Oral Cerrahi', 'Endodonti', 'Periodontoloji', 'Protetik Diş Tedavisi'],
   eczacilik:           ['Farmakoloji', 'Farmasötik Kimya', 'Klinik Eczacılık', 'Farmakognozy'],
@@ -105,6 +107,8 @@ export const DEPARTMENT_MAIN_FIELD = {
   mekatronik:          'Mekatronik Mühendisliği',
   mimarlik:            'Mimarlık',
   guzel_sanatlar:      'Güzel Sanatlar',
+  cevre_muh:           'Çevre Mühendisliği',
+  gida_muh:            'Gıda Mühendisliği',
   tip:                 'Tıp',
   dis_hekimligi:       'Diş Hekimliği',
   eczacilik:           'Eczacılık',

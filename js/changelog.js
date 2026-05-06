@@ -6,6 +6,18 @@
 
 export const CHANGELOG = [
   {
+    version: '0.4.38',
+    date: '2026-05-06',
+    title: 'Çevre + Gıda Müh. eklendi, Yazılım Müh. fakülte eşleşmesi, idari rütbe ve uluslararası puan düzeltildi',
+    items: [
+      { type: 'feat',  text: 'Çevre Mühendisliği bölümü tam veri ile eklendi: 8 ders müfredatı (Su/Hava Kirliliği, Katı Atık, Çevre Kimyası vb.) + 7 uzmanlık alanı — İdris Demirsoy raporu.' },
+      { type: 'feat',  text: 'Gıda Mühendisliği bölümü tam veri ile eklendi: 8 ders müfredatı (Gıda Kimyası, Mikrobiyoloji, İşleme Teknolojileri vb.) + 7 uzmanlık alanı — İdris Demirsoy raporu.' },
+      { type: 'fix',   text: 'Yazılım Mühendisliği fakülteler ekranında listelenmiyordu; Mühendislik Fakültesi bölüm listesine eksik eşleşme eklendi — İdris Demirsoy raporu.' },
+      { type: 'fix',   text: 'İdari personel alımında "Yenile" tuşu seçili rütbeyi sıfırlayıp "Memur\'a" dönüyordu; artık seçili rütbe korunur — İdris Demirsoy raporu.' },
+      { type: 'fix',   text: 'Uluslararası puan (internationalization) oyun boyunca başlangıç değeri olan 10\'da takılı kalıyordu; artık her dönem yeniden hesaplanıp state\'e yazılıyor — İdris Demirsoy raporu.' },
+    ],
+  },
+  {
     version: '0.4.37',
     date: '2026-05-06',
     title: 'İç tutarlılık iyileştirmeleri',
