@@ -6,6 +6,24 @@
 
 export const CHANGELOG = [
   {
+    version: '0.4.36',
+    date: '2026-05-06',
+    title: 'Köklü Devlet Üniversitesi senaryosu daha gerçekçi: 6 → 12 bölüm',
+    items: [
+      { type: 'balance', text: 'Köklü Devlet Üniversitesi senaryosu 50 yıllık geçmişe sahip olmasına rağmen yalnızca 6 bölümle başlıyordu — gerçek bir orta ölçekli devlet üniversitesi için yetersizdi (Âli Teslazadegil raporu). Senaryo artık 12 bölümle başlıyor: mevcut bilgisayar/elektrik-elektronik/makine/işletme/iktisat/hukuk üzerine inşaat, fizik, kimya, matematik, mimarlık ve psikoloji eklendi (mühendislik + temel bilimler + sosyal bilimler kapsaması). Başlangıç saygınlığı 45 → 55 yükseltildi. Eski yük borç 15M → 25M (daha fazla bölüm = daha fazla bürokratik miras). Yeni Kurulan ve Vakıf Kurtarma senaryolarına dokunulmadı (3 bölüm onların kavramına uygun).' },
+    ],
+  },
+  {
+    version: '0.4.35',
+    date: '2026-05-06',
+    title: 'Bölüm açma listesi genişletildi + bellek sızıntısı giderildi + BAP askıda kalma düzeltildi',
+    items: [
+      { type: 'fix', text: 'Bölüm açma listesi 25 bölümün tamamını kapsayacak şekilde genişletildi (önceden 14\'tü; fizik, kimya, matematik, biyoloji, hukuk, psikoloji, hemşirelik gibi bölümler UI\'dan görünmüyordu) — Muhammed Enes Canöz raporu.' },
+      { type: 'fix', text: 'Uzun oyunlarda performans iyileştirmesi: mezun listesi (state.alumni) ve tamamlanmış proje listesi otomatik budanır — yıldız mezunlar (bağış yapanlar/notable tipi) korunur, sıradan mezunların son 20 kohortu (~10 yıl) tutulur. 3. yıldan sonra sayfa yenileme zorunluluğu giderildi — Muhammed Enes Canöz raporu.' },
+      { type: 'fix', text: 'BAP çağrısı: tüm başvurular reddedildiğinde veya dönem sonunda otomatik kapanır (önceden askıda kalıp yeni ilan açmayı engelliyordu) — Muhammed Enes Canöz raporu.' },
+    ],
+  },
+  {
     version: '0.4.34',
     date: '2026-05-05',
     title: 'Sıralama hesabı çalışmıyordu — herkes 50. sırada görünüyordu',

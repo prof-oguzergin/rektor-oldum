@@ -478,6 +478,21 @@ export function advanceYearClasses(state) {
     deptData.year1 = { count: 0, avgYKS: 0, avgGPA: 0, satisfaction: 70, tamBurslu: 0, yariBurslu: 0, ucretli: 0 };
   });
 
+  // Bellek koruması: state.alumni budanır.
+  // Korunan: yıldız mezunlar (donationScore > 0) veya 'normal' dışı tipler.
+  // Geri kalan normal kohortların en yeni 20'si tutulur (~10 yıl).
+  if (state.alumni && state.alumni.length > 60) {
+    const protectedAlumni = state.alumni.filter(a =>
+      a.donationScore > 0 || a.type !== 'normal'
+    );
+    const normalAlumni = state.alumni.filter(a =>
+      !(a.donationScore > 0 || a.type !== 'normal')
+    );
+    normalAlumni.sort((a, b) => (a.graduationYear || 0) - (b.graduationYear || 0));
+    const recentNormal = normalAlumni.slice(-20);
+    state.alumni = [...protectedAlumni, ...recentNormal];
+  }
+
   return result;
 }
 

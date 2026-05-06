@@ -2461,11 +2461,11 @@ export const SCENARIOS = {
     difficulty: 'normal',
     universityType: 'devlet',
     startBudgetOverride: null,      // UNIVERSITY_TYPES.devlet default
-    startPrestigeOverride: 45,
-    forcedDepartments: ['bilgisayar_muh', 'elektrik_elektronik', 'makine', 'isletme', 'iktisat', 'hukuk'],
-    maxStartDepartments: 6,
+    startPrestigeOverride: 55,
+    forcedDepartments: ['bilgisayar_muh', 'elektrik_elektronik', 'makine', 'insaat', 'fizik', 'kimya', 'matematik', 'isletme', 'iktisat', 'hukuk', 'mimarlik', 'psikoloji'],
+    maxStartDepartments: 12,
     specialRules: {
-      legacyDebt: 15_000_000,
+      legacyDebt: 25_000_000,
       agingInfrastructure: true,    // Binalar %60 durumda başlar
       bureaucracyPenalty: 0.15,     // İşlem gecikmesi +%15
     },

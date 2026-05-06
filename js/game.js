@@ -2249,6 +2249,10 @@ function _advanceActiveProjects(state, results) {
     }
   });
   state.research.activeResearchProjects = state.research.activeResearchProjects.filter(p => !toRemove.includes(p.id));
+  // Bellek koruması: son 50 tamamlanmış proje tutulur
+  if (state.research.completedProjects.length > 50) {
+    state.research.completedProjects = state.research.completedProjects.slice(-50);
+  }
 }
 
 /** Para kısaltma (etkinlik mesajları için) */
@@ -3246,20 +3250,33 @@ function _processYokApplications(state, results) {
 // ─────────────────────────────────────────────────────────────────────────────
 
 export const AVAILABLE_NEW_DEPARTMENTS = [
-  { id: 'yazilim_muh',    name: 'Yazılım Mühendisliği',  faculty: 'muhendislik', category: 'muhendislik', icon: '💻', minFaculty: 3, cost: 2_500_000 },
-  { id: 'biyomedikal',    name: 'Biyomedikal Müh.',      faculty: 'muhendislik', category: 'muhendislik', icon: '🏥', minFaculty: 3, cost: 3_000_000 },
-  { id: 'mekatronik',     name: 'Mekatronik Müh.',       faculty: 'muhendislik', category: 'muhendislik', icon: '🤖', minFaculty: 3, cost: 2_800_000 },
-  { id: 'cevre_muh',      name: 'Çevre Mühendisliği',   faculty: 'muhendislik', category: 'muhendislik', icon: '🌿', minFaculty: 3, cost: 2_200_000 },
-  { id: 'gida_muh',       name: 'Gıda Mühendisliği',    faculty: 'muhendislik', category: 'muhendislik', icon: '🍎', minFaculty: 3, cost: 2_000_000 },
-  { id: 'mimarlik',       name: 'Mimarlık',              faculty: 'mimarlik',    category: 'mimarlik',    icon: '🏛️', minFaculty: 3, cost: 2_500_000 },
-  { id: 'tip',            name: 'Tıp',                   faculty: 'tip',         category: 'saglik',      icon: '🩺', minFaculty: 5, cost: 15_000_000 },
-  { id: 'eczacilik',      name: 'Eczacılık',             faculty: 'eczacilik',   category: 'saglik',      icon: '💊', minFaculty: 4, cost: 5_000_000 },
-  { id: 'dis_hekimligi',  name: 'Diş Hekimliği',        faculty: 'dis_hekim',   category: 'saglik',      icon: '🦷', minFaculty: 4, cost: 6_000_000 },
-  { id: 'isletme',        name: 'İşletme',               faculty: 'isletme',     category: 'sosyal',      icon: '💼', minFaculty: 3, cost: 1_800_000 },
-  { id: 'iktisat',        name: 'İktisat',               faculty: 'isletme',     category: 'sosyal',      icon: '📊', minFaculty: 3, cost: 1_800_000 },
-  { id: 'siyaset_bilimi', name: 'Siyaset Bilimi',        faculty: 'isletme',     category: 'sosyal',      icon: '🏛️', minFaculty: 3, cost: 1_500_000 },
-  { id: 'iletisim',       name: 'İletişim',              faculty: 'iletisim',    category: 'sosyal',      icon: '📡', minFaculty: 3, cost: 1_500_000 },
-  { id: 'guzel_sanatlar', name: 'Güzel Sanatlar',        faculty: 'guzel_sanat', category: 'sanat',       icon: '🎨', minFaculty: 3, cost: 1_500_000 },
+  { id: 'bilgisayar_muh',   name: 'Bilgisayar Mühendisliği',         faculty: 'muhendislik', category: 'muhendislik',  icon: '💻',  minFaculty: 3, cost: 15_000_000 },
+  { id: 'yazilim_muh',      name: 'Yazılım Mühendisliği',            faculty: 'muhendislik', category: 'muhendislik',  icon: '💻',  minFaculty: 3, cost: 2_500_000 },
+  { id: 'elektrik_elektronik', name: 'Elektrik-Elektronik Müh.',     faculty: 'muhendislik', category: 'muhendislik',  icon: '⚡',  minFaculty: 3, cost: 14_000_000 },
+  { id: 'makine',           name: 'Makine Mühendisliği',             faculty: 'muhendislik', category: 'muhendislik',  icon: '⚙️', minFaculty: 3, cost: 12_000_000 },
+  { id: 'insaat',           name: 'İnşaat Mühendisliği',             faculty: 'muhendislik', category: 'muhendislik',  icon: '🏗️', minFaculty: 3, cost: 10_000_000 },
+  { id: 'endustri',         name: 'Endüstri Mühendisliği',           faculty: 'muhendislik', category: 'muhendislik',  icon: '📊',  minFaculty: 3, cost: 9_000_000 },
+  { id: 'biyomedikal',      name: 'Biyomedikal Müh.',                faculty: 'muhendislik', category: 'muhendislik',  icon: '🔬',  minFaculty: 3, cost: 3_000_000 },
+  { id: 'yapay_zeka',       name: 'Yapay Zeka Mühendisliği',         faculty: 'muhendislik', category: 'muhendislik',  icon: '🤖',  minFaculty: 3, cost: 18_000_000 },
+  { id: 'mekatronik',       name: 'Mekatronik Müh.',                 faculty: 'muhendislik', category: 'muhendislik',  icon: '🤖',  minFaculty: 3, cost: 2_800_000 },
+  { id: 'cevre_muh',        name: 'Çevre Mühendisliği',             faculty: 'muhendislik', category: 'muhendislik',  icon: '🌿',  minFaculty: 3, cost: 2_200_000 },
+  { id: 'gida_muh',         name: 'Gıda Mühendisliği',              faculty: 'muhendislik', category: 'muhendislik',  icon: '🍎',  minFaculty: 3, cost: 2_000_000 },
+  { id: 'fizik',            name: 'Fizik',                           faculty: 'muhendislik', category: 'temel_bilim',  icon: '⚛️', minFaculty: 3, cost: 11_000_000 },
+  { id: 'kimya',            name: 'Kimya',                           faculty: 'muhendislik', category: 'temel_bilim',  icon: '🧪',  minFaculty: 3, cost: 10_500_000 },
+  { id: 'matematik',        name: 'Matematik',                       faculty: 'muhendislik', category: 'temel_bilim',  icon: '∑',   minFaculty: 3, cost: 6_000_000 },
+  { id: 'biyoloji',         name: 'Biyoloji',                        faculty: 'muhendislik', category: 'temel_bilim',  icon: '🧬',  minFaculty: 3, cost: 9_000_000 },
+  { id: 'mimarlik',         name: 'Mimarlık',                        faculty: 'mimarlik',    category: 'mimarlik',     icon: '🏛️', minFaculty: 3, cost: 2_500_000 },
+  { id: 'tip',              name: 'Tıp',                             faculty: 'tip',         category: 'saglik',       icon: '🏥',  minFaculty: 5, cost: 15_000_000 },
+  { id: 'eczacilik',        name: 'Eczacılık',                       faculty: 'eczacilik',   category: 'saglik',       icon: '💊',  minFaculty: 4, cost: 5_000_000 },
+  { id: 'dis_hekimligi',    name: 'Diş Hekimliği',                  faculty: 'dis_hekim',   category: 'saglik',       icon: '🦷',  minFaculty: 4, cost: 6_000_000 },
+  { id: 'hemsirelik',       name: 'Hemşirelik',                      faculty: 'saglik',      category: 'saglik',       icon: '🏥',  minFaculty: 3, cost: 5_000_000 },
+  { id: 'isletme',          name: 'İşletme',                         faculty: 'isletme',     category: 'sosyal',       icon: '📈',  minFaculty: 3, cost: 1_800_000 },
+  { id: 'iktisat',          name: 'İktisat',                         faculty: 'isletme',     category: 'sosyal',       icon: '💰',  minFaculty: 3, cost: 1_800_000 },
+  { id: 'hukuk',            name: 'Hukuk',                           faculty: 'hukuk',       category: 'sosyal',       icon: '⚖️', minFaculty: 3, cost: 8_000_000 },
+  { id: 'psikoloji',        name: 'Psikoloji',                       faculty: 'sosyal',      category: 'sosyal',       icon: '🧠',  minFaculty: 3, cost: 6_000_000 },
+  { id: 'siyaset_bilimi',   name: 'Siyaset Bilimi',                  faculty: 'isletme',     category: 'sosyal',       icon: '🏛️', minFaculty: 3, cost: 1_500_000 },
+  { id: 'iletisim',         name: 'İletişim',                        faculty: 'iletisim',    category: 'sosyal',       icon: '📡',  minFaculty: 3, cost: 1_500_000 },
+  { id: 'guzel_sanatlar',   name: 'Güzel Sanatlar',                  faculty: 'guzel_sanat', category: 'sanat',        icon: '🎨',  minFaculty: 3, cost: 1_500_000 },
 ];
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -3338,6 +3355,11 @@ export function nextTurn() {
 
   // İstatistikleri kaydet
   _saveStats(simResults);
+
+  // BAP çağrısı bir dönem aktif kalır, dönem sonunda otomatik kapanır
+  if (_state.research?.activeBapCall) {
+    _state.research.activeBapCall = null;
+  }
 
   // Tur sayacı ve yarıyıl değiştir
   const prevSemester = _state.meta.semester;
@@ -5553,6 +5575,10 @@ export function applyDecision(decision) {
 
       const app = _state.research.bapApplications[idx];
       _state.research.bapApplications.splice(idx, 1);
+      // Tüm başvurular reddedildiyse BAP çağrısını otomatik kapat
+      if (_state.research.bapApplications.length === 0 && _state.research.activeBapCall) {
+        _state.research.activeBapCall = null;
+      }
       return { success: true, message: `BAP başvurusu reddedildi: "${app.projectName}"` };
     }
 
