@@ -8,7 +8,7 @@ console.log('[main] main.js modülü yükleniyor...');
 // IMPORT
 // ─────────────────────────────────────────────────────────────────────────────
 
-import { initGame, nextTurn, getState, setState, applyDecision, assignCourses, applyQuotas, assignDeptHead, reassignFacultyToDept, generateAdminCandidates, hireAdminStaff, upgradeAdminUnit, promoteAdminStaff, fireAdminStaff, updateAdminStaffSalary, assignUnitManager, RANDOM_EVENTS, ACHIEVEMENTS, getAchievementStats, organizeAlumniEvent, applyRandomEventChoice, ACCREDITATION_BODIES, applyForAccreditation, checkAccreditationRequirements, establishTTO, upgradeTTO, acceptDeal, rejectDeal, foundClub, upgradeClub, dissolveClub, CLUB_TYPES, CLUB_CATEGORIES, SPORTS, foundTeam, upgradeTeam, dissolveTeam } from './game.js?v=0.4.38';
+import { initGame, nextTurn, getState, setState, applyDecision, assignCourses, applyQuotas, assignDeptHead, reassignFacultyToDept, generateAdminCandidates, hireAdminStaff, upgradeAdminUnit, promoteAdminStaff, fireAdminStaff, updateAdminStaffSalary, assignUnitManager, RANDOM_EVENTS, ACHIEVEMENTS, getAchievementStats, organizeAlumniEvent, applyRandomEventChoice, ACCREDITATION_BODIES, applyForAccreditation, checkAccreditationRequirements, establishTTO, upgradeTTO, acceptDeal, rejectDeal, foundClub, upgradeClub, dissolveClub, CLUB_TYPES, CLUB_CATEGORIES, SPORTS, foundTeam, upgradeTeam, dissolveTeam } from './game.js?v=0.4.39';
 
 import {
   showScreen,
@@ -45,20 +45,31 @@ import {
   renderRandomEventModal,
   showAccreditationModal,
   renderLeaderboardPanel,
+  renderInternationalRankingPanel,
   showChangelogModal,
   el,
   on,
-} from './ui.js?v=0.4.38';
+} from './ui.js?v=0.4.39';
 
-import { CHANGELOG, hasUnseenChanges, setLastSeenVersion } from './changelog.js?v=0.4.38';
+import { CHANGELOG, hasUnseenChanges, setLastSeenVersion } from './changelog.js?v=0.4.39';
 
 import { saveGame, loadGame, autoSave, getSaveSlots, deleteSave, exportSave, importSave, sanitizeForSave } from './save.js?v=0.4.28';
 import { calculateScore, scoreBreakdown, submitScore, getTopScores, initFirebase, isLeaderboardUnavailable, saveLocalScore, getLocalScores } from './leaderboard.js?v=0.4.27';
 import { showTutorialIfNeeded, replayTutorial } from './tutorial.js?v=0.4.24';
 import { initAudio, playSound, toggleMute, isMuted, startMusic, stopMusic, setMusicVolume, setSFXVolume, getAudioSettings } from './audio.js?v=0.4.24';
 
-import { generateTransferMarket, renderFacultyAvatar, calculateOverallRating, getFacultyRatingTrend } from './faculty.js?v=0.4.38';
+import { generateTransferMarket, renderFacultyAvatar, calculateOverallRating, getFacultyRatingTrend } from './faculty.js?v=0.4.39';
 import { resolveDecision } from './events.js?v=0.4.24';
+
+// Uluslararası sıralama modülleri
+import { THE_2024 } from './intl_rankings_the2024.js?v=0.4.39';
+import {
+  calculateIntlPillars,
+  calculateIntlTotalScore,
+  findIntlRank,
+  getNeighbors as getIntlNeighbors,
+  filterByCountry as filterIntlByCountry,
+} from './intl_ranking.js?v=0.4.39';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // UYGULAMA DURUMU
@@ -603,10 +614,34 @@ function refreshGameUI() {
         showNotification('Skor tablosu yüklenemedi: ' + err.message, 'error');
       });
       break;
+    case 'intl-ranking':
+      _onShowIntlRankingPanel(state);
+      break;
     default:
       console.warn(`[main] Bilinmeyen sekme: ${_activeTab}`);
       renderDashboard(state);
   }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// ULUSLARARASI SIRALAMA PANELİ
+// ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * Uluslararası Sıralama sekmesi açıldığında çağrılır.
+ * Pillar hesabını yapıp ui.js renderInternationalRankingPanel'e aktarır.
+ * @param {object} state — Oyun durumu
+ */
+function _onShowIntlRankingPanel(state) {
+  renderInternationalRankingPanel(
+    state,
+    THE_2024,
+    calculateIntlPillars,
+    calculateIntlTotalScore,
+    findIntlRank,
+    getIntlNeighbors,
+    filterIntlByCountry,
+  );
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

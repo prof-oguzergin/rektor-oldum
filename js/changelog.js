@@ -6,6 +6,17 @@
 
 export const CHANGELOG = [
   {
+    version: '0.4.39',
+    date: '2026-05-06',
+    title: 'Uluslararası sıralama sistemi (THE 2024)',
+    items: [
+      { type: 'feat', text: 'Uluslararası Sıralama paneli eklendi: THE WUR 2024 verisinden 1900+ üniversite, oyuncunun dünyadaki sırası, ülke filtresi, Türk üniversiteleriyle karşılaştırma.' },
+      { type: 'feat', text: 'Atıf etkisi modeli: yayın skoru artık sırf miktara değil, hoca kalitesi ve uluslararası işbirliği oranına da bağlı (log ölçek, doyum noktası var).' },
+      { type: 'feat', text: 'Beş pillar skoru THE metodolojisini taklit eder: Eğitim (%29.5), Araştırma Ortamı (%29), Atıflar (%30), Uluslararasılık (%7.5), Endüstri (%4).' },
+      { type: 'fix', text: 'Mevcut TR sıralaması artık dünya sıralamasındaki Türk üniversiteleri referansıyla tutarlı (oyuncu Sabancı seviyesine ulaşırsa TR\'de de yukarı çıkar).' },
+    ],
+  },
+  {
     version: '0.4.38',
     date: '2026-05-06',
     title: 'Çevre + Gıda Müh. eklendi, Yazılım Müh. fakülte eşleşmesi, idari rütbe ve uluslararası puan düzeltildi',

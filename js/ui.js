@@ -4,9 +4,9 @@
  * Vanilla JS, framework yok.
  */
 
-import { DEPARTMENTS, DEPARTMENT_CURRICULA, UNIVERSITY_TYPES, UNIVERSITY_MODELS, USD_TO_TL, DIFFICULTY_SETTINGS, BUILDINGS, SEMESTER_MONTHS, FACULTIES, DEPT_TO_FACULTY, SALARY_SCALES, ADMIN_UNITS, ADMIN_TITLES, ADMIN_UNIT_BUILDINGS, ACCREDITATION_BODIES, SCENARIOS, BANKS } from './data.js?v=0.4.38';
-import { DEPARTMENT_FIELDS, getSalaryRange, renderFacultyAvatar, calculateOverallRating, getFacultyRatingTrend } from './faculty.js?v=0.4.38';
-import { AVAILABLE_NEW_DEPARTMENTS } from './game.js?v=0.4.24';
+import { DEPARTMENTS, DEPARTMENT_CURRICULA, UNIVERSITY_TYPES, UNIVERSITY_MODELS, USD_TO_TL, DIFFICULTY_SETTINGS, BUILDINGS, SEMESTER_MONTHS, FACULTIES, DEPT_TO_FACULTY, SALARY_SCALES, ADMIN_UNITS, ADMIN_TITLES, ADMIN_UNIT_BUILDINGS, ACCREDITATION_BODIES, SCENARIOS, BANKS } from './data.js?v=0.4.39';
+import { DEPARTMENT_FIELDS, getSalaryRange, renderFacultyAvatar, calculateOverallRating, getFacultyRatingTrend } from './faculty.js?v=0.4.39';
+import { AVAILABLE_NEW_DEPARTMENTS } from './game.js?v=0.4.39';
 import { calculateIncome, calculateExpenses, calculateLoanPayment } from './economy.js?v=0.4.24';
 import { renderCampusMap, handleCampusClick, handleCampusHover, clearHover } from './campus-renderer.js?v=0.4.24';
 
@@ -8862,4 +8862,295 @@ function _escHtml(str) {
     .replace(/</g, '&lt;')
     .replace(/>/g, '&gt;')
     .replace(/"/g, '&quot;');
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// ULUSLARARASI SIRALAMA PANELİ (THE WUR 2024)
+// ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * Uluslararası sıralama panelini render eder.
+ * tab-intl-ranking div'ine yazar.
+ *
+ * @param {object} state       — Oyun durumu
+ * @param {object} theList     — THE_2024 verisi (intl_rankings_the2024.js)
+ * @param {Function} calcPillars  — calculateIntlPillars(state)
+ * @param {Function} calcTotal    — calculateIntlTotalScore(pillars, weights)
+ * @param {Function} findRank     — findIntlRank(total, theList)
+ * @param {Function} getNeighborsF — getNeighbors(total, theList, 5)
+ * @param {Function} filterCountry — filterByCountry(theList, code)
+ */
+export function renderInternationalRankingPanel(
+  state, theList,
+  calcPillars, calcTotal, findRank, getNeighborsF, filterCountry,
+) {
+  const panel = el('tab-intl-ranking');
+  if (!panel) return;
+
+  const pillars    = calcPillars(state);
+  const total      = calcTotal(pillars, theList.pillarsWeights);
+  const worldRank  = findRank(total, theList);
+  const { above, below } = getNeighborsF(total, theList, 5);
+
+  // Türkiye sıralaması
+  const trUnis     = filterCountry(theList, 'TR');
+  const trRanked   = trUnis.filter(u => u.total > 0)
+    .sort((a, b) => b.total - a.total);
+  // Oyuncunun TR sırası: kaç Türk üniversitesi oyuncudan yüksek skor
+  const trRank     = trRanked.filter(u => u.total > total).length + 1;
+  const trTotal    = trRanked.length;
+
+  // Pillar renkleri (THE'nin resmi renk teması yaklaşık)
+  const pillarDefs = [
+    { key: 'teaching',            label: 'Eğitim',         pct: 29.5, color: '#4f9cf7' },
+    { key: 'researchEnvironment', label: 'Araştırma Ort.', pct: 29.0, color: '#9b6ff5' },
+    { key: 'citations',           label: 'Atıflar',        pct: 30.0, color: '#5dd6c0' },
+    { key: 'international',       label: 'Uluslararası',   pct:  7.5, color: '#f5a623' },
+    { key: 'industry',            label: 'Endüstri',       pct:  4.0, color: '#e0644e' },
+  ];
+
+  // Progress bar yardımcı
+  const progressBar = (val, color) => `
+    <div style="background:rgba(255,255,255,0.07);border-radius:4px;height:8px;overflow:hidden;">
+      <div style="width:${val}%;height:100%;background:${color};border-radius:4px;transition:width .4s;"></div>
+    </div>`;
+
+  // Top 10 tablosu (theList'teki ilk 10 kayıt)
+  const top10 = theList.universities.slice(0, 10);
+  const top10Rows = top10.map((u, i) => `
+    <tr style="border-bottom:1px solid rgba(255,255,255,0.04);">
+      <td style="padding:6px 8px;text-align:center;font-weight:700;color:${
+        i === 0 ? 'var(--accent-yellow,#f5c842)' :
+        i <= 2  ? 'var(--accent-green,#5dd6c0)' :
+                  'var(--text-muted,#aaa)'};">${i + 1}</td>
+      <td style="padding:6px 8px;font-size:12px;">${_escHtml(u.nameTr || u.name)}</td>
+      <td style="padding:6px 8px;font-size:11px;color:var(--text-muted,#aaa);">${u.countryTr || u.country}</td>
+      <td style="padding:6px 8px;text-align:right;font-weight:700;color:var(--accent,#5dd6c0);">${u.total.toFixed(1)}</td>
+    </tr>`).join('');
+
+  // Komşu tablosu
+  const playerRow = `
+    <tr style="background:rgba(93,214,192,0.13);border:1px solid rgba(93,214,192,0.35);">
+      <td style="padding:7px 8px;text-align:center;font-weight:900;color:var(--accent,#5dd6c0);">#${worldRank}</td>
+      <td style="padding:7px 8px;font-size:12px;"><strong>⭐ ${_escHtml(state.university?.name || '—')}</strong> <span style="font-size:10px;background:rgba(93,214,192,0.25);border-radius:4px;padding:1px 5px;">Sen</span></td>
+      <td style="padding:7px 8px;font-size:11px;color:var(--text-muted,#aaa);">Türkiye</td>
+      <td style="padding:7px 8px;text-align:right;font-weight:700;color:var(--accent,#5dd6c0);">${total.toFixed(1)}</td>
+    </tr>`;
+
+  const neighborRowHtml = (u, rankOffset) => {
+    // Bant ya da sayısal sıra
+    const rankLabel = u.rank
+      ? `#${u.rank}`
+      : (u.rankBand ? u.rankBand : '—');
+    return `
+    <tr style="border-bottom:1px solid rgba(255,255,255,0.04);">
+      <td style="padding:6px 8px;text-align:center;font-size:12px;color:var(--text-muted,#aaa);">${rankLabel}</td>
+      <td style="padding:6px 8px;font-size:12px;">${_escHtml(u.nameTr || u.name)}</td>
+      <td style="padding:6px 8px;font-size:11px;color:var(--text-muted,#aaa);">${u.countryTr || u.country}</td>
+      <td style="padding:6px 8px;text-align:right;font-size:12px;">${u.total.toFixed(1)}</td>
+    </tr>`;
+  };
+
+  const neighborsRows = [
+    ...above.map(u => neighborRowHtml(u)),
+    playerRow,
+    ...below.map(u => neighborRowHtml(u)),
+  ].join('');
+
+  // Türk üniversiteleri karşılaştırma
+  const trCompRows = trRanked.slice(0, 8).map(u => {
+    const isSelf = u.total === total && u.country === 'TR';
+    const rankLabel = u.rank ? `#${u.rank}` : (u.rankBand || '—');
+    return `
+      <div style="display:flex;justify-content:space-between;align-items:center;
+                  padding:6px 10px;border-radius:6px;margin-bottom:4px;
+                  background:rgba(255,255,255,${isSelf ? '0.09' : '0.04'});">
+        <span style="font-size:12px;${isSelf ? 'font-weight:700;color:var(--accent,#5dd6c0);' : ''}">
+          ${_escHtml(u.nameTr || u.name)}
+        </span>
+        <span style="font-size:11px;color:var(--text-muted,#aaa);">${rankLabel} · ${u.total.toFixed(1)}</span>
+      </div>`;
+  }).join('');
+
+  // Ülke filtresi — dinamik; şimdilik sabit liste, JS handler window._onIntlCountryFilter
+  const countryOptions = [
+    { code: 'ALL', label: 'Tüm Ülkeler' },
+    { code: 'TR',  label: 'Türkiye' },
+    { code: 'US',  label: 'ABD' },
+    { code: 'GB',  label: 'Birleşik Krallık' },
+    { code: 'DE',  label: 'Almanya' },
+    { code: 'CH',  label: 'İsviçre' },
+    { code: 'CN',  label: 'Çin' },
+    { code: 'JP',  label: 'Japonya' },
+    { code: 'SG',  label: 'Singapur' },
+    { code: 'AU',  label: 'Avustralya' },
+    { code: 'CA',  label: 'Kanada' },
+  ].map(o => `<option value="${o.code}">${o.label}</option>`).join('');
+
+  panel.innerHTML = `
+    <div class="panel-header">
+      <div>
+        <div class="panel-title">Uluslararası Sıralama (THE 2024)</div>
+        <div class="panel-subtitle">
+          Dünyada <strong class="text-good">#${worldRank}</strong>
+          &nbsp;/&nbsp;${theList.totalRanked.toLocaleString('tr-TR')}
+          &nbsp;&nbsp;·&nbsp;&nbsp;
+          Türkiye'de <strong class="text-good">#${trRank}</strong>
+          &nbsp;/&nbsp;${trTotal}
+        </div>
+      </div>
+      <div style="font-size:11px;color:var(--text-muted,#aaa);text-align:right;">
+        ${theList.edition}
+      </div>
+    </div>
+
+    <!-- Toplam skor özeti -->
+    <div style="display:grid;grid-template-columns:auto 1fr;gap:16px;
+                background:rgba(93,214,192,0.07);border:1px solid rgba(93,214,192,0.2);
+                border-radius:10px;padding:14px 18px;margin-bottom:18px;align-items:center;">
+      <div style="text-align:center;">
+        <div style="font-size:36px;font-weight:900;color:var(--accent,#5dd6c0);line-height:1;">${total}</div>
+        <div style="font-size:10px;text-transform:uppercase;color:var(--text-muted,#aaa);margin-top:2px;">Toplam Skor</div>
+      </div>
+      <div>
+        <div style="font-size:13px;font-weight:700;margin-bottom:6px;">
+          Dünya Sırası: #${worldRank} &nbsp;·&nbsp; Türkiye: #${trRank}/${trTotal}
+        </div>
+        <div style="font-size:11px;color:var(--text-muted,#aaa);">
+          THE WUR metodolojisi: Eğitim %29.5 · Araştırma Ort. %29 · Atıflar %30 · Uluslararası %7.5 · Endüstri %4
+        </div>
+      </div>
+    </div>
+
+    <!-- 5 Pillar progress bar'lar -->
+    <div class="section-title" style="margin-bottom:10px;">Pillar Puanlarınız</div>
+    <div class="card" style="padding:16px 18px;margin-bottom:18px;">
+      ${pillarDefs.map(p => `
+        <div style="margin-bottom:12px;">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;">
+            <span style="font-size:12px;font-weight:600;color:${p.color};">${p.label}</span>
+            <span style="font-size:12px;font-weight:700;">${pillars[p.key]} <span style="font-size:10px;color:var(--text-muted,#aaa);">/ 100 · ağırlık %${p.pct}</span></span>
+          </div>
+          ${progressBar(pillars[p.key], p.color)}
+        </div>`).join('')}
+    </div>
+
+    <!-- Ülke filtresi -->
+    <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px;">
+      <label style="font-size:12px;color:var(--text-muted,#aaa);">Ülke Filtresi:</label>
+      <select id="intl-country-filter" style="
+        background:var(--surface,#1a2332);border:1px solid var(--border-color,rgba(255,255,255,0.1));
+        border-radius:6px;padding:5px 10px;font-size:12px;color:var(--text,#fff);cursor:pointer;">
+        ${countryOptions}
+      </select>
+    </div>
+
+    <!-- Ülke filtreli tablo (dinamik olarak doldurulur) -->
+    <div id="intl-filtered-table" style="margin-bottom:18px;"></div>
+
+    <!-- Top 10 sabit tablosu -->
+    <div class="section-title" style="margin-bottom:10px;">Dünyanın En İyi 10 Üniversitesi</div>
+    <div class="card" style="padding:0;overflow:hidden;overflow-x:auto;margin-bottom:18px;">
+      <table style="width:100%;border-collapse:collapse;font-size:13px;min-width:400px;">
+        <thead>
+          <tr style="border-bottom:1px solid rgba(255,255,255,0.1);color:var(--text-muted,#aaa);font-size:10px;text-transform:uppercase;">
+            <th style="padding:8px 8px;text-align:center;">#</th>
+            <th style="padding:8px 8px;text-align:left;">Üniversite</th>
+            <th style="padding:8px 8px;text-align:left;">Ülke</th>
+            <th style="padding:8px 8px;text-align:right;">Skor</th>
+          </tr>
+        </thead>
+        <tbody>${top10Rows}</tbody>
+      </table>
+    </div>
+
+    <!-- Komşular tablosu -->
+    <div class="section-title" style="margin-bottom:10px;">Sıralamada Komşularınız</div>
+    <div class="card" style="padding:0;overflow:hidden;overflow-x:auto;margin-bottom:18px;">
+      <table style="width:100%;border-collapse:collapse;font-size:13px;min-width:400px;">
+        <thead>
+          <tr style="border-bottom:1px solid rgba(255,255,255,0.1);color:var(--text-muted,#aaa);font-size:10px;text-transform:uppercase;">
+            <th style="padding:7px 8px;text-align:center;">Sıra</th>
+            <th style="padding:7px 8px;text-align:left;">Üniversite</th>
+            <th style="padding:7px 8px;text-align:left;">Ülke</th>
+            <th style="padding:7px 8px;text-align:right;">Skor</th>
+          </tr>
+        </thead>
+        <tbody>${neighborsRows}</tbody>
+      </table>
+    </div>
+
+    <!-- Türk üniversiteleri karşılaştırma -->
+    <div class="section-title" style="margin-bottom:10px;">Türkiye'deki Konumunuz</div>
+    <div class="card" style="padding:14px 16px;margin-bottom:18px;">
+      ${trCompRows || '<p style="color:var(--text-muted,#aaa);font-size:13px;">Türk üniversitesi verisi bulunamadı.</p>'}
+    </div>
+
+    <div style="font-size:10px;color:var(--text-muted,#aaa);text-align:right;margin-top:8px;">
+      Kaynak: Times Higher Education World University Rankings 2024.
+      Pillar skorları oyun mekaniklerinden türetilmiştir (gerçek ölçüm değil).
+    </div>
+  `;
+
+  // Ülke filtresi handler — her sayfa açılışında taze render
+  const filterSel = document.getElementById('intl-country-filter');
+  if (filterSel) {
+    filterSel.addEventListener('change', () => {
+      _renderIntlFilteredTable(filterSel.value, theList, filterCountry);
+    });
+    _renderIntlFilteredTable('ALL', theList, filterCountry);
+  }
+}
+
+/**
+ * Ülke filtreli tablo içeriğini #intl-filtered-table'a yazar.
+ * @param {string}   countryCode
+ * @param {object}   theList
+ * @param {Function} filterCountry
+ */
+function _renderIntlFilteredTable(countryCode, theList, filterCountry) {
+  const container = document.getElementById('intl-filtered-table');
+  if (!container) return;
+
+  let unis;
+  if (countryCode === 'ALL') {
+    // Tüm ülkeler: ilk 30 girişi göster
+    unis = theList.universities.slice(0, 30);
+  } else {
+    unis = filterCountry(theList, countryCode);
+  }
+
+  if (!unis || unis.length === 0) {
+    container.innerHTML = '<p style="font-size:12px;color:var(--text-muted,#aaa);">Bu ülkeden kayıtlı üniversite yok.</p>';
+    return;
+  }
+
+  const rows = unis.map(u => {
+    const rankLabel = u.rank ? `#${u.rank}` : (u.rankBand || '—');
+    return `
+      <tr style="border-bottom:1px solid rgba(255,255,255,0.04);">
+        <td style="padding:6px 8px;text-align:center;font-size:12px;color:var(--text-muted,#aaa);">${rankLabel}</td>
+        <td style="padding:6px 8px;font-size:12px;">${_escHtml(u.nameTr || u.name)}</td>
+        <td style="padding:6px 8px;font-size:11px;color:var(--text-muted,#aaa);">${u.countryTr || u.country}</td>
+        <td style="padding:6px 8px;text-align:right;font-size:12px;">${u.total.toFixed(1)}</td>
+      </tr>`;
+  }).join('');
+
+  container.innerHTML = `
+    <div class="section-title" style="margin-bottom:8px;">
+      ${countryCode === 'ALL' ? 'İlk 30 Üniversite' : `${unis[0]?.countryTr || countryCode} Üniversiteleri`}
+    </div>
+    <div class="card" style="padding:0;overflow:hidden;overflow-x:auto;">
+      <table style="width:100%;border-collapse:collapse;font-size:13px;min-width:380px;">
+        <thead>
+          <tr style="border-bottom:1px solid rgba(255,255,255,0.1);color:var(--text-muted,#aaa);font-size:10px;text-transform:uppercase;">
+            <th style="padding:7px 8px;text-align:center;">Sıra</th>
+            <th style="padding:7px 8px;text-align:left;">Üniversite</th>
+            <th style="padding:7px 8px;text-align:left;">Ülke</th>
+            <th style="padding:7px 8px;text-align:right;">Skor</th>
+          </tr>
+        </thead>
+        <tbody>${rows}</tbody>
+      </table>
+    </div>`;
 }

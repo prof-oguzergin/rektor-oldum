@@ -32,10 +32,10 @@ import {
   ACCREDITATION_BODIES,
   SCENARIOS,
   BANKS,
-} from './data.js?v=0.4.38';
+} from './data.js?v=0.4.39';
 
 import { calculateEconomy, applyBudget, calculateLoanPayment, processLoanPayments } from './economy.js?v=0.4.24';
-import { generateInitialFaculty, updateAllFacultyHappiness, generateApplicants, generateFaculty, getSalaryRange, calculateOverallRating, getFacultyRatingTrend } from './faculty.js?v=0.4.38';
+import { generateInitialFaculty, updateAllFacultyHappiness, generateApplicants, generateFaculty, getSalaryRange, calculateOverallRating, getFacultyRatingTrend } from './faculty.js?v=0.4.39';
 import {
   generateInitialStudents,
   getTotalEnrolled,
@@ -53,7 +53,9 @@ import {
   processGraduation,
   processAdmissions,
 } from './students.js?v=0.4.24';
-import { calculatePrestige, updateRivals, updateRankings } from './ranking.js?v=0.4.24';
+import { calculatePrestige, updateRivals, updateRankings } from './ranking.js?v=0.4.39';
+import { calculateIntlPillars, calculateIntlTotalScore, findIntlRank } from './intl_ranking.js?v=0.4.39';
+import { THE_2024 } from './intl_rankings_the2024.js?v=0.4.39';
 import { checkForEvents, applyEventEffects } from './events.js?v=0.4.24';
 import {
   initAlumniState,
@@ -2814,19 +2816,19 @@ function runSimulation() {
   // herkesin rank'i 50 gozukuyordu (kullanici raporu, 5 May 2026).
   updateRankings(_state);
 
-  // ── 7c. ULUSLARARASI PUAN — STATE'E YAZ ────────────────────────────────────
-  // Uluslararasılaşma skoru calculatePrestige içinde lokal hesaplanıyor ama
-  // state.university.scores.internationalization'a hiç yazılmıyordu;
-  // her dönem başlangıç değeri olan 10'da kalıyordu (İdris Demirsoy raporu).
+  // ── 7c. ULUSLARARASI + DÜNYA SIRALAMA HESABI — STATE'E YAZ ─────────────────
+  // calculateIntlPillars: THE metodolojisini taklit eden 5 bileşen hesaplar.
+  // Sonuçlar state.university.scores ve intlRanking alanlarına yazılır.
   {
-    const intlRatio     = _state.university.internationalRatio || 0.02;
-    const hasConference = _state.buildings.some(b => b.type === 'konferans' && b.isCompleted);
-    const intlScore     = Math.max(0, Math.min(100,
-      Math.floor(intlRatio * 500 + (hasConference ? 15 : 0))
-    ));
+    const intlPillars   = calculateIntlPillars(_state);
+    const intlTotal     = calculateIntlTotalScore(intlPillars, THE_2024.pillarsWeights);
+    const intlWorldRank = findIntlRank(intlTotal, THE_2024);
+
     if (_state.university.scores) {
-      _state.university.scores.internationalization = intlScore;
+      _state.university.scores.internationalization = intlPillars.international;
     }
+    _state.university.intlTotalScore  = intlTotal;
+    _state.university.intlRanking     = intlWorldRank;
   }
 
   // TODO: ranking.js'den: const rankResult = calculateRanking(_state);
