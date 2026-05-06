@@ -17,7 +17,7 @@ export const firebaseConfig = {
 };
 
 /**
- * App Check (reCAPTCHA v3) — bot/script saldırılarına karşı koruma.
+ * App Check (reCAPTCHA v3) yapılandırması.
  * Site key reCAPTCHA Admin Console'da v3 olarak oluşturulup buraya konur.
  * Boş bırakılırsa App Check devre dışı kalır (geriye dönük uyumluluk).
  *

@@ -444,7 +444,6 @@ export function processLoanPayments(state) {
 
     if (safeNum(state.university.budget) >= payment) {
       // Ödeme yapılabilir — annuity amortizasyonu: taksitin bir kısmı faiz, kalanı ana para
-      // (Önceden tüm taksit anaparadan düşülüyordu, faiz hiç ödenmiyordu — exploit.)
       const interestPart  = safeNum(loan.remainingAmount) * periodRate;
       const principalPart = Math.max(0, payment - interestPart);
       state.university.budget -= payment;

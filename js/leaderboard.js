@@ -73,7 +73,7 @@ export async function initFirebase() {
 
   _app  = initializeApp(firebaseConfig);
 
-  // App Check — bot/script saldırıları için reCAPTCHA v3 doğrulaması.
+  // App Check token doğrulaması.
   // initializeApp'ten hemen sonra, getAuth/getFirestore'dan ÖNCE çağrılmalı
   // ki sonraki tüm istekler App Check token'ı taşısın.
   if (APP_CHECK_SITE_KEY) {
@@ -134,7 +134,7 @@ function _safeNum(v, fallback) {
  * @returns {number} 0-100000 arasında tam sayı
  */
 export function calculateScore(state) {
-  // Hile koruması: girdiler clamp edilir (DevTools/localStorage tampering'e karşı)
+  // Girdiler meşru oyun aralığı içinde tutulur
   const prestige = Math.max(0, Math.min(100, _safeNum(state?.university?.prestige, 0)));
   const ranking  = _safeNum(state?.university?.ranking, 50);
   const mezun    = Math.max(0, Math.min(10_000, _safeNum(state?.alumniData?.totalGraduates ?? state?.alumni?.length, 0)));
@@ -161,7 +161,7 @@ export function calculateScore(state) {
  * @returns {string[]} Her satır bir kırılım açıklaması
  */
 export function scoreBreakdown(state) {
-  // calculateScore ile aynı clamp'ler — modal'da gösterilen puan gerçek skorla eşleşir
+  // Gösterilen puan gerçek skorla tutarlı kalsın diye aynı sınırlar
   const prestige = Math.max(0, Math.min(100, state.university?.prestige ?? 0));
   const ranking  = state.university?.ranking  ?? 50;
   const mezun    = Math.max(0, Math.min(10_000, state.alumniData?.totalGraduates ?? state.alumni?.length ?? 0));
