@@ -134,10 +134,11 @@ function _safeNum(v, fallback) {
  * @returns {number} 0-100000 arasında tam sayı
  */
 export function calculateScore(state) {
-  const prestige = _safeNum(state?.university?.prestige, 0);
+  // Hile koruması: girdiler clamp edilir (DevTools/localStorage tampering'e karşı)
+  const prestige = Math.max(0, Math.min(100, _safeNum(state?.university?.prestige, 0)));
   const ranking  = _safeNum(state?.university?.ranking, 50);
-  const mezun    = _safeNum(state?.alumniData?.totalGraduates ?? state?.alumni?.length, 0);
-  const yil      = _safeNum(state?.meta?.year, 1);
+  const mezun    = Math.max(0, Math.min(10_000, _safeNum(state?.alumniData?.totalGraduates ?? state?.alumni?.length, 0)));
+  const yil      = Math.max(1, Math.min(200, _safeNum(state?.meta?.year, 1)));
 
   let score = Math.round(
     prestige * 10
@@ -160,10 +161,11 @@ export function calculateScore(state) {
  * @returns {string[]} Her satır bir kırılım açıklaması
  */
 export function scoreBreakdown(state) {
-  const prestige = state.university?.prestige ?? 0;
+  // calculateScore ile aynı clamp'ler — modal'da gösterilen puan gerçek skorla eşleşir
+  const prestige = Math.max(0, Math.min(100, state.university?.prestige ?? 0));
   const ranking  = state.university?.ranking  ?? 50;
-  const mezun    = state.alumniData?.totalGraduates ?? state.alumni?.length ?? 0;
-  const yil      = state.meta?.year ?? 1;
+  const mezun    = Math.max(0, Math.min(10_000, state.alumniData?.totalGraduates ?? state.alumni?.length ?? 0));
+  const yil      = Math.max(1, Math.min(200, state.meta?.year ?? 1));
   const budget   = state.university?.budget ?? 0;
 
   const lines = [
