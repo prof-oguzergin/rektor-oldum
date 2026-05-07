@@ -235,7 +235,9 @@ export async function submitScore(name, state) {
     name:      trimmed,
     score,
     year:      Math.round(_safeNum(state?.meta?.year, 1)),
-    rank:      Math.round(_safeNum(state?.university?.ranking, 50)),
+    // v0.4.42: rank artık DÜNYA sırası (THE WUR 2024'teki konum, 1-1904).
+    // Önceden 50 hayali rakipten TR sırası tutuluyordu; eski kayıtlar UI'da "Eski TR" etiketiyle gösterilir.
+    rank:      Math.round(_safeNum(state?.university?.intlRanking, 1900)),
     prestige:  Math.round(_safeNum(state?.university?.prestige, 0)),
     createdAt: serverTimestamp(),
   };

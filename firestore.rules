@@ -52,7 +52,7 @@ service cloud.firestore {
             && data.year <= 200
             && data.rank is int
             && data.rank >= 1
-            && data.rank <= 1000
+            && data.rank <= 5000
             && data.prestige is int
             && data.prestige >= 0
             && data.prestige <= 100

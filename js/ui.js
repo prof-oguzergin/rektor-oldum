@@ -8597,22 +8597,29 @@ export async function renderLeaderboardPanel(getTopScoresFn) {
 
     const medals = ['🥇', '🥈', '🥉'];
 
+    // v0.4.42: rank artık Dünya Sırası (THE 2024). Bu tarihten önceki kayıtlar
+    // eski TR sırasını (1-50) tutuyor; UI'da "Eski TR" rozetiyle ayırt ediliyor.
+    const _LB_INTL_CUTOFF_MS = new Date('2026-05-07T17:00:00Z').getTime();
     const tableRows = rows.map((r, idx) => {
       const pos    = idx + 1;
       const medal  = pos <= 3 ? medals[pos - 1] : `${pos}.`;
       const rowCls = pos === 1 ? 'lb-gold' : pos === 2 ? 'lb-silver' : pos === 3 ? 'lb-bronze' : '';
-      const date   = r.createdAt?.toDate
-        ? r.createdAt.toDate().toLocaleDateString('tr-TR')
-        : (r.createdAt?.seconds
-            ? new Date(r.createdAt.seconds * 1000).toLocaleDateString('tr-TR')
-            : '—');
+      const tsMs   = r.createdAt?.toDate ? r.createdAt.toDate().getTime()
+                  : (r.createdAt?.seconds ? r.createdAt.seconds * 1000 : 0);
+      const date   = tsMs ? new Date(tsMs).toLocaleDateString('tr-TR') : '—';
+      const isOld  = tsMs > 0 && tsMs < _LB_INTL_CUTOFF_MS;
+      const rankCell = r.rank == null
+        ? '—'
+        : isOld
+          ? `<span style="font-size:10px;color:#888;background:rgba(255,255,255,0.05);border-radius:3px;padding:1px 5px;margin-right:4px;">Eski TR</span><span style="color:#aaa;">#${r.rank}</span>`
+          : `#${r.rank}`;
       return `
         <tr class="${rowCls}">
           <td style="text-align:center;font-size:15px;">${medal}</td>
           <td style="font-weight:${pos <= 3 ? '700' : '400'};">${_escHtml(r.name ?? 'Anonim')}</td>
           <td style="text-align:right;font-weight:700;color:var(--accent,#5dd6c0);">${(r.score ?? 0).toLocaleString('tr-TR')}</td>
           <td style="text-align:center;">${r.year ?? '—'}. Yıl</td>
-          <td style="text-align:center;">#${r.rank ?? '—'}</td>
+          <td style="text-align:center;">${rankCell}</td>
           <td style="text-align:center;">${r.prestige ?? '—'}</td>
           <td style="text-align:center;font-size:11px;color:var(--text-muted,#aaa);">${date}</td>
         </tr>`;
@@ -8627,7 +8634,7 @@ export async function renderLeaderboardPanel(getTopScoresFn) {
               <th style="padding:8px 6px;text-align:left;">Rektör</th>
               <th style="padding:8px 6px;text-align:right;">Skor</th>
               <th style="padding:8px 6px;text-align:center;">Yıl</th>
-              <th style="padding:8px 6px;text-align:center;">Sıralama</th>
+              <th style="padding:8px 6px;text-align:center;">Dünya Sırası</th>
               <th style="padding:8px 6px;text-align:center;">Saygınlık</th>
               <th style="padding:8px 6px;text-align:center;">Tarih</th>
             </tr>

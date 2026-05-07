@@ -6,6 +6,15 @@
 
 export const CHANGELOG = [
   {
+    version: '0.4.42',
+    date: '2026-05-07',
+    title: 'Liderlik tablosunda Sıralama sütunu Dünya Sırası oldu',
+    items: [
+      { type: 'feat', text: 'Liderlik tablosunda "Sıralama" sütunu artık Dünya Sırası (THE WUR 2024). Yeni gönderimler 1-1904 arası gerçek dünya konumunu gösterir; eski 50 hayali rakipten kalma kayıtlar "Eski TR" rozetiyle ayırt edilir.' },
+      { type: 'fix', text: 'Liderlik tablosunda kayıtlı sıra üst sınırı 1000\'den 5000\'e çıkarıldı (gelecekteki büyük listeler için pay).' },
+    ],
+  },
+  {
     version: '0.4.41',
     date: '2026-05-07',
     title: 'Liderlik tablosu temizliği ve kötüye kullanan hesap engellendi',
