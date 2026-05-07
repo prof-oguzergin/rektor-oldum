@@ -6,6 +6,16 @@
 
 export const CHANGELOG = [
   {
+    version: '0.4.40',
+    date: '2026-05-07',
+    title: 'Eski "Sıralama" sekmesi kaldırıldı, Dünya Sırası tek doğruluk kaynağı',
+    items: [
+      { type: 'fix', text: 'Eski TR sıralaması (50 hayali rakip) sekmesi kaldırıldı; oyuncunun gerçek konumu için Dünya Sırası kullanılıyor — iki sıralamanın çelişme sorunu giderildi.' },
+      { type: 'fix', text: 'Üst stat barında "Sıralama #50" yerine THE WUR 2024 dünya sırası gösteriliyor.' },
+      { type: 'fix', text: 'Saygınlık kartındaki sıralama notu da dünya sırasını gösteriyor.' },
+    ],
+  },
+  {
     version: '0.4.39',
     date: '2026-05-06',
     title: 'Uluslararası sıralama sistemi (THE 2024)',

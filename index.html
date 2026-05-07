@@ -266,7 +266,7 @@
           <span class="top-stat-value prestige-value">—</span>
         </div>
         <div class="top-stat" id="stat-ranking">
-          <span class="top-stat-label">Sıralama</span>
+          <span class="top-stat-label">Dünya Sırası</span>
           <span class="top-stat-value ranking-value">—</span>
         </div>
         <div class="top-stat" id="stat-students">
@@ -328,10 +328,6 @@
             <span class="tab-icon">🏢</span>
             <span class="tab-label">İdari</span>
           </button>
-          <button class="sidebar-tab" data-tab="ranking">
-            <span class="tab-icon">🏆</span>
-            <span class="tab-label">Sıralama</span>
-          </button>
           <button class="sidebar-tab" data-tab="alumni">
             <span class="tab-icon">🎓</span>
             <span class="tab-label">Mezunlar</span>
@@ -374,7 +370,6 @@
         <div id="tab-research"    class="tab-panel"></div>
         <div id="tab-budget"      class="tab-panel"></div>
         <div id="tab-admin"       class="tab-panel"></div>
-        <div id="tab-ranking"     class="tab-panel"></div>
         <div id="tab-alumni"      class="tab-panel"></div>
         <div id="tab-sports"      class="tab-panel"></div>
         <div id="tab-clubs"       class="tab-panel"></div>
@@ -477,7 +472,7 @@
   <script>console.log('[inline] Script tag çalışıyor, before module');</script>
   <script type="module">
     // Cache-bust: build hash veya manuel versiyon. Her release'de bumpla.
-    const APP_VERSION = '0.4.37';
+    const APP_VERSION = '0.4.40';
     console.log('[inline-module] Sürüm:', APP_VERSION);
     try {
       const m = await import(`./js/main.js?v=${APP_VERSION}`);

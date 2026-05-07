@@ -802,9 +802,12 @@ export function updateTopBar(state) {
   const prestigeEl = qs('#stat-prestige .top-stat-value');
   if (prestigeEl) prestigeEl.textContent = Math.round(uni.prestige);
 
-  // Sıralama
+  // Dünya Sırası
   const rankEl = qs('#stat-ranking .top-stat-value');
-  if (rankEl) rankEl.textContent = `#${uni.ranking}`;
+  if (rankEl) {
+    const intlR = state.university?.intlRanking;
+    rankEl.textContent = intlR ? `🌍 #${intlR}` : '—';
+  }
 
   // Öğrenci sayısı
   const studEl = qs('#stat-students .top-stat-value');
@@ -888,7 +891,7 @@ export function renderDashboard(state) {
     <div class="dashboard-grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:12px;margin-bottom:24px;">
       ${_statCardHtml('Kasa', formatMoney(uni.budget), netBalance >= 0 ? 'positive' : 'negative',
         netBalance >= 0 ? `+${formatMoney(netBalance)} bu dönem` : `${formatMoney(netBalance)} bu dönem`)}
-      ${_statCardHtml('Saygınlık', Math.round(uni.prestige), null, `Sıralama #${uni.ranking}`)}
+      ${_statCardHtml('Saygınlık', Math.round(uni.prestige), null, uni.intlRanking ? `Dünya #${uni.intlRanking}` : 'Dünya —')}
       ${_statCardHtml('Öğrenci', formatNumber(state.students?.totalEnrolled ?? 0), null,
         `${state.students?.starStudents?.length ?? 0} yıldız öğrenci`)}
       ${_statCardHtml('Kadro', formatNumber(state.faculty?.length ?? 0), null,
@@ -4616,166 +4619,6 @@ export function renderBudgetPanel(state, onAllocChange, onLoanAction, onTuitionC
  * Sıralama sekmesi: rakip detayları dahil kapsamlı karşılaştırma tablosu.
  * @param {object} state — Oyun durumu
  */
-export function renderRankingPanel(state) {
-  const panel = el('tab-ranking');
-  if (!panel) return;
-
-  const uni    = state.university || {};
-  const rivals = state.rivals || [];
-  const scores = uni.scores || {};
-
-  // Oyuncunun üniversitesi için avgYKS hesapla
-  const byDeptAll  = state.students?.byDepartment || {};
-  let totalYKSSum  = 0;
-  let totalYKSCnt  = 0;
-  for (const d of Object.values(byDeptAll)) {
-    const yks = d?.year1?.avgYKS || 0;
-    const cnt = d?.year1?.count  || 0;
-    if (yks > 0 && cnt > 0) { totalYKSSum += yks * cnt; totalYKSCnt += cnt; }
-  }
-  const playerAvgYKS = totalYKSCnt > 0 ? Math.round(totalYKSSum / totalYKSCnt) : 0;
-
-  // Oyuncunun dönemlik yayın sayısı
-  const playerPubs = state.research?.publications || 0;
-
-  // Tüm üniversiteleri tek listede topla (prestige sıralaması)
-  const allUnis = [
-    {
-      name:         uni.name,
-      ranking:      uni.ranking || 50,
-      prestige:     Math.round(uni.prestige || 0),
-      scores,
-      studentCount: state.students?.totalEnrolled || 0,
-      facultyCount: state.faculty?.length || 0,
-      avgYKS:       playerAvgYKS,
-      publications: playerPubs,
-      isPlayer:     true,
-    },
-    ...rivals.map(r => ({
-      name:         r.name,
-      ranking:      r.ranking || 50,
-      prestige:     Math.round(r.prestige || 0),
-      scores:       r.scores || {},
-      studentCount: r.studentCount || 1000,
-      facultyCount: r.facultyCount || 30,
-      avgYKS:       r.avgYKS || 0,
-      publications: r.publicationsPerSemester || 0,
-      isPlayer:     false,
-    })),
-  ].sort((a, b) => a.ranking - b.ranking);
-
-  const scoreDefs = [
-    { key: 'education',            label: 'Eğitim' },
-    { key: 'research',             label: 'Araştırma' },
-    { key: 'alumni',               label: 'Mezun' },
-    { key: 'satisfaction',         label: 'Memnuniyet' },
-    { key: 'internationalization', label: 'Uluslararası' },
-  ];
-
-  // Güçlü / zayıf yön analizi
-  const scoreEntries = scoreDefs.map(s => ({
-    label: s.label,
-    val:   Math.round(scores[s.key] ?? 0),
-  }));
-  const sorted     = [...scoreEntries].sort((a, b) => b.val - a.val);
-  const strongest  = sorted[0];
-  const weakest    = sorted[sorted.length - 1];
-
-  // Öğrenci/hoca oranı
-  const ratio = (state.faculty?.length || 0) > 0
-    ? ((state.students?.totalEnrolled || 0) / state.faculty.length).toFixed(1)
-    : '—';
-
-  const playerPos  = allUnis.findIndex(u => u.isPlayer);
-  const posOrdinal = (n) => `${n}.`;
-
-  panel.innerHTML = `
-    <div class="panel-header">
-      <div>
-        <div class="panel-title">Sıralamalar</div>
-        <div class="panel-subtitle">
-          Konumunuz: <strong class="text-good">${posOrdinal(playerPos + 1)}</strong>
-          &nbsp;/&nbsp;${allUnis.length} üniversite
-        </div>
-      </div>
-    </div>
-
-    <div style="display:grid;grid-template-columns:repeat(5,1fr);gap:12px;margin-bottom:20px;">
-      ${scoreDefs.map(s => _statCardHtml(s.label, Math.round(scores[s.key] ?? 0), null, 'puan')).join('')}
-    </div>
-
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:20px;">
-      <div class="card" style="padding:14px;border-left:3px solid var(--accent-green);">
-        <div style="font-size:11px;text-transform:uppercase;color:var(--text-muted);margin-bottom:4px;">Güçlü Yan</div>
-        <div style="font-size:14px;font-weight:700;color:var(--accent-green);">
-          ${strongest?.label || '—'}: ${strongest?.val || 0} puan
-        </div>
-      </div>
-      <div class="card" style="padding:14px;border-left:3px solid var(--accent-red,#e53e3e);">
-        <div style="font-size:11px;text-transform:uppercase;color:var(--text-muted);margin-bottom:4px;">Zayıf Yan</div>
-        <div style="font-size:14px;font-weight:700;color:var(--accent-red,#e53e3e);">
-          ${weakest?.label || '—'}: ${weakest?.val || 0} puan
-        </div>
-      </div>
-    </div>
-
-    <div class="section-title">Sıralama Tablosu</div>
-    <div class="card" style="padding:0;overflow:hidden;overflow-x:auto;">
-      <table class="data-table" style="min-width:900px;">
-        <thead>
-          <tr>
-            <th style="width:40px;">#</th>
-            <th>Üniversite</th>
-            <th class="text-right">Puan</th>
-            <th class="text-right">Saygınlık</th>
-            <th class="text-right">Ort.YKS ↓</th>
-            <th class="text-right">Öğrenci</th>
-            <th class="text-right">Hoca</th>
-            <th class="text-right">Yayın/Dönem</th>
-          </tr>
-        </thead>
-        <tbody>
-          ${allUnis.map((u, i) => {
-            const rankColor = i === 0
-              ? 'var(--accent-yellow)'
-              : i <= 2
-                ? 'var(--accent-green)'
-                : 'var(--text-muted)';
-            const avgScore = Object.keys(u.scores).length > 0
-              ? Math.round(Object.values(u.scores).reduce((a, b) => a + (b || 0), 0) / Object.keys(u.scores).length)
-              : u.prestige;
-            const yksDisplay = u.avgYKS > 0 ? formatNumber(u.avgYKS) : '—';
-            return `
-              <tr class="${u.isPlayer ? 'highlight-row' : ''}">
-                <td style="font-weight:800;color:${rankColor};">${i + 1}</td>
-                <td>
-                  ${u.isPlayer
-                    ? `<strong>★ ${u.name}</strong> <span class="badge badge-success">Sen</span>`
-                    : u.name}
-                </td>
-                <td class="text-right font-bold">${u.isPlayer ? Math.round(Object.values(scores).reduce((a,b)=>a+(b||0),0)/Object.keys(scores).length||0) : avgScore}</td>
-                <td class="text-right">${u.prestige}</td>
-                <td class="text-right" style="color:var(--text-muted);font-size:12px;">${yksDisplay}</td>
-                <td class="text-right">${formatNumber(u.studentCount)}</td>
-                <td class="text-right">${u.facultyCount}</td>
-                <td class="text-right">${u.publications}</td>
-              </tr>`;
-          }).join('')}
-        </tbody>
-      </table>
-    </div>
-
-    <div class="card" style="margin-top:16px;padding:14px;font-size:13px;">
-      <div style="font-weight:700;margin-bottom:8px;">Sizin konumunuz (${posOrdinal(playerPos + 1)} / ${allUnis.length})</div>
-      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:8px;color:var(--text-muted);">
-        <div>Öğrenci/Hoca Oranı: <strong>${ratio}</strong></div>
-        <div>Ort. YKS: <strong>${playerAvgYKS > 0 ? formatNumber(playerAvgYKS) : '—'}</strong></div>
-        <div>Toplam Yayın: <strong>${playerPubs}</strong></div>
-      </div>
-    </div>
-  `;
-}
-
 // ─────────────────────────────────────────────────────────────────────────────
 // 7. ARAŞTIRMA PANELİ
 // ─────────────────────────────────────────────────────────────────────────────
