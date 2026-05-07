@@ -8,11 +8,12 @@
 //  2) Doc ID = request.auth.uid (kullanıcı başına TEK kayıt)
 //  3) Update yalnızca yeni skor mevcuttan yüksekse (server-side karşılaştırma)
 //  4) Score 0..5000, year 1..200, prestige 0..100, rank 1..1000 aralığında
-//     (5 May 2026: max 100000 -> 5000, sahte yuksek skor saldirisi sonrasi)
+//     (5 May 2026: max 100000 -> 5000)
 //     (6 May 2026: prestige -100..200 -> 0..100, oyun motoru MAX_PRESTIGE=100 ile eşitlendi)
 //  5) Name 1-30 karakter string
 //  6) Read herkese açık (skor tablosu publik)
 //  7) Delete kapalı
+//  8) UID engelleme listesi (7 May 2026): aşağıdaki UID'ler skor yazamaz
 
 rules_version = '2';
 service cloud.firestore {
@@ -22,6 +23,13 @@ service cloud.firestore {
 
       // Skor tablosu okuması herkese açık
       allow read: if true;
+
+      // Engellenen UID'ler — skor yazamaz, mevcut kayıtları silinmiştir
+      function isBanned(uid) {
+        return uid in [
+          'xFuAXTgGUeT40IIA3A7CCgThE7w2',
+        ];
+      }
 
       // Ortak alan + tip + aralık doğrulamaları (create + update için)
       function validScore(data, uid) {
@@ -55,6 +63,7 @@ service cloud.firestore {
       allow create: if
         request.auth != null
         && scoreId == request.auth.uid
+        && !isBanned(request.auth.uid)
         && validScore(request.resource.data, request.auth.uid);
 
       // Mevcut kaydı güncelleme: yeni skor MEVCUT skordan yüksek olmalı
@@ -62,6 +71,7 @@ service cloud.firestore {
       allow update: if
         request.auth != null
         && scoreId == request.auth.uid
+        && !isBanned(request.auth.uid)
         && validScore(request.resource.data, request.auth.uid)
         && request.resource.data.score > resource.data.score;
 

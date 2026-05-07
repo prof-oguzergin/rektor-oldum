@@ -6,6 +6,14 @@
 
 export const CHANGELOG = [
   {
+    version: '0.4.41',
+    date: '2026-05-07',
+    title: 'Liderlik tablosu temizliği ve kötüye kullanan hesap engellendi',
+    items: [
+      { type: 'security', text: 'Eski sürüm sınırlarını kötüye kullanan bir hesap engellendi; ilgili kayıt liderlik tablosundan kaldırıldı.' },
+    ],
+  },
+  {
     version: '0.4.40',
     date: '2026-05-07',
     title: 'Eski "Sıralama" sekmesi kaldırıldı, Dünya Sırası tek doğruluk kaynağı',
