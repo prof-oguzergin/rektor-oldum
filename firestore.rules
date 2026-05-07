@@ -28,6 +28,8 @@ service cloud.firestore {
       function isBanned(uid) {
         return uid in [
           'xFuAXTgGUeT40IIA3A7CCgThE7w2',
+          '76ybDl7aIPaw3wNkegH7xsb158t1',
+          'UeCa2BE0dYbvjQiGTNpOXWetopG2',
         ];
       }
 

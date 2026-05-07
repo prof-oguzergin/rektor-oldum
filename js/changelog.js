@@ -6,6 +6,14 @@
 
 export const CHANGELOG = [
   {
+    version: '0.4.43',
+    date: '2026-05-07',
+    title: 'Liderlik tablosu temizliği — matematiksel imkânsız skorlar kaldırıldı',
+    items: [
+      { type: 'security', text: 'Eski sürüm sınırlarını kötüye kullanan iki hesap daha engellendi; ilgili kayıtlar liderlik tablosundan kaldırıldı.' },
+    ],
+  },
+  {
     version: '0.4.42',
     date: '2026-05-07',
     title: 'Liderlik tablosunda Sıralama sütunu Dünya Sırası oldu',
