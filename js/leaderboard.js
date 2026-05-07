@@ -5,6 +5,8 @@
  */
 
 import { firebaseConfig, APP_CHECK_SITE_KEY } from './firebase-config.js?v=0.4.27';
+import { THE_2024 } from './intl_rankings_the2024.js?v=0.4.39';
+import { calculateIntlPillars, calculateIntlTotalScore, findIntlRank } from './intl_ranking.js?v=0.4.39';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // TEKİL BAŞLATMA
@@ -229,15 +231,28 @@ export async function submitScore(name, state) {
     };
   }
 
+  // v0.4.45: state'te intlRanking yoksa (eski kayıt yüklemiş oyuncu, henüz dönem
+  // geçmemiş yeni oyun vb.) anlık olarak hesapla — 1900 default'una düşmesin.
+  let intlRank = _safeNum(state?.university?.intlRanking, 0);
+  if (!intlRank) {
+    try {
+      const pillars = calculateIntlPillars(state);
+      const total   = calculateIntlTotalScore(pillars, THE_2024.pillarsWeights);
+      intlRank      = findIntlRank(total, THE_2024);
+    } catch (err) {
+      console.warn('[leaderboard] intlRanking anlik hesabi basarisiz:', err?.message || err);
+      intlRank = 1900;
+    }
+  }
+
   const payload = {
     uid,                                  // Rules'da request.auth.uid ile eşleşmeli
     gameId,                               // Hangi oyundan geldi (arşiv)
     name:      trimmed,
     score,
     year:      Math.round(_safeNum(state?.meta?.year, 1)),
-    // v0.4.42: rank artık DÜNYA sırası (THE WUR 2024'teki konum, 1-1904).
-    // Önceden 50 hayali rakipten TR sırası tutuluyordu; eski kayıtlar UI'da "Eski TR" etiketiyle gösterilir.
-    rank:      Math.round(_safeNum(state?.university?.intlRanking, 1900)),
+    // Dünya sırası (THE WUR 2024 listesinde konum, 1-1904).
+    rank:      Math.round(intlRank),
     prestige:  Math.round(_safeNum(state?.university?.prestige, 0)),
     createdAt: serverTimestamp(),
   };
