@@ -48,7 +48,7 @@ import {
   showChangelogModal,
   el,
   on,
-} from './ui.js?v=0.4.42';
+} from './ui.js?v=0.4.44';
 
 import { CHANGELOG, hasUnseenChanges, setLastSeenVersion } from './changelog.js?v=0.4.42';
 

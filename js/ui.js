@@ -8607,7 +8607,9 @@ export async function renderLeaderboardPanel(getTopScoresFn) {
       const tsMs   = r.createdAt?.toDate ? r.createdAt.toDate().getTime()
                   : (r.createdAt?.seconds ? r.createdAt.seconds * 1000 : 0);
       const date   = tsMs ? new Date(tsMs).toLocaleDateString('tr-TR') : '—';
-      const isOld  = tsMs > 0 && tsMs < _LB_INTL_CUTOFF_MS;
+      // Eski TR rozeti: rank 1-50 aralığındaysa (eski sistem max 50) VE tarih kesim öncesindeyse.
+      // rank > 50 olan kayıtlar zaten kesin yeni dünya sırası (eski sistemde imkânsız değer).
+      const isOld  = r.rank != null && r.rank <= 50 && tsMs > 0 && tsMs < _LB_INTL_CUTOFF_MS;
       const rankCell = r.rank == null
         ? '—'
         : isOld
