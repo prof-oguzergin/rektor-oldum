@@ -2287,8 +2287,9 @@ function _generateFacultyApplications(state) {
     });
   });
 
-  // Eski pendingProjectApplications listesini temizle (artık kullanılmıyor)
-  state.research.pendingProjectApplications = [];
+  // Not: pendingProjectApplications v0.4.49'dan itibaren TEMIZLENMEZ.
+  // Dış projeler otomatik onaylanır (accepted/rejected lastApplicationResults'a gider).
+  // pendingProjectApplications listesi gerçek pending başvurular için korunur.
 }
 
 /**
@@ -3483,9 +3484,15 @@ export function nextTurn() {
   // İstatistikleri kaydet
   _saveStats(simResults);
 
-  // BAP çağrısı bir dönem aktif kalır, dönem sonunda otomatik kapanır
+  // BAP çağrısı: süresi dolmuşsa kapat, tüm başvurular reddedildiyse kapat.
+  // Koşulsuz sıfırlama YAPILMAZ — oyuncu birden fazla dönem boyunca onay yapabilmeli.
   if (_state.research?.activeBapCall) {
-    _state.research.activeBapCall = null;
+    const bap = _state.research.activeBapCall;
+    const expired = bap.expirationTurn != null && _state.meta.turn >= bap.expirationTurn;
+    const noAppsLeft = (_state.research.bapApplications || []).length === 0;
+    if (expired || noAppsLeft) {
+      _state.research.activeBapCall = null;
+    }
   }
 
   // Tur sayacı ve yarıyıl değiştir
@@ -5635,12 +5642,13 @@ export function applyDecision(decision) {
       if (_state.research.activeBapCall) return { success: false, message: 'Zaten aktif bir BAP çağrısı var.' };
 
       _state.research.activeBapCall = {
-        id:            `bap_${_state.meta.turn}`,
+        id:             `bap_${_state.meta.turn}`,
         totalBudget,
-        maxPerProject: maxPerProject || Math.round(totalBudget / 5),
-        field:         field || 'any',
+        maxPerProject:  maxPerProject || Math.round(totalBudget / 5),
+        field:          field || 'any',
         remainingBudget: totalBudget,
-        openedTurn:    _state.meta.turn,
+        openedTurn:     _state.meta.turn,
+        expirationTurn: _state.meta.turn + 3,  // 3 dönem aktif kalır (v0.4.49)
       };
       _state.university.budget -= totalBudget;
       _state.research.bapApplications = [];

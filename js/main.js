@@ -8,8 +8,8 @@ console.log('[main] main.js modülü yükleniyor...');
 // IMPORT
 // ─────────────────────────────────────────────────────────────────────────────
 
-import { initGame, nextTurn, getState, setState, applyDecision, assignCourses, applyQuotas, assignDeptHead, reassignFacultyToDept, generateAdminCandidates, hireAdminStaff, upgradeAdminUnit, promoteAdminStaff, fireAdminStaff, updateAdminStaffSalary, assignUnitManager, RANDOM_EVENTS, ACHIEVEMENTS, getAchievementStats, organizeAlumniEvent, applyRandomEventChoice, ACCREDITATION_BODIES, applyForAccreditation, checkAccreditationRequirements, establishTTO, upgradeTTO, acceptDeal, rejectDeal, foundClub, upgradeClub, dissolveClub, CLUB_TYPES, CLUB_CATEGORIES, SPORTS, foundTeam, upgradeTeam, dissolveTeam } from './game.js?v=0.4.48';
-import { ADMIN_TITLES } from './data.js?v=0.4.48';
+import { initGame, nextTurn, getState, setState, applyDecision, assignCourses, applyQuotas, assignDeptHead, reassignFacultyToDept, generateAdminCandidates, hireAdminStaff, upgradeAdminUnit, promoteAdminStaff, fireAdminStaff, updateAdminStaffSalary, assignUnitManager, RANDOM_EVENTS, ACHIEVEMENTS, getAchievementStats, organizeAlumniEvent, applyRandomEventChoice, ACCREDITATION_BODIES, applyForAccreditation, checkAccreditationRequirements, establishTTO, upgradeTTO, acceptDeal, rejectDeal, foundClub, upgradeClub, dissolveClub, CLUB_TYPES, CLUB_CATEGORIES, SPORTS, foundTeam, upgradeTeam, dissolveTeam } from './game.js?v=0.4.49';
+import { ADMIN_TITLES } from './data.js?v=0.4.49';
 
 import {
   showScreen,
@@ -49,9 +49,9 @@ import {
   showChangelogModal,
   el,
   on,
-} from './ui.js?v=0.4.48';
+} from './ui.js?v=0.4.49';
 
-import { CHANGELOG, hasUnseenChanges, setLastSeenVersion } from './changelog.js?v=0.4.48';
+import { CHANGELOG, hasUnseenChanges, setLastSeenVersion } from './changelog.js?v=0.4.49';
 
 import { saveGame, loadGame, autoSave, getSaveSlots, deleteSave, exportSave, importSave, sanitizeForSave } from './save.js?v=0.4.28';
 import { calculateScore, scoreBreakdown, submitScore, getTopScores, initFirebase, isLeaderboardUnavailable, saveLocalScore, getLocalScores } from './leaderboard.js?v=0.4.45';
@@ -80,6 +80,26 @@ let _activeTab = 'dashboard';
 
 /** Transfer pazarı verisi (fakulte.js gelince gerçek değer alacak) */
 let _transferMarket = null;
+
+// ─────────────────────────────────────────────────────────────────────────────
+// AKSIYON BAZLI OTOMATIK KAYIT YARDIMCISI (FIX A — v0.4.49)
+// ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * Anlık state'i localStorage'a kaydeder.
+ * Her başarılı aksiyon sonrası çağrılır; dönem sonu beklenmez.
+ * localStorage I/O ~1 ms, debouncing gerekmez.
+ */
+function _persistState() {
+  try {
+    const state = getState();
+    if (!state) return;
+    const safe = sanitizeForSave ? sanitizeForSave(state) : state;
+    autoSave(safe);
+  } catch (e) {
+    console.warn('[main] _persistState hatası:', e);
+  }
+}
 
 // ─────────────────────────────────────────────────────────────────────────────
 // BAŞLANGIÇ
@@ -496,17 +516,20 @@ function _startGameWithState(state) {
   window._onFoundClub = (typeId) => {
     const result = applyDecision({ type: 'found_club', typeId });
     showNotification(result.message, result.success ? 'success' : 'error');
+    if (result.success) _persistState();
     refreshGameUI();
   };
   window._onUpgradeClub = (clubId) => {
     const result = applyDecision({ type: 'upgrade_club', clubId });
     showNotification(result.message, result.success ? 'success' : 'error');
+    if (result.success) _persistState();
     refreshGameUI();
   };
   window._onDissolveClub = (clubId) => {
     if (!confirm('Bu topluluğu kapatmak istediğinize emin misiniz?')) return;
     const result = applyDecision({ type: 'dissolve_club', clubId });
     showNotification(result.message, result.success ? 'success' : 'error');
+    if (result.success) _persistState();
     refreshGameUI();
   };
 
@@ -515,17 +538,20 @@ function _startGameWithState(state) {
   window._onFoundTeam = (sportId) => {
     const result = applyDecision({ type: 'found_team', sportId });
     showNotification(result.message, result.success ? 'success' : 'error');
+    if (result.success) _persistState();
     refreshGameUI();
   };
   window._onUpgradeTeam = (teamId) => {
     const result = applyDecision({ type: 'upgrade_team', teamId });
     showNotification(result.message, result.success ? 'success' : 'error');
+    if (result.success) _persistState();
     refreshGameUI();
   };
   window._onDissolveTeam = (teamId) => {
     if (!confirm('Bu takımı kapatmak istediğinize emin misiniz?')) return;
     const result = applyDecision({ type: 'dissolve_team', teamId });
     showNotification(result.message, result.success ? 'success' : 'error');
+    if (result.success) _persistState();
     refreshGameUI();
   };
 
@@ -662,6 +688,7 @@ function _onShowAccreditationModal(deptId, bodyId) {
     const result = applyForAccreditation(dId, bId);
     if (result.success) {
       showNotification(result.message, 'success');
+      _persistState();
       refreshGameUI();
     } else {
       showNotification(result.message, 'error');
@@ -1116,6 +1143,7 @@ function _onAlumniEvent(type) {
   const result = applyDecision({ type: 'organize_alumni_event', eventType: type });
   if (result?.success) {
     showNotification(result.message, 'success');
+    _persistState();
   } else {
     showNotification(result?.message || 'İşlem başarısız.', 'danger');
   }
@@ -1240,13 +1268,14 @@ function _onHireOffer(facultyId, offerOrObj) {
 
   const result = applyDecision({ type: 'hire_faculty', facultyData });
   _transferMarket = null; // Pazarı sıfırla (bir sonraki açılışta yenilensin)
-  refreshGameUI();
 
   if (result && result.success) {
     showNotification(`${fac.name} kadromuza katıldı!`, 'success');
+    _persistState();
   } else {
     showNotification(result?.message || 'İşe alma başarısız.', 'danger');
   }
+  refreshGameUI();
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -1275,6 +1304,7 @@ function _onSubmitOpenPosition(position) {
           ? position.fields.join(', ') + ' alanında'
           : (position.field ? position.field + ' alanında' : 'Belirtilen alanda'));
     showNotification(`${alanLabel} kadro ilanı verildi!`, 'success');
+    _persistState();
   } else {
     showNotification(result?.message || 'İlan verilemedi.', 'danger');
   }
@@ -1309,6 +1339,7 @@ function _handleApplyNewDept(e) {
   if (result && result.success) {
     showNotification(result.message, 'success');
     hideModal();
+    _persistState();
     refreshGameUI();
   } else {
     showNotification(result?.message || 'Başvuru gönderilemedi.', 'danger');
@@ -1321,6 +1352,7 @@ function _handleAcceptApplicant(e) {
   const result = applyDecision({ type: 'accept_applicant', applicantId: appId });
   if (result && result.success) {
     showNotification(result.message || 'Başvurucu işe alındı!', 'success');
+    _persistState();
   } else {
     showNotification(result?.message || 'İşe alma başarısız.', 'danger');
   }
@@ -1332,6 +1364,7 @@ function _handleRejectApplicant(e) {
   if (!appId) return;
   applyDecision({ type: 'reject_applicant', applicantId: appId });
   showNotification('Başvuru reddedildi.', 'info');
+  _persistState();
   refreshGameUI();
 }
 
@@ -1341,6 +1374,7 @@ function _handleAcceptSpontaneous(e) {
   const result = applyDecision({ type: 'accept_spontaneous', applicantId: appId, targetDeptId });
   if (result && result.success) {
     showNotification(result.message || 'Spontane başvurucu işe alındı!', 'success');
+    _persistState();
   } else {
     showNotification(result?.message || 'İşe alma başarısız.', 'danger');
   }
@@ -1352,6 +1386,7 @@ function _handleRejectSpontaneous(e) {
   if (!appId) return;
   applyDecision({ type: 'reject_spontaneous', applicantId: appId });
   showNotification('Spontane başvuru reddedildi.', 'info');
+  _persistState();
   refreshGameUI();
 }
 
@@ -1764,6 +1799,7 @@ function _onOpenQuotaScreen() {
   renderQuotaModal(state, (quotas) => {
     console.log('[main] Kontenjan onaylandı:', quotas);
     applyQuotas(quotas);
+    _persistState();
     refreshGameUI();
   });
 }
@@ -1771,7 +1807,8 @@ function _onOpenQuotaScreen() {
 /** Yapı inşaatı başlat */
 function _onBuildStart(buildingType) {
   console.log('[main] İnşaat başlatıldı:', buildingType);
-  applyDecision({ type: 'start_construction', buildingType });
+  const result = applyDecision({ type: 'start_construction', buildingType });
+  if (result?.success !== false) _persistState();
   refreshGameUI();
 }
 
@@ -1785,6 +1822,7 @@ function _onCampusDecision(decision) {
   } else if (result && result.message) {
     showNotification(result.message, 'success');
     playSound('success');
+    _persistState();
   }
   refreshGameUI();
 }
@@ -1799,6 +1837,7 @@ function _onAllocChange(allocation) {
     showNotification(result.message || 'Bütçe dağılımı uygulanamadı.', 'warning');
     return;
   }
+  _persistState();
   refreshGameUI();
 }
 
@@ -1811,6 +1850,7 @@ function _onLoanAction(decision) {
   console.log('[main] Kredi işlemi:', decision.type, decision);
   const result = applyDecision(decision);
   if (result && result.success) {
+    _persistState();
     refreshGameUI();
   }
   return result;
@@ -1826,7 +1866,10 @@ window._onBudgetTabRefresh = () => {
 function _onTuitionChange(amount) {
   console.log('[main] Harç değişikliği:', amount);
   const result = applyDecision({ type: 'set_tuition', amount });
-  if (result && result.success !== false) refreshGameUI();
+  if (result && result.success !== false) {
+    _persistState();
+    refreshGameUI();
+  }
   return result;
 }
 
@@ -1845,6 +1888,7 @@ function _onAidChange(rate) {
 function _onResearchBudget(amount) {
   console.log('[main] Araştırma bütçesi değişikliği:', amount);
   applyDecision({ type: 'research_budget', amount });
+  _persistState();
   refreshGameUI();
 }
 
@@ -1861,6 +1905,7 @@ function _onProjectDecision(decisionType, applicationId, extra) {
   if (result.success) {
     const msgType = (result.accepted === false) ? 'warning' : 'success';
     showNotification(result.message, msgType);
+    _persistState();
     refreshGameUI();
   } else {
     showNotification(result.message || 'İşlem başarısız.', 'error');
@@ -1881,6 +1926,7 @@ function _onAssignDeptHead(deptId, facultyId) {
   const result = assignDeptHead(deptId, facultyId);
   if (result.success) {
     showNotification(result.message, 'success');
+    _persistState();
     refreshGameUI();
   } else {
     showNotification(result.message, 'warning');
@@ -1898,6 +1944,7 @@ function _onReassignFaculty(facultyId, newDeptId) {
   if (result.success) {
     showNotification(result.message, 'success');
     if (result.warning) showNotification(result.warning, 'warning');
+    _persistState();
     refreshGameUI();
   } else {
     showNotification(result.message, 'warning');
@@ -2142,6 +2189,7 @@ function _onHireAdminCandidate(candidate, chosenTitle) {
   hideModal();
   const title = chosenTitle || candidate.suggestedTitle || candidate.title || 'Uzman';
   showNotification(`${candidate.name}, ${title} olarak işe alındı.`, 'success');
+  _persistState();
   refreshGameUI();
 }
 
@@ -2150,6 +2198,7 @@ function _onUpgradeAdminUnit(unitId) {
   const result = upgradeAdminUnit(unitId);
   if (result.success) {
     showNotification('Birim başarıyla yükseltildi!', 'success');
+    _persistState();
     refreshGameUI();
   } else {
     showNotification(result.message || 'Yükseltme başarısız.', 'warning');
@@ -2212,6 +2261,7 @@ window._onPromoteAdminStaff = function(staffId) {
   const result = promoteAdminStaff(staffId);
   if (result.success) {
     showNotification(result.message, 'success');
+    _persistState();
     refreshGameUI();
   } else {
     showNotification(result.message || 'Terfi başarısız.', 'warning');
@@ -2228,6 +2278,7 @@ window._onFireAdminStaff = function(staffId) {
   const result = fireAdminStaff(staffId);
   if (result.success) {
     showNotification(`${result.staffName} iş akdi feshedildi. Tazminat: ${result.severance.toLocaleString('tr-TR')} ₺`, 'warning');
+    _persistState();
     refreshGameUI();
   } else {
     showNotification(result.message || 'İşlem başarısız.', 'warning');
@@ -2253,6 +2304,7 @@ window._onAdjustAdminSalary = function(staffId) {
   const result = updateAdminStaffSalary(staffId, newSalary);
   if (result.success) {
     showNotification(`${staff.name} maaşı güncellendi: ${newSalary.toLocaleString('tr-TR')} ₺/ay`, 'success');
+    _persistState();
     refreshGameUI();
   } else {
     showNotification(result.message || 'Güncelleme başarısız.', 'warning');
@@ -2276,10 +2328,13 @@ window._onAssignUnitManager = function(unitId) {
   if (idx === 0) {
     assignUnitManager(unitId, null);
     showNotification('Yönetici kaldırıldı.', 'info');
+    _persistState();
   } else if (idx >= 1 && idx <= eligible.length) {
     const result = assignUnitManager(unitId, eligible[idx - 1].id);
-    if (result.success) showNotification(`${eligible[idx - 1].name} birim yöneticisi atandı.`, 'success');
-    else showNotification(result.message, 'warning');
+    if (result.success) {
+      showNotification(`${eligible[idx - 1].name} birim yöneticisi atandı.`, 'success');
+      _persistState();
+    } else showNotification(result.message, 'warning');
   }
   refreshGameUI();
 };
@@ -2291,23 +2346,27 @@ window._onAssignUnitManager = function(unitId) {
 window._onEstablishTTO = function() {
   const result = establishTTO(getState());
   showNotification(result.message, result.success ? 'success' : 'error');
+  if (result.success) _persistState();
   refreshGameUI();
 };
 
 window._onUpgradeTTO = function() {
   const result = upgradeTTO(getState());
   showNotification(result.message, result.success ? 'success' : 'error');
+  if (result.success) _persistState();
   refreshGameUI();
 };
 
 window._onAcceptDeal = function(dealId) {
   const result = acceptDeal(getState(), Number(dealId));
   showNotification(result.message, result.success ? 'success' : 'error');
+  if (result.success) _persistState();
   refreshGameUI();
 };
 
 window._onRejectDeal = function(dealId) {
   const result = rejectDeal(getState(), Number(dealId));
   showNotification(result.message, result.success ? 'success' : 'error');
+  if (result.success) _persistState();
   refreshGameUI();
 };

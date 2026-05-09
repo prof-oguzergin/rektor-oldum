@@ -59,6 +59,7 @@ Tam liste: `js/changelog.js` (oyun içi "Yenilikler" panelinde de gösterilir, b
   - v0.4.46 (9 May 2026): İdari personel kişi-rütbe ayrımı — aday üretimi deneyim seviyesine (junior/mid/senior) göre; her adayın yanında rütbe dropdown'u; suggestedTitle + memnuniyet/sadakat etkisi; terfi bekleyenlere altın çerçeve + panel banner (EfekanSalman Issue #15).
   - v0.4.47 (9 May 2026): Deneyim seviyesi etiketleri tam Türkçe — "Junior aday/Mid-level aday/Senior aday" yerine "Giriş seviye aday/Orta düzey aday/Kıdemli aday". İç anahtarlar (junior/mid/senior) korundu, kayıtlı oyunlar etkilenmedi. Bu commit'te ayrıca cache-bust eksikliği düzeltildi (önceki sürüm bumpı yapılmamıştı, oyuncular eski etiketi görüyordu).
   - v0.4.48 (9 May 2026): Oyun sonu kararlılığı — Vakıf Kurtarma 40M borç loans[]'a dönüştürüldü (startingDebt migration + eski kayıt düzeltmesi); setState'te consecutiveLowStudentTurns/bankruptcyTurns sıfırlama; gameOver/gameWon sonrası "Sonraki Dönem" disabled + banner + menüye yönlendirme; enrollment_collapse mesajındaki %40 → %25 düzeltmesi (Issue #13, #16).
+  - v0.4.49 (9 May 2026): Dönem ortası kayıt + BAP kalıcılığı — _persistState() yardımcısı eklendi, 20+ handler'da aksiyon bazlı autoSave; BAP çağrısı 3 dönem aktif kalıyor (expirationTurn), koşulsuz sıfırlama kaldırıldı; dış proje pendingProjectApplications state'ten okunuyor (Issue #14, meri-png).
 
 ## Aktif Oyuncu Raporcuları
 Erdinç (en yoğun), AkaDemi, Emir, Burak Gökalp, Yusuf Sertkaya, R-Fatih (Issue #7, #9), X, serhattural

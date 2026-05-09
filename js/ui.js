@@ -4668,7 +4668,7 @@ export function renderResearchPanel(state, onResearchBudget, onProjectDecision) 
 
   const research       = state.research || {};
   const activeProjects = research.activeResearchProjects || [];
-  const pendingApps    = [];   // Dış projeler artık otomatik işlenir; bu liste her zaman boş
+  const pendingApps    = research.pendingProjectApplications || [];  // v0.4.49: state'ten oku
   const lastApps       = research.lastApplicationResults || null;
   const bapApps        = research.bapApplications || [];
   const activeBap      = research.activeBapCall || null;
@@ -5002,6 +5002,7 @@ export function renderResearchPanel(state, onResearchBudget, onProjectDecision) 
               <span>💰 Toplam: ${formatMoney(activeBap.totalBudget)}</span>
               <span>✅ Kalan: ${formatMoney(activeBap.remainingBudget)}</span>
               <span>🏷️ Proje başına maks: ${formatMoney(activeBap.maxPerProject)}</span>
+              ${activeBap.expirationTurn != null ? `<span style="color:var(--accent-yellow,#f5a623);">⏳ ${activeBap.expirationTurn - (state.meta?.turn || 0)} dönem sonra kapanır</span>` : ''}
             </div>
           </div>
           <div id="bap-applications-list">

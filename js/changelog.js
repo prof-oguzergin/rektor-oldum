@@ -6,6 +6,15 @@
 
 export const CHANGELOG = [
   {
+    version: '0.4.49',
+    date: '2026-05-09',
+    title: 'Dönem ortası kayıt ve BAP kalıcılığı',
+    items: [
+      { type: 'fix', text: 'Her başarılı aksiyon (hoca alma, idari personel, bina inşaatı, bütçe, BAP onayı, kulüp/takım, akreditasyon vb.) artık otomatik olarak kaydediliyor. Dönem ortasında sayfa yenilenirse hiçbir eylem kaybolmaz (Issue #14 — meri-png).' },
+      { type: 'fix', text: 'BAP çağrısı artık açıldıktan sonra 3 dönem boyunca aktif kalıyor; bir sonraki turda koşulsuz kapanmıyordu. Araştırma panelinde "X dönem sonra kapanır" göstergesi eklendi. Tüm başvurular işlenince veya süre dolunca kapanır (Issue #14 — meri-png).' },
+    ],
+  },
+  {
     version: '0.4.48',
     date: '2026-05-09',
     title: 'Oyun sonu kararlılığı ve Vakıf Kurtarma borç sistemi',
