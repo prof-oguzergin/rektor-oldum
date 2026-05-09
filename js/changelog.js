@@ -6,6 +6,17 @@
 
 export const CHANGELOG = [
   {
+    version: '0.4.48',
+    date: '2026-05-09',
+    title: 'Oyun sonu kararlılığı ve Vakıf Kurtarma borç sistemi',
+    items: [
+      { type: 'fix', text: 'Vakıf Kurtarma senaryosundaki 40 milyon borç artık kredi sistemi üzerinden işleniyor. "Önceki Yönetimden Devralınan" başlıklı kredi olarak görünür, taksit ödemeleri Finansal Durum ekranında takip edilebilir. Eski kayıtlar da otomatik olarak düzeltilir.' },
+      { type: 'fix', text: 'Kayıt yüklendiğinde biriken düşük öğrenci sayacı ve iflas sayacı sıfırlanıyor. Uzun süre oynandıktan sonra kaydedilen ve sonra yüklenen oyunlarda anlık iflas/kapanma tetiklenme sorunu giderildi (Issue #13, Issue #16).' },
+      { type: 'fix', text: 'Oyun bittiğinde veya kazanıldığında "Sonraki Dönem" butonu artık devre dışı kalır ve "Yeni Oyuna Başla" olarak değişir. Ekranda kalıcı bir bilgi bandı çıkar. Butona basılınca menüye yönlendirilirsiniz (Issue #16).' },
+      { type: 'fix', text: 'Düşük öğrenci sayısı nedeniyle kapanma mesajındaki "%40" ifadesi "%25" olarak düzeltildi; kod zaten bu eşiği kullanıyordu.' },
+    ],
+  },
+  {
     version: '0.4.47',
     date: '2026-05-09',
     title: 'Deneyim seviyesi etiketleri tam Türkçe',

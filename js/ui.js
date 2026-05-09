@@ -4,9 +4,9 @@
  * Vanilla JS, framework yok.
  */
 
-import { DEPARTMENTS, DEPARTMENT_CURRICULA, UNIVERSITY_TYPES, UNIVERSITY_MODELS, USD_TO_TL, DIFFICULTY_SETTINGS, BUILDINGS, SEMESTER_MONTHS, FACULTIES, DEPT_TO_FACULTY, SALARY_SCALES, ADMIN_UNITS, ADMIN_TITLES, ADMIN_UNIT_BUILDINGS, ACCREDITATION_BODIES, SCENARIOS, BANKS } from './data.js?v=0.4.39';
+import { DEPARTMENTS, DEPARTMENT_CURRICULA, UNIVERSITY_TYPES, UNIVERSITY_MODELS, USD_TO_TL, DIFFICULTY_SETTINGS, BUILDINGS, SEMESTER_MONTHS, FACULTIES, DEPT_TO_FACULTY, SALARY_SCALES, ADMIN_UNITS, ADMIN_TITLES, ADMIN_UNIT_BUILDINGS, ACCREDITATION_BODIES, SCENARIOS, BANKS } from './data.js?v=0.4.48';
 import { DEPARTMENT_FIELDS, getSalaryRange, renderFacultyAvatar, calculateOverallRating, getFacultyRatingTrend } from './faculty.js?v=0.4.39';
-import { AVAILABLE_NEW_DEPARTMENTS } from './game.js?v=0.4.46';
+import { AVAILABLE_NEW_DEPARTMENTS } from './game.js?v=0.4.48';
 import { calculateIncome, calculateExpenses, calculateLoanPayment } from './economy.js?v=0.4.24';
 import { renderCampusMap, handleCampusClick, handleCampusHover, clearHover } from './campus-renderer.js?v=0.4.24';
 
@@ -816,6 +816,39 @@ export function updateTopBar(state) {
   // Kadro sayısı
   const facEl = qs('#stat-faculty .top-stat-value');
   if (facEl) facEl.textContent = formatNumber(state.faculty?.length ?? 0);
+
+  // Oyun bittiyse Sonraki Dönem butonunu devre dışı bırak, yeni oyun yönlendirmesi ekle
+  const nextBtn = el('btn-next-turn');
+  if (nextBtn) {
+    const isOver = !!(state.gameOver || state.gameWon);
+    nextBtn.disabled = isOver;
+    if (isOver) {
+      nextBtn.textContent = '🎮 Yeni Oyuna Başla';
+      nextBtn.onclick = () => showScreen('screen-menu');
+    } else {
+      nextBtn.textContent = 'Sonraki Dönem →';
+      nextBtn.onclick = null;
+    }
+  }
+
+  // Oyun bitti banner'ı (top bar altında kalıcı uyarı)
+  const gameScreen = el('screen-game');
+  let bannerEl = el('game-over-banner');
+  const isGameOver = !!(state.gameOver || state.gameWon);
+  if (isGameOver && gameScreen) {
+    if (!bannerEl) {
+      bannerEl = document.createElement('div');
+      bannerEl.id = 'game-over-banner';
+      bannerEl.style.cssText = 'background:#c0392b;color:#fff;text-align:center;padding:8px 16px;font-weight:600;font-size:14px;position:sticky;top:0;z-index:100;';
+      gameScreen.prepend(bannerEl);
+    }
+    bannerEl.textContent = state.gameWon
+      ? '🏆 Oyun kazanıldı — yeni oyuna başlayabilirsiniz.'
+      : '🔴 Oyun sona erdi — yeni oyuna başlayabilirsiniz.';
+    bannerEl.style.display = 'block';
+  } else if (bannerEl) {
+    bannerEl.style.display = 'none';
+  }
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

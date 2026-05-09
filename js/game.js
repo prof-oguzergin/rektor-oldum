@@ -1549,12 +1549,30 @@ export function initGame(playerName, universityName, universityType, difficulty,
     if (scenario.startPrestigeOverride != null) {
       _state.university.prestige = scenario.startPrestigeOverride;
     }
-    // Borç (vakıf kurtarma veya köklü devlet)
-    if (scenario.specialRules?.startingDebt) {
-      _state.university.debt = scenario.specialRules.startingDebt;
-    }
-    if (scenario.specialRules?.legacyDebt) {
-      _state.university.debt = scenario.specialRules.legacyDebt;
+    // Borç (vakıf kurtarma veya köklü devlet) — loans[] olarak ekle
+    const _initDebtAmount = scenario.specialRules?.startingDebt || scenario.specialRules?.legacyDebt || 0;
+    if (_initDebtAmount > 0) {
+      const _termSemesters = 20; // 10 yıl
+      const _annualRate    = 0.18;
+      const _semPayment    = calculateLoanPayment(_initDebtAmount, _annualRate, _termSemesters);
+      _state.university.loans.push({
+        id:               `scenario_debt_${Date.now()}`,
+        bankId:           'scenario',
+        bankName:         'Önceki Yönetimden Devralınan',
+        bankIcon:         '🏦',
+        principal:        _initDebtAmount,
+        remainingAmount:  _initDebtAmount,
+        interestRate:     _annualRate,
+        termSemesters:    _termSemesters,
+        remainingTerms:   _termSemesters,
+        semesterPayment:  _semPayment,
+        startTurn:        1,
+        overdue:          false,
+        overdueCount:     0,
+        type:             'inherited',
+      });
+      _state.university.totalDebt = (_state.university.totalDebt || 0) + _initDebtAmount;
+      // TODO: creditorPressure (2_000_000/dönem min ödeme zorunluluğu) henüz uygulanmıyor.
     }
     // Yıpranmış binalar (agingInfrastructure)
     if (scenario.specialRules?.agingInfrastructure) {
@@ -3913,7 +3931,7 @@ export function checkWinLose() {
       gameOver: true,
       gameWon:  false,
       reason:   'enrollment_collapse',
-      message:  `Öğrenci sayısı ${STUDENT_TURNS_LIMIT} dönem boyunca kapasitenin %40'ının altında kaldı. Üniversite kapandı.`,
+      message:  `Öğrenci sayısı ${STUDENT_TURNS_LIMIT} dönem boyunca kapasitenin %25'inin altında kaldı. Üniversite kapandı.`,
     };
   }
 
@@ -4248,6 +4266,39 @@ function migrateState(state) {
     }
   }
 
+  // v0.4.48 Migration: vakif_kurtarma/köklü_devlet senaryolarında startingDebt loans[]'a eklenmemişse düzelt
+  if (
+    state.meta?.scenarioId &&
+    state.university.loans &&
+    !state.university.loans.some(l => l.type === 'inherited')
+  ) {
+    const _scenario = SCENARIOS[state.meta.scenarioId];
+    const _migrDebt = _scenario?.specialRules?.startingDebt || _scenario?.specialRules?.legacyDebt || 0;
+    if (_migrDebt > 0) {
+      const _migrTerm = 20;
+      const _migrRate = 0.18;
+      const _migrPay  = calculateLoanPayment(_migrDebt, _migrRate, _migrTerm);
+      state.university.loans.push({
+        id:              `scenario_debt_migrated_${Date.now()}`,
+        bankId:          'scenario',
+        bankName:        'Önceki Yönetimden Devralınan',
+        bankIcon:        '🏦',
+        principal:       _migrDebt,
+        remainingAmount: _migrDebt,
+        interestRate:    _migrRate,
+        termSemesters:   _migrTerm,
+        remainingTerms:  _migrTerm,
+        semesterPayment: _migrPay,
+        startTurn:       1,
+        overdue:         false,
+        overdueCount:    0,
+        type:            'inherited',
+      });
+      state.university.totalDebt = (state.university.totalDebt || 0) + _migrDebt;
+      console.log(`[game] migrateState: ${state.meta.scenarioId} senaryosu için ${_migrDebt} borç loans[]'a eklendi.`);
+    }
+  }
+
   // v0.4 Feature: Lab binalarında linkedDepartments (eski kayıtlarda assignedDepartments kullanılıyordu)
   for (const building of (state.buildings || [])) {
     if (building.type === 'lab') {
@@ -4450,6 +4501,10 @@ export function setState(loadedState) {
     if (s._internal) {
       s._internal.gameOver = false;
       s._internal.gameWon  = false;
+      // Grace-period sayaçlarını sıfırla: eski kayıtta birikmiş sayaç
+      // yükleme anında ani iflas/kapanmayı tetiklemesın.
+      s._internal.consecutiveLowStudentTurns = 0;
+      s._internal.bankruptcyTurns            = 0;
     }
 
     _state = s;
