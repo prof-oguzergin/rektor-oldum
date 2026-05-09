@@ -8,7 +8,8 @@ console.log('[main] main.js modülü yükleniyor...');
 // IMPORT
 // ─────────────────────────────────────────────────────────────────────────────
 
-import { initGame, nextTurn, getState, setState, applyDecision, assignCourses, applyQuotas, assignDeptHead, reassignFacultyToDept, generateAdminCandidates, hireAdminStaff, upgradeAdminUnit, promoteAdminStaff, fireAdminStaff, updateAdminStaffSalary, assignUnitManager, RANDOM_EVENTS, ACHIEVEMENTS, getAchievementStats, organizeAlumniEvent, applyRandomEventChoice, ACCREDITATION_BODIES, applyForAccreditation, checkAccreditationRequirements, establishTTO, upgradeTTO, acceptDeal, rejectDeal, foundClub, upgradeClub, dissolveClub, CLUB_TYPES, CLUB_CATEGORIES, SPORTS, foundTeam, upgradeTeam, dissolveTeam } from './game.js?v=0.4.39';
+import { initGame, nextTurn, getState, setState, applyDecision, assignCourses, applyQuotas, assignDeptHead, reassignFacultyToDept, generateAdminCandidates, hireAdminStaff, upgradeAdminUnit, promoteAdminStaff, fireAdminStaff, updateAdminStaffSalary, assignUnitManager, RANDOM_EVENTS, ACHIEVEMENTS, getAchievementStats, organizeAlumniEvent, applyRandomEventChoice, ACCREDITATION_BODIES, applyForAccreditation, checkAccreditationRequirements, establishTTO, upgradeTTO, acceptDeal, rejectDeal, foundClub, upgradeClub, dissolveClub, CLUB_TYPES, CLUB_CATEGORIES, SPORTS, foundTeam, upgradeTeam, dissolveTeam } from './game.js?v=0.4.46';
+import { ADMIN_TITLES } from './data.js?v=0.4.46';
 
 import {
   showScreen,
@@ -48,9 +49,9 @@ import {
   showChangelogModal,
   el,
   on,
-} from './ui.js?v=0.4.44';
+} from './ui.js?v=0.4.46';
 
-import { CHANGELOG, hasUnseenChanges, setLastSeenVersion } from './changelog.js?v=0.4.42';
+import { CHANGELOG, hasUnseenChanges, setLastSeenVersion } from './changelog.js?v=0.4.46';
 
 import { saveGame, loadGame, autoSave, getSaveSlots, deleteSave, exportSave, importSave, sanitizeForSave } from './save.js?v=0.4.28';
 import { calculateScore, scoreBreakdown, submitScore, getTopScores, initFirebase, isLeaderboardUnavailable, saveLocalScore, getLocalScores } from './leaderboard.js?v=0.4.45';
@@ -2129,17 +2130,18 @@ function _formatTimestamp(timestamp) {
 
 /** İdari birim personel alımı modalını aç */
 function _onHireAdminStaff(unitId) {
-  const defaultTitle = 'Uzman';
-  const candidates = generateAdminCandidates(unitId, defaultTitle, 3);
-  renderAdminHireModal(unitId, candidates, _onHireAdminCandidate, defaultTitle);
+  const defaultLevel = 'mid';
+  const candidates = generateAdminCandidates(unitId, defaultLevel, 3);
+  renderAdminHireModal(unitId, candidates, _onHireAdminCandidate, defaultLevel);
 }
 
-/** Adayı işe al (obje direkt alır) */
-function _onHireAdminCandidate(candidate) {
+/** Adayı işe al (obje direkt alır, chosenTitle opsiyonel) */
+function _onHireAdminCandidate(candidate, chosenTitle) {
   if (!candidate) return;
-  hireAdminStaff(candidate);
+  hireAdminStaff(candidate, chosenTitle);
   hideModal();
-  showNotification(`${candidate.name} işe alındı.`, 'success');
+  const title = chosenTitle || candidate.suggestedTitle || candidate.title || 'Uzman';
+  showNotification(`${candidate.name}, ${title} olarak işe alındı.`, 'success');
   refreshGameUI();
 }
 
@@ -2154,12 +2156,12 @@ function _onUpgradeAdminUnit(unitId) {
   }
 }
 
-/** Adayları yenile (modal içi) — seçili rütbeyi korur */
+/** Adayları yenile (modal içi) — seçili deneyim seviyesini korur */
 function _onRefreshAdminCandidates(unitId) {
-  const titleEl = document.getElementById('admin-hire-title');
-  const title   = titleEl ? titleEl.value : 'Uzman';
-  const candidates = generateAdminCandidates(unitId, title, 3);
-  renderAdminHireModal(unitId, candidates, _onHireAdminCandidate, title);
+  const levelEl = document.getElementById('admin-hire-title');
+  const level   = levelEl ? levelEl.value : 'mid';
+  const candidates = generateAdminCandidates(unitId, level, 3);
+  renderAdminHireModal(unitId, candidates, _onHireAdminCandidate, level);
 }
 
 // Global erişim (ui.js'teki onclick handler'ları için)
@@ -2168,10 +2170,42 @@ window._onHireAdminCandidate      = _onHireAdminCandidate;
 window._onHireAdminCandidateByIdx = (idx) => {
   const cache = window._adminCandidateCache || [];
   const candidate = cache[idx];
-  if (candidate) _onHireAdminCandidate(candidate);
+  if (!candidate) return;
+  // Her adayın seçili rütbesini dropdown'dan oku
+  const titleEl = document.getElementById(`admin-hire-chosentitle-${idx}`);
+  const chosenTitle = titleEl ? titleEl.value : (candidate.suggestedTitle || 'Uzman');
+  _onHireAdminCandidate(candidate, chosenTitle);
 };
 window._onUpgradeAdminUnit        = _onUpgradeAdminUnit;
 window._onRefreshAdminCandidates  = _onRefreshAdminCandidates;
+
+/** Rütbe dropdown değişince uyarı mesajı güncelle */
+window._onAdminTitleSelectionChange = (idx, chosenTitle) => {
+  const cache = window._adminCandidateCache || [];
+  const c = cache[idx];
+  if (!c) return;
+  const TITLE_ORDER_H = ['Memur', 'Uzman', 'Şef', 'Müdür Yrd.', 'Müdür'];
+  const sugT   = c.suggestedTitle || 'Uzman';
+  const sugIdx = TITLE_ORDER_H.indexOf(sugT);
+  const choIdx = TITLE_ORDER_H.indexOf(chosenTitle);
+
+  const warnEl   = document.getElementById(`admin-hire-warning-${idx}`);
+  const salaryEl = document.getElementById(`admin-hire-salary-${idx}`);
+  const bar      = ADMIN_TITLES[chosenTitle] || { min: 14000, max: 50000 };
+  const bareMid  = Math.round((bar.min + bar.max) / 2);
+
+  if (!warnEl) return;
+  if (choIdx > sugIdx) {
+    warnEl.innerHTML = `<span style="color:#f5a623;">⚠ Önerinin üzerinde - maaş yükselebilir, ilk mutluluk düşük</span>`;
+    if (salaryEl) salaryEl.textContent = `${bareMid.toLocaleString('tr-TR')} ₺/ay (tahmini)`;
+  } else if (choIdx < sugIdx) {
+    warnEl.innerHTML = `<span style="color:#e53e3e;">⚠ Önerinin altında - kişi memnun olmayabilir</span>`;
+    if (salaryEl) salaryEl.textContent = `${(c.salaryExpectation || bar.min).toLocaleString('tr-TR')} ₺/ay (tahmini)`;
+  } else {
+    warnEl.innerHTML = `<span style="color:#38a169;">✓ Önerilen rütbe - uygun yerleşme</span>`;
+    if (salaryEl) salaryEl.textContent = `${(c.salaryExpectation || bareMid).toLocaleString('tr-TR')} ₺/ay (tahmini)`;
+  }
+};
 
 /** Terfi et */
 window._onPromoteAdminStaff = function(staffId) {

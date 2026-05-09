@@ -6,7 +6,7 @@
 
 import { DEPARTMENTS, DEPARTMENT_CURRICULA, UNIVERSITY_TYPES, UNIVERSITY_MODELS, USD_TO_TL, DIFFICULTY_SETTINGS, BUILDINGS, SEMESTER_MONTHS, FACULTIES, DEPT_TO_FACULTY, SALARY_SCALES, ADMIN_UNITS, ADMIN_TITLES, ADMIN_UNIT_BUILDINGS, ACCREDITATION_BODIES, SCENARIOS, BANKS } from './data.js?v=0.4.39';
 import { DEPARTMENT_FIELDS, getSalaryRange, renderFacultyAvatar, calculateOverallRating, getFacultyRatingTrend } from './faculty.js?v=0.4.39';
-import { AVAILABLE_NEW_DEPARTMENTS } from './game.js?v=0.4.39';
+import { AVAILABLE_NEW_DEPARTMENTS } from './game.js?v=0.4.46';
 import { calculateIncome, calculateExpenses, calculateLoanPayment } from './economy.js?v=0.4.24';
 import { renderCampusMap, handleCampusClick, handleCampusHover, clearHover } from './campus-renderer.js?v=0.4.24';
 
@@ -7093,8 +7093,12 @@ export function renderAdminPanel(state, onHireAdmin, onUpgradeUnit) {
       { key: 'techSkills',    label: 'Teknik'     },
     ];
 
+    // Terfi bekleyenler altın çerçeve alır
+    const promotionBorder = (m.promotionEligible && nextTitleName)
+      ? 'border-left:4px solid #f5a623;'
+      : '';
     return `
-      <div class="faculty-card admin-staff-card" data-admin-staff-id="${m.id}" style="cursor:pointer;">
+      <div class="faculty-card admin-staff-card" data-admin-staff-id="${m.id}" style="cursor:pointer;${promotionBorder}">
         <div class="faculty-card-header">
           <div style="flex-shrink:0;">
             <div class="faculty-avatar admin-avatar">${initials}</div>
@@ -7138,7 +7142,7 @@ export function renderAdminPanel(state, onHireAdmin, onUpgradeUnit) {
 
         <div style="padding:6px 12px 10px;display:flex;gap:5px;flex-wrap:wrap;border-top:1px solid var(--border);">
           ${m.promotionEligible && nextTitleName
-            ? `<button class="btn btn-sm btn-primary" style="font-size:10px;"
+            ? `<button class="btn btn-sm btn-primary" style="font-size:10px;animation:adminPromotePulse 1.6s infinite;box-shadow:0 0 0 0 rgba(56,161,105,0.5);"
                  onclick="event.stopPropagation();window._onPromoteAdminStaff('${m.id}')">⬆️ Terfi</button>`
             : ''}
           <button class="btn btn-sm btn-secondary" style="font-size:10px;"
@@ -7393,6 +7397,27 @@ export function renderAdminPanel(state, onHireAdmin, onUpgradeUnit) {
           <div style="font-size:11px;color:var(--text-muted);">${totalStaff} personel</div>
         </div>
       </div>
+
+      <!-- Terfi Bekleyen Banner -->
+      ${(() => {
+        const promotionCount = adminStaff.filter(m => m.promotionEligible && TITLE_ORDER.indexOf(m.title) < TITLE_ORDER.length - 1).length;
+        if (promotionCount === 0) return '';
+        return `<div style="
+          background:rgba(245,166,35,0.12);
+          border:1px solid rgba(245,166,35,0.4);
+          border-radius:8px;
+          padding:10px 14px;
+          margin-bottom:12px;
+          display:flex;
+          align-items:center;
+          gap:10px;
+          cursor:pointer;
+        " onclick="document.querySelector('.admin-staff-card[style*=f5a623]')?.scrollIntoView({behavior:'smooth',block:'center'})">
+          <span style="font-size:16px;">🎓</span>
+          <span style="font-size:13px;font-weight:600;color:#f5a623;">${promotionCount} personel terfiye hazır</span>
+          <span style="font-size:11px;color:var(--text-muted);margin-left:4px;">- kart kenarı altın olanları inceleyin</span>
+        </div>`;
+      })()}
 
       <!-- Birim Kartları -->
       ${unitCards}
@@ -7657,51 +7682,77 @@ function _showAdminStaffDetail(staffId, adminStaff) {
     </div>
   `;
 
-  showModal(`${m.name || 'Personel'} — Detay`, bodyHtml);
+  showModal(`${m.name || 'Personel'} — Ayrıntı`, bodyHtml);
 }
 
 /**
  * İdari personel işe alma modalını render eder.
- * @param {string}   unitId       — Birim ID'si
- * @param {object}   candidates   — Aday listesi
- * @param {Function} onHire       — İşe al callback (candidate)
- * @param {string}   currentTitle — Seçili rütbe (Yenile tuşu sonrası korunur)
+ * @param {string}   unitId        — Birim ID'si
+ * @param {object}   candidates    — Aday listesi
+ * @param {Function} onHire        — İşe al callback (candidate)
+ * @param {string}   currentLevel  — Seçili deneyim seviyesi (Yenile tuşu sonrası korunur)
  */
-export function renderAdminHireModal(unitId, candidates, onHire, currentTitle) {
+export function renderAdminHireModal(unitId, candidates, onHire, currentLevel) {
   const template = ADMIN_UNITS[unitId];
   if (!template) return;
 
-  const titleOptions = Object.keys(ADMIN_TITLES).map(t =>
-    `<option value="${t}" ${t === currentTitle ? 'selected' : ''}>${t} (${formatMoney(ADMIN_TITLES[t].min)}–${formatMoney(ADMIN_TITLES[t].max)}/ay)</option>`
+  const TITLE_ORDER_UI = ['Memur', 'Uzman', 'Şef', 'Müdür Yrd.', 'Müdür'];
+
+  // Deneyim seviyesi seçenekleri
+  const levelOptions = [
+    { value: 'junior', label: 'Junior aday (giriş seviye)' },
+    { value: 'mid',    label: 'Mid-level aday (orta düzey)' },
+    { value: 'senior', label: 'Senior aday (kıdemli)' },
+  ].map(opt =>
+    `<option value="${opt.value}" ${opt.value === (currentLevel || 'mid') ? 'selected' : ''}>${opt.label}</option>`
   ).join('');
 
   // Adayları global cache'e yaz (güvenli onclick için)
   window._adminCandidateCache = candidates;
 
-  const candidateRows = candidates.map((c, idx) => `
+  const candidateRows = candidates.map((c, idx) => {
+    const sugT   = c.suggestedTitle || 'Uzman';
+    const titleOpts = TITLE_ORDER_UI.map(t => {
+      const bar = ADMIN_TITLES[t];
+      return `<option value="${t}" ${t === sugT ? 'selected' : ''}>${t} (${formatMoney(bar.min)}–${formatMoney(bar.max)}/ay)</option>`;
+    }).join('');
+
+    return `
     <div style="
       background:var(--bg-secondary);
       border-radius:6px;
       padding:10px;
-      display:flex;
-      justify-content:space-between;
-      align-items:center;
-      margin-bottom:8px;
+      margin-bottom:10px;
+      border:1px solid var(--border-color);
     ">
-      <div>
-        <div style="font-weight:600;font-size:13px;">${c.name}</div>
-        <div style="font-size:11px;color:var(--text-muted);">${c.title} · Deneyim: ${c.experience} yıl</div>
-        <div style="font-size:11px;color:var(--text-muted);">Kalite: <strong>${c.quality}</strong>/100</div>
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px;margin-bottom:8px;">
+        <div>
+          <div style="font-weight:600;font-size:13px;">${c.name}</div>
+          <div style="font-size:11px;color:var(--text-muted);">Deneyim: ${c.experience || c.totalExperience || 0} yıl · Kalite: <strong>${c.quality}</strong>/100</div>
+          <div style="font-size:11px;color:var(--text-muted);">Vrl: ${c.efficiency || 0} · İlt: ${c.communication || 0} · Ldr: ${c.leadership || 0}</div>
+        </div>
+        <div style="text-align:right;flex-shrink:0;">
+          <div style="font-size:12px;color:var(--text-muted);">Önerilen:</div>
+          <div style="font-size:13px;font-weight:700;color:var(--accent);">${sugT}</div>
+        </div>
       </div>
-      <div style="text-align:right;">
-        <div style="font-size:13px;font-weight:600;color:var(--color-warning);">${formatMoney(c.salary)}/ay</div>
-        <button class="btn btn-sm btn-primary" style="margin-top:4px;font-size:11px;"
+      <div style="margin-bottom:6px;">
+        <label style="font-size:11px;color:var(--text-muted);display:block;margin-bottom:3px;">Bu adayı hangi rütbeyle alacaksınız?</label>
+        <select id="admin-hire-chosentitle-${idx}" class="form-input" style="font-size:12px;width:100%;"
+          onchange="window._onAdminTitleSelectionChange(${idx}, this.value)">
+          ${titleOpts}
+        </select>
+      </div>
+      <div id="admin-hire-warning-${idx}" style="font-size:11px;margin-bottom:6px;min-height:16px;"></div>
+      <div style="display:flex;justify-content:space-between;align-items:center;">
+        <div style="font-size:12px;font-weight:600;color:var(--color-warning);" id="admin-hire-salary-${idx}">${formatMoney(c.salaryExpectation || c.salary)}/ay tahmini</div>
+        <button class="btn btn-sm btn-primary" style="font-size:11px;"
           onclick="window._onHireAdminCandidateByIdx(${idx})">
-          ✅ İşe Al
+          ✅ Bu rütbeyle al
         </button>
       </div>
     </div>
-  `).join('');
+  `}).join('');
 
   showModal(
     `${template.icon} ${template.name} — Personel Alımı`,
@@ -7709,9 +7760,9 @@ export function renderAdminHireModal(unitId, candidates, onHire, currentTitle) {
       <p style="margin:0 0 12px;font-size:12px;color:var(--text-muted);">${template.description}</p>
 
       <div style="margin-bottom:12px;">
-        <label style="font-size:12px;color:var(--text-muted);display:block;margin-bottom:4px;">Pozisyon seç:</label>
+        <label style="font-size:12px;color:var(--text-muted);display:block;margin-bottom:4px;">Deneyim seviyesi seç:</label>
         <select id="admin-hire-title" class="form-input" style="font-size:12px;">
-          ${titleOptions}
+          ${levelOptions}
         </select>
         <button class="btn btn-sm btn-secondary" style="margin-top:6px;font-size:11px;width:100%;"
           onclick="window._onRefreshAdminCandidates('${unitId}')">

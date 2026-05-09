@@ -56,6 +56,7 @@ Tam liste: `js/changelog.js` (oyun içi "Yenilikler" panelinde de gösterilir, b
   - v0.4.32: Bina upgrade'de `isCompleted` false yapılıyordu → kapasite kaybı → "Yeni Alım İçin Yer: 0" → dönem başlatılamıyordu (Can GULDOGAN). Fix: upgrade boyunca isCompleted true kalır, ilerleme `status === 'upgrading'` ile takip edilir. State migration eski kayıtları da düzeltir.
   - v0.4.33: Mobilde modal açıkken body scroll kilitlenmiyor, arka plan kayıyordu (Lafontane6) — showModal/hideModal'da body.style.overflow toggle. Bonus: Yeni Bölüm Başvuru butonu zaten başvurulmuşsa "✅ Başvuruldu (X dönem)" disabled (Issue #6, R-Fatih).
   - v0.4.34 (5 May 2026): `updateRankings()` fonksiyonu yazılmış ama hiçbir yerden çağrılmıyordu — `state.university.ranking` başlangıç 50'den hiç değişmiyor, leaderboard'da herkes 50. sırada gözüküyordu. nextTurn akışında updateRivals'tan hemen sonra updateRankings(_state) çağrısı eklendi (kullanıcı raporu).
+  - v0.4.46 (9 May 2026): İdari personel kişi-rütbe ayrımı — aday üretimi deneyim seviyesine (junior/mid/senior) göre; her adayın yanında rütbe dropdown'u; suggestedTitle + memnuniyet/sadakat etkisi; terfi bekleyenlere altın çerçeve + panel banner (EfekanSalman Issue #15).
 
 ## Aktif Oyuncu Raporcuları
 Erdinç (en yoğun), AkaDemi, Emir, Burak Gökalp, Yusuf Sertkaya, R-Fatih (Issue #7, #9), X, serhattural

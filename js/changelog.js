@@ -6,6 +6,17 @@
 
 export const CHANGELOG = [
   {
+    version: '0.4.46',
+    date: '2026-05-09',
+    title: 'İdari personel: kişi-rütbe ayrımı, esnek işe alım, terfi öne çıktı',
+    items: [
+      { type: 'feat', text: 'İdari personel alımında artık kişiyi istediğiniz rütbeye yerleştirebilirsiniz. Aday üretildiğinde sabit rütbeye kilitli değil; her adayın yanında rütbe seçimi mevcut. Senior bir adayı Müdür yaparsınız, Junior\'ı Memur olarak alırsınız - aynı kişi farklı kademelerde işe alınabilir (EfekanSalman raporu, Issue #15).' },
+      { type: 'feat', text: 'Üst combobox artık "Memur/Uzman/Şef" yerine deneyim seviyesi seçer (Junior, Mid-level, Senior). Adayların yetkinlik istatistikleri seçilen seviyeye göre değişir; Senior adayların liderlik ve deneyim statları belirgin yüksek.' },
+      { type: 'feat', text: 'Aday için önerilen rütbenin üzerinde veya altında bir rütbe seçerseniz uyarı çıkar (memnuniyet ve sadakat etkisi olur). Önerinin üzerinde: zorlanma, maaş baremi yetersiz olabilir. Altında: kişi vasıflı işine alttan başlamış hisseder.' },
+      { type: 'feat', text: 'Terfi bekleyen personel artık daha görünür: kart kenarında altın çerçeve, panel başında "Terfi Bekleyen: X" rozeti. Mevcut bir Memur\'u zaman içinde Müdür\'e kadar terfi ettirebilirsiniz.' },
+    ],
+  },
+  {
     version: '0.4.42',
     date: '2026-05-07',
     title: 'Liderlik tablosunda Sıralama sütunu Dünya Sırası oldu',

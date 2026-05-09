@@ -403,20 +403,62 @@ function _randomAdminName() {
   return `${first} ${last}`;
 }
 
-function generateAdminStaffMember(unitId, title) {
-  const salaryRange = ADMIN_TITLES[title] || { min: 14_000, max: 18_000 };
+// Deneyim seviyesine göre önerilen rütbeyi hesapla
+function _suggestTitleFromStats(experienceLevel, leadership, totalExperience) {
+  if (experienceLevel === 'junior') return 'Memur';
+  if (experienceLevel === 'mid') {
+    return leadership >= 60 ? 'Şef' : 'Uzman';
+  }
+  // senior
+  return (leadership >= 75 && totalExperience >= 18) ? 'Müdür' : 'Müdür Yrd.';
+}
+
+// Personel üret. opts: { title } (eski yol) veya { experienceLevel } (yeni aday yolu)
+function generateAdminStaffMember(unitId, opts) {
+  // Backward compat: opts string olarak gelirse title olarak kabul et
+  if (typeof opts === 'string') opts = { title: opts };
+  const { title, experienceLevel } = opts || {};
+
+  // Stat aralıkları: seviyeye göre farklılaşır
+  let effRange, commRange, leadRange, techRange, expRange;
+  if (experienceLevel === 'junior') {
+    effRange  = [35, 65]; commRange = [30, 60]; leadRange = [20, 50]; techRange = [40, 65]; expRange = [1, 5];
+  } else if (experienceLevel === 'senior') {
+    effRange  = [65, 90]; commRange = [60, 90]; leadRange = [60, 90]; techRange = [60, 90]; expRange = [12, 25];
+  } else {
+    // mid veya başlangıç personeli (title verilmişse) — mid aralığı
+    effRange  = [50, 80]; commRange = [45, 75]; leadRange = [40, 70]; techRange = [50, 80]; expRange = [5, 12];
+  }
+
+  const efficiency    = randInt(effRange[0],  effRange[1]);
+  const communication = randInt(commRange[0], commRange[1]);
+  const leadership    = randInt(leadRange[0], leadRange[1]);
+  const techSkills    = randInt(techRange[0], techRange[1]);
+  const quality       = Math.round((efficiency + communication + leadership + techSkills) / 4);
+  const totalExperience = randInt(expRange[0], expRange[1]);
+
+  // Eğer title verilmemişse (aday yolu): suggestedTitle hesapla, title null bırak
+  const resolvedSuggestedTitle = experienceLevel
+    ? _suggestTitleFromStats(experienceLevel, leadership, totalExperience)
+    : null;
+  const resolvedTitle = title || null;
+
+  // Maaş beklentisi: aday için suggestedTitle baremi üzerinden, sabit için kendi baremi
+  const baremeTitle = resolvedTitle || resolvedSuggestedTitle || 'Uzman';
+  const salaryRange = ADMIN_TITLES[baremeTitle] || { min: 14_000, max: 18_000 };
+  const bareMid     = Math.round((salaryRange.min + salaryRange.max) / 2);
+  const salaryExpectation = Math.round(bareMid * (0.95 + Math.random() * 0.15)); // %95–110
   const salary = randInt(salaryRange.min, salaryRange.max);
-  const efficiency    = randInt(45, 80);
-  const communication = randInt(40, 75);
-  const leadership    = randInt(30, 70);
-  const techSkills    = randInt(45, 80);
-  const quality = Math.round((efficiency + communication + leadership + techSkills) / 4);
-  const totalExperience = randInt(1, 15);
+
   return {
     id: `admin_${_adminIdCounter++}`,
     name: _randomAdminName(),
     unit: unitId,
-    title,
+    title: resolvedTitle,             // Aday için null; başlangıç/terfi için dolu
+    // Aday alanları (sadece adaylarda anlamlı, işe alımda staff'a kopyalanmaz)
+    experienceLevel:  experienceLevel || null,
+    suggestedTitle:   resolvedSuggestedTitle,
+    salaryExpectation,
     salary,
     quality,
     experience: totalExperience,
@@ -824,19 +866,69 @@ export function assignUnitManager(unitId, staffId) {
 }
 
 // İdari personel adayı üret (işe alma modalı için)
-export function generateAdminCandidates(unitId, title, count = 3) {
+// levelKey: 'junior' | 'mid' | 'senior' (yeni yol)
+//           VEYA eski title string ('Memur', 'Uzman', vb.) — backward compat
+export function generateAdminCandidates(unitId, levelKey, count = 3) {
   const candidates = [];
+  // Eski yol: ADMIN_TITLES'ta varsa title olarak davran
+  const isOldTitle = Object.prototype.hasOwnProperty.call(ADMIN_TITLES, levelKey);
   for (let i = 0; i < count; i++) {
-    candidates.push(generateAdminStaffMember(unitId, title));
+    if (isOldTitle) {
+      candidates.push(generateAdminStaffMember(unitId, { title: levelKey }));
+    } else {
+      candidates.push(generateAdminStaffMember(unitId, { experienceLevel: levelKey }));
+    }
   }
   return candidates;
 }
 
 // İdari personel işe al
-export function hireAdminStaff(candidate) {
+// chosenTitle: opsiyonel — yoksa candidate.suggestedTitle veya 'Uzman' kullanılır
+export function hireAdminStaff(candidate, chosenTitle) {
   if (!_state) return;
   if (!_state.adminStaff) _state.adminStaff = [];
-  _state.adminStaff.push({ ...candidate });
+
+  const title   = chosenTitle || candidate.suggestedTitle || candidate.title || 'Uzman';
+  const baremeT = ADMIN_TITLES[title] || { min: 14_000, max: 18_000 };
+  const bareMid = Math.round((baremeT.min + baremeT.max) / 2);
+
+  // Maaş ve mutluluk/sadakat: önerilen rütbeyle karşılaştır
+  const sugT    = candidate.suggestedTitle || title;
+  const TITLE_ORDER_H = ['Memur', 'Uzman', 'Şef', 'Müdür Yrd.', 'Müdür'];
+  const sugIdx  = TITLE_ORDER_H.indexOf(sugT);
+  const choIdx  = TITLE_ORDER_H.indexOf(title);
+
+  let finalSalary = Math.max(candidate.salaryExpectation || bareMid, baremeT.min);
+  let happAdj = 0, loyaltyAdj = 0;
+
+  if (choIdx > sugIdx) {
+    // Önerinin üzerinde: zorlanma hissi
+    finalSalary = bareMid;
+    happAdj     = -5;
+    loyaltyAdj  = -10;
+  } else if (choIdx < sugIdx) {
+    // Önerinin altında: vasıflıya alt iş
+    finalSalary = Math.max(candidate.salaryExpectation || baremeT.min, baremeT.min);
+    happAdj     = -10;
+    loyaltyAdj  = -15;
+  } else {
+    // Tam uyum
+    happAdj    = 5;
+    loyaltyAdj = 5;
+  }
+
+  const staffMember = {
+    ...candidate,
+    title,
+    salary:   finalSalary,
+    happiness: Math.max(0, Math.min(100, (candidate.happiness || 65) + happAdj)),
+    loyalty:   Math.max(0, Math.min(100, (candidate.loyalty   || 70) + loyaltyAdj)),
+    // Aday alanlarını temizle (staff'ta gereksiz)
+    experienceLevel:  undefined,
+    suggestedTitle:   undefined,
+    salaryExpectation: undefined,
+  };
+  _state.adminStaff.push(staffMember);
   // Birim istatistiklerini güncelle
   syncAdminUnitStats(_state.adminUnits, _state.adminStaff, _state.buildings);
 }
