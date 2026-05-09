@@ -7700,9 +7700,9 @@ export function renderAdminHireModal(unitId, candidates, onHire, currentLevel) {
 
   // Deneyim seviyesi seçenekleri
   const levelOptions = [
-    { value: 'junior', label: 'Junior aday (giriş seviye)' },
-    { value: 'mid',    label: 'Mid-level aday (orta düzey)' },
-    { value: 'senior', label: 'Senior aday (kıdemli)' },
+    { value: 'junior', label: 'Giriş seviye aday' },
+    { value: 'mid',    label: 'Orta düzey aday' },
+    { value: 'senior', label: 'Kıdemli aday' },
   ].map(opt =>
     `<option value="${opt.value}" ${opt.value === (currentLevel || 'mid') ? 'selected' : ''}>${opt.label}</option>`
   ).join('');

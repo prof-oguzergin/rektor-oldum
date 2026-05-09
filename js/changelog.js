@@ -6,6 +6,14 @@
 
 export const CHANGELOG = [
   {
+    version: '0.4.47',
+    date: '2026-05-09',
+    title: 'Deneyim seviyesi etiketleri tam Türkçe',
+    items: [
+      { type: 'fix', text: 'Akademisyen işe alma ekranındaki deneyim seviyesi seçenekleri tam Türkçeleştirildi: "Junior aday", "Mid-level aday", "Senior aday" yerine artık "Giriş seviye aday", "Orta düzey aday", "Kıdemli aday" görünür. Kayıt uyumluluğu korundu.' },
+    ],
+  },
+  {
     version: '0.4.46',
     date: '2026-05-09',
     title: 'İdari personel: kişi-rütbe ayrımı, esnek işe alım, terfi öne çıktı',
