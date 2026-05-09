@@ -6,7 +6,7 @@
 
 import { DEPARTMENTS, DEPARTMENT_CURRICULA, UNIVERSITY_TYPES, UNIVERSITY_MODELS, USD_TO_TL, DIFFICULTY_SETTINGS, BUILDINGS, SEMESTER_MONTHS, FACULTIES, DEPT_TO_FACULTY, SALARY_SCALES, ADMIN_UNITS, ADMIN_TITLES, ADMIN_UNIT_BUILDINGS, ACCREDITATION_BODIES, SCENARIOS, BANKS } from './data.js?v=0.4.48';
 import { DEPARTMENT_FIELDS, getSalaryRange, renderFacultyAvatar, calculateOverallRating, getFacultyRatingTrend } from './faculty.js?v=0.4.39';
-import { AVAILABLE_NEW_DEPARTMENTS } from './game.js?v=0.4.48';
+import { AVAILABLE_NEW_DEPARTMENTS, getCourseEffectiveDifficulty } from './game.js?v=0.4.50';
 import { calculateIncome, calculateExpenses, calculateLoanPayment } from './economy.js?v=0.4.24';
 import { renderCampusMap, handleCampusClick, handleCampusHover, clearHover } from './campus-renderer.js?v=0.4.24';
 
@@ -1122,6 +1122,9 @@ export function renderDepartmentsPanel(state) {
           const isUncovered = uncovered.some(u => u.id === course.id);
           const cStat      = courseStats.find(cs => cs.id === course.id);
 
+          // Etkin zorluk: override varsa onu göster
+          const effectiveDiff = getCourseEffectiveDifficulty(dept, course);
+
           let statusIcon  = '⚫';
           let statusColor = 'var(--text-faint)';
           let assignedTo  = '—';
@@ -1141,6 +1144,9 @@ export function renderDepartmentsPanel(state) {
           const avgGradeStr = cStat ? `${cStat.avgGrade}/100` : '—';
           const passColor   = cStat ? (cStat.passRate >= 0.80 ? 'var(--accent-green)' : cStat.passRate >= 0.60 ? 'var(--accent-yellow,#f5a623)' : 'var(--accent-red,#e53e3e)') : 'var(--text-muted)';
 
+          // Slider rengi: düşük zorluk yeşil, yüksek kırmızı
+          const sliderColor = effectiveDiff >= 4 ? '#e53e3e' : effectiveDiff >= 3 ? '#f5a623' : '#38a169';
+
           return `
             <tr style="border-bottom:1px solid var(--border);">
               <td style="padding:6px 8px;">
@@ -1152,12 +1158,21 @@ export function renderDepartmentsPanel(state) {
                 </span>
               </td>
               <td style="padding:6px 8px;font-size:13px;font-weight:500;">${course.name}</td>
-              <td style="padding:6px 8px;font-size:11px;color:var(--text-muted);">${diffStars(course.difficulty)}</td>
+              <td style="padding:6px 8px;font-size:11px;color:var(--text-muted);">${diffStars(effectiveDiff)}</td>
               <td style="padding:6px 8px;font-size:11px;color:var(--text-muted);white-space:nowrap;">${enrolledStr}</td>
               <td style="padding:6px 8px;font-size:12px;font-weight:700;color:${passColor};">${passRateStr}</td>
               <td style="padding:6px 8px;font-size:11px;color:var(--text-muted);">${avgGradeStr}</td>
               <td style="padding:6px 8px;font-size:12px;font-weight:700;color:${statusColor};">${statusIcon}</td>
               <td style="padding:6px 8px;font-size:12px;color:var(--text-muted);">${assignedTo}</td>
+              <td style="padding:6px 8px;min-width:120px;">
+                <div style="display:flex;align-items:center;gap:6px;">
+                  <input type="range" min="1" max="5" step="1" value="${effectiveDiff}"
+                    style="width:70px;accent-color:${sliderColor};cursor:pointer;"
+                    oninput="window._onSetCourseDifficulty('${dept.id}', '${course.id}', this.value)"
+                    title="Zorluk ayarı: 1 (kolay) - 5 (çok zor)">
+                  <span style="font-size:11px;font-weight:700;color:${sliderColor};min-width:8px;">${effectiveDiff}</span>
+                </div>
+              </td>
             </tr>
           `;
         }).join('');
@@ -1265,6 +1280,13 @@ export function renderDepartmentsPanel(state) {
                 <div style="font-size:12px;color:var(--text-faint);">Bu bölüm için müfredat tanımlanmamış.</div>
               </div>
             ` : `
+              <div style="padding:12px 16px 0;">
+                <div style="background:rgba(56,161,105,0.08);border-left:3px solid #38a169;padding:10px;margin-bottom:12px;font-size:12px;line-height:1.5;">
+                  <strong>Müfredat sertliği oyununuzun karakterini belirler:</strong><br>
+                  <span style="color:#38a169;">&#8593; Yüksek zorluk:</span> Nitelikli mezunlar, prestij ve sıralama yükselir, ünlü mezun ihtimali artar. Ama öğrenci memnuniyeti düşer ve geçme oranı azalır.<br>
+                  <span style="color:#dc8a2e;">&#8595; Düşük zorluk:</span> Öğrenciler memnun, geçme oranı yüksek. Ama mezun kalitesi ve uzun vadede prestij düşer.
+                </div>
+              </div>
               <div style="overflow-x:auto;">
                 <table style="width:100%;border-collapse:collapse;">
                   <thead>
@@ -1277,6 +1299,7 @@ export function renderDepartmentsPanel(state) {
                       <th style="padding:6px 8px;font-size:10px;text-transform:uppercase;color:var(--text-muted);text-align:left;width:80px;">Not Ort.</th>
                       <th style="padding:6px 8px;font-size:10px;text-transform:uppercase;color:var(--text-muted);text-align:center;width:30px;">Durum</th>
                       <th style="padding:6px 8px;font-size:10px;text-transform:uppercase;color:var(--text-muted);text-align:left;">Veren Hoca</th>
+                      <th style="padding:6px 8px;font-size:10px;text-transform:uppercase;color:var(--text-muted);text-align:left;min-width:120px;">Zorluk Ayarı</th>
                     </tr>
                   </thead>
                   <tbody>${courseRows}</tbody>

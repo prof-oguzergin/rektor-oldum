@@ -6,6 +6,14 @@
 
 export const CHANGELOG = [
   {
+    version: '0.4.50',
+    date: '2026-05-09',
+    title: 'Müfredat zorluğu artık oyuncu kontrolünde',
+    items: [
+      { type: 'feat', text: 'Bölüm müfredatındaki her dersin zorluk seviyesini (1-5) artık oyuncu ayarlayabilir. Sert müfredat - nitelikli mezun + prestij yükselişi, ama öğrenci memnuniyeti düşer ve geçme oranı azalır. Yumuşak müfredat - mutlu öğrenci ama uzun vadede mezun kalitesi ve prestij düşer. Bölüm Ayrıntıları > Müfredat sekmesinde slider olarak görünür, geçme oranı ve not ortalaması canlı güncellenir (R-Fatih önerisi, Issue #8 - Katman 1).' },
+    ],
+  },
+  {
     version: '0.4.49',
     date: '2026-05-09',
     title: 'Dönem ortası kayıt ve BAP kalıcılığı',

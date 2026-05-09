@@ -1058,12 +1058,26 @@ function buildDepartmentState(deptId) {
         yok_approval_turn: null,
       },
     },
+
+    // Ders zorluk geçersiz kılmaları: { [courseId]: { difficulty: 1-5 } }
+    curriculumOverrides: {},
   };
 }
 
 // generateInitialFaculty → faculty.js'den import edildi.
 
 // generateInitialStudents → students.js'den import edildi
+
+// ─────────────────────────────────────────────────────────────────────────────
+// YARDIMCI: Ders zorluk değerini döndür (oyuncu override varsa onu, yoksa default)
+// ─────────────────────────────────────────────────────────────────────────────
+export function getCourseEffectiveDifficulty(dept, course) {
+  const override = dept.curriculumOverrides?.[course.id];
+  if (override && typeof override.difficulty === 'number') {
+    return Math.max(1, Math.min(5, override.difficulty));
+  }
+  return course.difficulty;
+}
 
 // ─────────────────────────────────────────────────────────────────────────────
 // YARDİMCI: Başlangıç binalarını oluştur (mevcut üniversite senaryosu)
@@ -1827,7 +1841,7 @@ export function calculateDepartmentStats(state) {
     // ── Müfredat zorluk ortalaması (1-5 ölçeği) ───────────────────────────────
     const curriculum = DEPARTMENT_CURRICULA[dept.id] || [];
     const avgCourseDifficulty = curriculum.length > 0
-      ? curriculum.reduce((s, c) => s + (c.difficulty || 3), 0) / curriculum.length
+      ? curriculum.reduce((s, c) => s + getCourseEffectiveDifficulty(dept, c), 0) / curriculum.length
       : 3;
 
     // ── Başarısızlık oranı ────────────────────────────────────────────────────
@@ -1860,22 +1874,23 @@ export function calculateDepartmentStats(state) {
       const enrolled   = Math.min(totalEnrolled, Math.round(idealSize * Math.min(1.2, fillRatio + 0.3)));
 
       // Ders not ortalaması: hoca kalitesi + dersin zor/kolay olmasına göre
+      const effectiveDiff = getCourseEffectiveDifficulty(dept, course);
       const teachingBonus = assign ? (assign.matchQuality === 2 ? 10 : assign.matchQuality === 1 ? 0 : -10) : -15;
-      const diffPenalty   = (course.difficulty - 1) * 5;
+      const diffPenalty   = (effectiveDiff - 1) * 5;
       const courseAvgGrade = Math.max(40, Math.min(95,
         60 + teachingBonus - diffPenalty + Math.round(avgTeaching * 0.2)
       ));
 
       // Geçme/kalma oranı
       const coursePassRate = Math.max(0.40, Math.min(1.0,
-        1 - failureRate * (course.difficulty / 3)
+        1 - failureRate * (effectiveDiff / 3)
       ));
 
       return {
         id:          course.id,
         name:        course.name,
         type:        course.type,
-        difficulty:  course.difficulty,
+        difficulty:  effectiveDiff,
         enrolled,
         passRate:    parseFloat(coursePassRate.toFixed(2)),
         avgGrade:    courseAvgGrade,
@@ -4204,6 +4219,8 @@ function migrateState(state) {
         theqa: { status: 'none', appliedAt: null, grantedAt: null, expiresAt: null, processTime: null },
       };
     }
+    // v0.4.50: Müfredat zorluk geçersiz kılmaları
+    if (!dept.curriculumOverrides) dept.curriculumOverrides = {};
   }
 
   // v0.3 Feature 3: TTO — initTTOState ayrıca çağrılıyor (setState içinde)
@@ -6028,6 +6045,29 @@ export function assignDeptHead(deptId, facultyId) {
   }
 
   return { success: true, message: `${hoca.name} "${dept.name}" bölüm başkanı olarak atandı.` };
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// setCourseDifficulty — Oyuncu ders zorluk seviyesini ayarlar (Issue #8 Katman 1)
+// ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * Bir bölümün belirli dersinin zorluk seviyesini (1-5) geçersiz kılar.
+ * @param {string} deptId     — Bölüm id'si
+ * @param {string} courseId   — Ders id'si
+ * @param {number} newDifficulty — Yeni zorluk seviyesi (1-5)
+ */
+export function setCourseDifficulty(deptId, courseId, newDifficulty) {
+  if (!_state) return { success: false, message: 'Oyun başlatılmamış.' };
+  const dept = (_state.departments || []).find(d => d.id === deptId);
+  if (!dept) return { success: false, message: 'Bölüm bulunamadı.' };
+  const curriculum = DEPARTMENT_CURRICULA[deptId] || [];
+  const course = curriculum.find(c => c.id === courseId);
+  if (!course) return { success: false, message: 'Ders bulunamadı.' };
+  const clamped = Math.max(1, Math.min(5, Math.round(newDifficulty)));
+  if (!dept.curriculumOverrides) dept.curriculumOverrides = {};
+  dept.curriculumOverrides[courseId] = { difficulty: clamped };
+  return { success: true, courseName: course.name, difficulty: clamped };
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
