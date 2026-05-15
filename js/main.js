@@ -8,7 +8,7 @@ console.log('[main] main.js modülü yükleniyor...');
 // IMPORT
 // ─────────────────────────────────────────────────────────────────────────────
 
-import { initGame, nextTurn, getState, setState, applyDecision, assignCourses, applyQuotas, assignDeptHead, reassignFacultyToDept, generateAdminCandidates, hireAdminStaff, upgradeAdminUnit, promoteAdminStaff, fireAdminStaff, updateAdminStaffSalary, assignUnitManager, RANDOM_EVENTS, ACHIEVEMENTS, getAchievementStats, organizeAlumniEvent, applyRandomEventChoice, ACCREDITATION_BODIES, applyForAccreditation, checkAccreditationRequirements, establishTTO, upgradeTTO, acceptDeal, rejectDeal, foundClub, upgradeClub, dissolveClub, CLUB_TYPES, CLUB_CATEGORIES, SPORTS, foundTeam, upgradeTeam, dissolveTeam, setCourseDifficulty } from './game.js?v=0.4.50';
+import { initGame, nextTurn, getState, setState, applyDecision, assignCourses, applyQuotas, assignDeptHead, reassignFacultyToDept, generateAdminCandidates, hireAdminStaff, upgradeAdminUnit, promoteAdminStaff, fireAdminStaff, updateAdminStaffSalary, assignUnitManager, RANDOM_EVENTS, ACHIEVEMENTS, getAchievementStats, organizeAlumniEvent, applyRandomEventChoice, ACCREDITATION_BODIES, applyForAccreditation, checkAccreditationRequirements, establishTTO, upgradeTTO, acceptDeal, rejectDeal, foundClub, upgradeClub, dissolveClub, CLUB_TYPES, CLUB_CATEGORIES, SPORTS, foundTeam, upgradeTeam, dissolveTeam, setCourseDifficulty } from './game.js?v=0.4.51';
 import { ADMIN_TITLES } from './data.js?v=0.4.49';
 
 import {
@@ -47,11 +47,12 @@ import {
   renderLeaderboardPanel,
   renderInternationalRankingPanel,
   showChangelogModal,
+  showGameWonModal,
   el,
   on,
-} from './ui.js?v=0.4.50';
+} from './ui.js?v=0.4.51';
 
-import { CHANGELOG, hasUnseenChanges, setLastSeenVersion } from './changelog.js?v=0.4.50';
+import { CHANGELOG, hasUnseenChanges, setLastSeenVersion } from './changelog.js?v=0.4.51';
 
 import { saveGame, loadGame, autoSave, getSaveSlots, deleteSave, exportSave, importSave, sanitizeForSave } from './save.js?v=0.4.28';
 import { calculateScore, scoreBreakdown, submitScore, getTopScores, initFirebase, isLeaderboardUnavailable, saveLocalScore, getLocalScores } from './leaderboard.js?v=0.4.45';
@@ -568,6 +569,23 @@ function _startGameWithState(state) {
   // Ambient müziği başlat (mute değilse)
   if (!isMuted()) startMusic();
   console.log('[main] Oyun ekranı hazır. Dönem:', state?.meta?.turn, '| Bütçe:', state?.university?.budget);
+
+  // Yüklenen kayıtta oyun kazanılmışsa veya bitmişse kullanıcıya bildir
+  if (state?._internal?.gameWon) {
+    setTimeout(() => {
+      showGameWonModal(
+        state,
+        null,
+        calculateScore,
+        scoreBreakdown,
+        () => _showLeaderboardSubmitModal(true),
+      );
+    }, 600);
+  } else if (state?._internal?.gameOver) {
+    setTimeout(() => {
+      showNotification('Bu kayıt oyunun bittiği bir noktadan. Yeni oyun başlatabilirsiniz.', 'info', 6000);
+    }, 600);
+  }
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -852,7 +870,7 @@ function _runTurnAfterQuotas() {
 
   // Defensive: backend "Oyun zaten bitti." dönerse boş özet modal'ı açma
   // (Emir raporu — _onNextTurn'de zaten erken çıkış var, bu son güvenlik ağı).
-  if (state?.gameOver || state?.gameWon || /zaten bitti/i.test(summary?.message || '')) {
+  if (/zaten bitti/i.test(summary?.message || '')) {
     showNotification(
       state?.gameWon ? '🏆 Oyun kazanıldı. Yeni oyun başlatabilirsin.' : 'Oyun bitti. Yeni oyun başlatabilirsin.',
       'info',
@@ -933,8 +951,23 @@ function _continueAfterEvents(summary, state) {
   refreshGameUI();
   console.log(`[main] Tur tamamlandı → Tur ${state?.meta?.turn}`);
 
-  // Oyun bittiyse (gameOver veya gameWon) skor gönderme modal'ını tetikle
-  if (summary?.gameOver || summary?.gameWon) {
+  // Oyun kazanıldıysa kutlama ekranını göster
+  if (summary?.gameWon) {
+    setTimeout(() => {
+      const winReason = summary?.reason || null;
+      showGameWonModal(
+        state,
+        winReason,
+        calculateScore,
+        scoreBreakdown,
+        () => _showLeaderboardSubmitModal(true),
+      );
+    }, 800);
+    return;
+  }
+
+  // Oyun bittiyse (gameOver) skor gönderme modal'ını tetikle
+  if (summary?.gameOver) {
     setTimeout(() => _showLeaderboardSubmitModal(true), 1200);
   }
 }

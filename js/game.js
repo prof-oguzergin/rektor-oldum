@@ -4514,19 +4514,18 @@ export function setState(loadedState) {
     // v0.4: Kampüs grid layout'unu tamamla (eski kayıtlar için)
     if (!s.campus) initCampusState(s);
 
-    // Yükleme sonrası sayaçları sıfırla
+    // Yükleme sonrası grace-period sayaçlarını sıfırla (ani iflas/kapanmayı önler)
     _bankruptcyTurns = 0;
     _lowStudentTurns = 0;
-    _gameOver        = false;
-    _gameWon         = false;
 
-    // Iç bayrakları da temizle: yüklenen state'te eski bir game over/win flag'ı
-    // kalmışsa nextTurn döngüsü bozulur.
+    // gameOver/gameWon state'ten oku: kazanılmış/bitmiş kaydı yükleyen oyuncu
+    // durumu korumalı (v0.4.51 — Issue #19, #23).
+    _gameOver = !!s._internal?.gameOver;
+    _gameWon  = !!s._internal?.gameWon;
+
+    // Grace-period sayaçlarını sıfırla: eski kayıtta birikmiş sayaç
+    // yükleme anında ani iflas/kapanmayı tetiklemesin.
     if (s._internal) {
-      s._internal.gameOver = false;
-      s._internal.gameWon  = false;
-      // Grace-period sayaçlarını sıfırla: eski kayıtta birikmiş sayaç
-      // yükleme anında ani iflas/kapanmayı tetiklemesın.
       s._internal.consecutiveLowStudentTurns = 0;
       s._internal.bankruptcyTurns            = 0;
     }

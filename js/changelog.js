@@ -6,6 +6,15 @@
 
 export const CHANGELOG = [
   {
+    version: '0.4.51',
+    date: '2026-05-16',
+    title: 'Kazanma ekranı ve kayıt koruma',
+    items: [
+      { type: 'fix', text: 'Oyun kazanıldığında artık senaryo bazlı özel mesaj içeren kutlama ekranı çıkıyor. Final skor kırılımı ve leaderboard\'a gönderme butonu da eklendi. Önceden sadece "Oyun bitti" bildirimi görünüyordu (BerkhanB Issue #19, byalperr Issue #23).' },
+      { type: 'fix', text: 'Kayıt yüklendiğinde oyun kazanılmış veya bitmiş durumu artık korunuyor. v0.4.48\'deki agresif sıfırlama düzeltildi — kazanılmış kaydı yükleyen oyuncu kutlama ekranını görür.' },
+    ],
+  },
+  {
     version: '0.4.50',
     date: '2026-05-09',
     title: 'Müfredat zorluğu artık oyuncu kontrolünde',

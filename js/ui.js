@@ -219,6 +219,88 @@ const _CHANGELOG_TYPE_META = {
 };
 
 /**
+ * Oyun kazanıldığında kutlama modal'ını gösterir.
+ * @param {object} state — Oyun durumu
+ * @param {string} winReason — checkWinLose().reason değeri
+ * @param {Function} calculateScore — Skor hesaplama fonksiyonu (leaderboard.js'ten enjekte)
+ * @param {Function} scoreBreakdown — Skor kırılımı fonksiyonu
+ * @param {Function} onSubmitScore — Leaderboard skor gönderme callback'i
+ */
+export function showGameWonModal(state, winReason, calculateScore, scoreBreakdown, onSubmitScore) {
+  const scenarioId = state?.meta?.scenario || null;
+
+  // Senaryo bazlı özel mesajlar
+  const scenarioMessages = {
+    vakif_kurtarma: 'Üniversiteyi mali krizden çıkardınız! Bütçeyi 10 dönem boyunca pozitif tuttunuz.',
+    yeni_kurulan:   'Üniversitenizin saygınlık hedefine ulaştınız! 60 puanı geçtiniz.',
+    koklu_devlet:   'Sıralama hedefini tutturdunuz! İlk 30\'a girdiniz.',
+  };
+
+  // Kazanma nedeni mesajı
+  const reasonMessages = {
+    scenario_budget_positive: scenarioMessages[scenarioId] || 'Bütçeyi peş peşe pozitif tuttunuz.',
+    scenario_prestige:        scenarioMessages[scenarioId] || 'Saygınlık hedefine ulaştınız.',
+    scenario_ranking:         scenarioMessages[scenarioId] || 'Sıralama hedefini tutturdunuz.',
+    prestige_max:             'Üniversiteniz dünya çapında lider oldu! Saygınlık 90 puanın üzerine çıktı.',
+    ranking_first:            'Üniversiteniz ulusal sıralamada 1. sıraya yükseldi!',
+  };
+
+  const winMessage = reasonMessages[winReason]
+    || scenarioMessages[scenarioId]
+    || 'Üniversiteniz başarıyla hedeflerine ulaştı!';
+
+  const score     = calculateScore ? calculateScore(state) : 0;
+  const breakdown = scoreBreakdown ? scoreBreakdown(state) : [];
+
+  const breakdownHtml = breakdown.length
+    ? `<ul style="margin:10px 0 0;padding-left:18px;list-style:disc;">
+        ${breakdown.map(line => `<li style="font-size:12px;color:var(--text-muted,#aaa);margin:2px 0;">${line}</li>`).join('')}
+       </ul>`
+    : '';
+
+  const bodyHtml = `
+    <div style="display:flex;flex-direction:column;gap:18px;padding:4px 0;text-align:center;">
+      <div style="font-size:48px;line-height:1;">🏆</div>
+      <div>
+        <div style="font-size:22px;font-weight:700;color:#f5a623;margin-bottom:8px;">
+          Tebrikler! Hedefe Ulaştınız!
+        </div>
+        <p style="margin:0;font-size:14px;line-height:1.6;color:var(--text-secondary,#ccc);">
+          ${winMessage}
+        </p>
+      </div>
+      <div style="background:rgba(93,214,192,0.08);border:1px solid rgba(93,214,192,0.3);
+                  border-radius:10px;padding:16px;">
+        <div style="font-size:32px;font-weight:700;color:var(--accent,#5dd6c0);">
+          ${score.toLocaleString('tr-TR')} puan
+        </div>
+        <div style="font-size:12px;color:var(--text-muted,#aaa);margin-top:4px;">Final Skoru</div>
+        ${breakdownHtml}
+      </div>
+      <div style="display:flex;gap:10px;justify-content:center;flex-wrap:wrap;">
+        <button id="won-leaderboard-btn" class="btn btn-primary btn-sm">
+          🏆 Leaderboard'a Gönder
+        </button>
+        <button id="won-new-game-btn" class="btn btn-ghost btn-sm">
+          🎮 Yeni Oyuna Başla
+        </button>
+      </div>
+    </div>`;
+
+  showModal('🏆 Oyun Kazanıldı!', bodyHtml);
+
+  document.getElementById('won-leaderboard-btn')?.addEventListener('click', () => {
+    hideModal();
+    if (onSubmitScore) onSubmitScore();
+  });
+
+  document.getElementById('won-new-game-btn')?.addEventListener('click', () => {
+    hideModal();
+    showScreen('screen-menu');
+  });
+}
+
+/**
  * Sürüm notları modalını gösterir.
  * @param {Array} changelog — CHANGELOG dizisi (changelog.js)
  * @param {string} currentVersion — Aktif sürüm (en üstte vurgulanır)
@@ -823,7 +905,7 @@ export function updateTopBar(state) {
     const isOver = !!(state.gameOver || state.gameWon);
     nextBtn.disabled = isOver;
     if (isOver) {
-      nextBtn.textContent = '🎮 Yeni Oyuna Başla';
+      nextBtn.textContent = state.gameWon ? '🏆 Yeni Oyun' : '🎮 Yeni Oyun';
       nextBtn.onclick = () => showScreen('screen-menu');
     } else {
       nextBtn.textContent = 'Sonraki Dönem →';
@@ -831,20 +913,24 @@ export function updateTopBar(state) {
     }
   }
 
-  // Oyun bitti banner'ı (top bar altında kalıcı uyarı)
+  // Oyun bitti/kazanıldı banner'ı (top bar altında kalıcı uyarı)
+  // gameWon → yeşil/altın, gameOver → kırmızı
   const gameScreen = el('screen-game');
   let bannerEl = el('game-over-banner');
-  const isGameOver = !!(state.gameOver || state.gameWon);
-  if (isGameOver && gameScreen) {
+  const isEnded = !!(state.gameOver || state.gameWon);
+  if (isEnded && gameScreen) {
     if (!bannerEl) {
       bannerEl = document.createElement('div');
       bannerEl.id = 'game-over-banner';
-      bannerEl.style.cssText = 'background:#c0392b;color:#fff;text-align:center;padding:8px 16px;font-weight:600;font-size:14px;position:sticky;top:0;z-index:100;';
       gameScreen.prepend(bannerEl);
     }
-    bannerEl.textContent = state.gameWon
-      ? '🏆 Oyun kazanıldı — yeni oyuna başlayabilirsiniz.'
-      : '🔴 Oyun sona erdi — yeni oyuna başlayabilirsiniz.';
+    if (state.gameWon) {
+      bannerEl.style.cssText = 'background:linear-gradient(90deg,#1a6b3c,#2e8b57);color:#fff;text-align:center;padding:8px 16px;font-weight:600;font-size:14px;position:sticky;top:0;z-index:100;border-bottom:2px solid #f5a623;';
+      bannerEl.textContent = '🏆 Oyunu kazandınız — yeni oyuna başlayabilirsiniz.';
+    } else {
+      bannerEl.style.cssText = 'background:#c0392b;color:#fff;text-align:center;padding:8px 16px;font-weight:600;font-size:14px;position:sticky;top:0;z-index:100;';
+      bannerEl.textContent = '🔴 Oyun sona erdi — yeni oyuna başlayabilirsiniz.';
+    }
     bannerEl.style.display = 'block';
   } else if (bannerEl) {
     bannerEl.style.display = 'none';
