@@ -5373,14 +5373,25 @@ export function renderResearchPanel(state, onResearchBudget, onProjectDecision) 
   });
 
   // Proje onay/ret butonları (hem dış hem BAP başvuruları)
-  delegate(panel, '.proj-decision-btn', 'click', (e, btn) => {
-    const appId    = btn.dataset.appId;
-    const decision = btn.dataset.decision;
-    if (!appId || !decision) return;
-    if (onProjectDecision) {
-      onProjectDecision(decision, appId, {});
-    }
-  });
+  // Guard: panel aynı DOM elementi olduğu için delegate listener'lar her
+  // renderResearchPanel çağrısında birikmez; yalnızca bir kez eklenir.
+  // (Birden fazla eklenseydi BAP onayında "BAP bütçesi yetersiz" bildirimi
+  // N kez geliyordu — EfekanSalman Issue #22.)
+  if (!panel._projDecisionDelegateAttached) {
+    panel._projDecisionDelegateAttached = true;
+    delegate(panel, '.proj-decision-btn', 'click', (e, btn) => {
+      const appId    = btn.dataset.appId;
+      const decision = btn.dataset.decision;
+      if (!appId || !decision) return;
+      // onProjectDecision her render çağrısında güncellenir; panel üzerindeki
+      // referans en güncel callback'i göstersin diye wrapper kullan.
+      if (panel._onProjectDecision) {
+        panel._onProjectDecision(decision, appId, {});
+      }
+    });
+  }
+  // Her render'da callback referansını güncelle
+  panel._onProjectDecision = onProjectDecision;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -6154,12 +6165,14 @@ export function renderTurnSummary(summary, onNextTurn) {
         </div>
         ${(() => {
           const allEvents = [...events];
+          // Sadece gerçek açıklaması olan olayları göster (EfekanSalman Issue #21)
+          const validEvents  = allEvents.filter(ev => !!(ev.description || ev.message || ev.title));
           // Yıldız öğrenci olaylarını ayrı vurgula
-          const starEvents   = allEvents.filter(ev => ev.type === 'star_student_competition' || ev.type === 'star_student_publication' || ev.type === 'star_student_graduated' || ev.type === 'star_faculty_hired');
-          const otherEvents  = allEvents.filter(ev => !starEvents.includes(ev));
+          const starEvents   = validEvents.filter(ev => ev.type === 'star_student_competition' || ev.type === 'star_student_publication' || ev.type === 'star_student_graduated' || ev.type === 'star_faculty_hired');
+          const otherEvents  = validEvents.filter(ev => !starEvents.includes(ev));
           const shownEvents  = [...starEvents, ...otherEvents].slice(0, 8);
           if (shownEvents.length === 0) {
-            return `<div style="font-size:12px;color:var(--text-faint);padding:8px 0;">Önemli olay yaşanmadı.</div>`;
+            return `<div style="font-size:12px;color:var(--text-faint);padding:8px 0;">Bu dönemde önemli bir olay yaşanmadı.</div>`;
           }
           return shownEvents.map(ev => {
             const isStarStudent = ev.type === 'star_student_competition' || ev.type === 'star_student_publication' || ev.type === 'star_student_graduated';
@@ -6167,7 +6180,7 @@ export function renderTurnSummary(summary, onNextTurn) {
             const icon = isStarStudent ? '⭐' : isStarFaculty ? '🌟' : ev.type === 'construction_complete' ? '🏗' : ev.type === 'research_complete' ? '📄' : '📣';
             return `
               <div class="summary-row" style="${isStarStudent || isStarFaculty ? 'background:rgba(245,166,35,0.08);border-radius:4px;padding:3px 4px;margin-bottom:2px;' : ''}">
-                <span class="summary-row-label">${icon} ${ev.description || ev.message || ev.title || 'Olay'}</span>
+                <span class="summary-row-label">${icon} ${ev.description || ev.message || ev.title}</span>
                 ${(ev.prestigeBonus ?? 0) > 0 ? `<span class="summary-row-value positive">+${ev.prestigeBonus} saygınlık</span>` : ''}
               </div>`;
           }).join('');

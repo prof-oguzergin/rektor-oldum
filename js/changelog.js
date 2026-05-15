@@ -6,6 +6,15 @@
 
 export const CHANGELOG = [
   {
+    version: '0.4.52',
+    date: '2026-05-16',
+    title: 'BAP bildirim spam düzeltmesi ve Olaylar UI iyileştirmesi',
+    items: [
+      { type: 'fix', text: 'BAP başvurusu reddedildiğinde her bölüm için ayrı bildirim çıkıyordu (10+ tekrar). Araştırma panelindeki event listener\'lar her UI yenilemesinde birikiyordu; artık dönem başına tek toplu bildirim gösterilir (EfekanSalman Issue #22).' },
+      { type: 'fix', text: 'Bu Dönem Olaylar listesinde açıklaması olmayan girişler "Olay" placeholder metni olarak görünüyordu. Artık yalnızca gerçek açıklaması olan olaylar listelenir; hiç olay yoksa "Bu dönemde önemli bir olay yaşanmadı." mesajı gösterilir (EfekanSalman Issue #21).' },
+    ],
+  },
+  {
     version: '0.4.51',
     date: '2026-05-16',
     title: 'Kazanma ekranı ve kayıt koruma',
