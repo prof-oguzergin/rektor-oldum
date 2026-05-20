@@ -2,7 +2,7 @@
 
 - GitHub: https://github.com/prof-oguzergin/rektor-oldum (private)
 - Yayında: https://prof-oguzergin.github.io/rektor-oldum/
-- Durum: v0.4.52 — aktif geliştirme, oyuncu rapor akışı (Erdinç, Emir, Burak, AkaDemi, Yusuf, Fatih)
+- Durum: v0.4.53 — aktif geliştirme, oyuncu rapor akışı (Erdinç, Emir, Burak, AkaDemi, Yusuf, Fatih)
 - Dizin: C:\Users\Z GAMES\Yapay Zeka\university-tycoon
 
 ## Teknik
@@ -62,6 +62,7 @@ Tam liste: `js/changelog.js` (oyun içi "Yenilikler" panelinde de gösterilir, b
   - v0.4.49 (9 May 2026): Dönem ortası kayıt + BAP kalıcılığı — _persistState() yardımcısı eklendi, 20+ handler'da aksiyon bazlı autoSave; BAP çağrısı 3 dönem aktif kalıyor (expirationTurn), koşulsuz sıfırlama kaldırıldı; dış proje pendingProjectApplications state'ten okunuyor (Issue #14, meri-png).
   - v0.4.50 (9 May 2026): Müfredat zorluk kontrolü — her dersin zorluk seviyesi (1-5) Bölüm Ayrıntıları > Müfredat tablosunda slider ile ayarlanabilir; getCourseEffectiveDifficulty helper tüm başarısızlık/not/geçme hesaplamalarında etkin; eski kayıtlar curriculumOverrides:{} ile migrate edilir; trade-off info kutusu eklendi (R-Fatih Issue #8 Katman 1).
   - v0.4.51 (16 May 2026): Kazanma ekranı + kayıt koruma — gameWon'da senaryo bazlı özel mesajlı kutlama modal'ı (final skor kırılımı + leaderboard butonu); updateTopBar gameWon banner'ı yeşil/altın; setState'te gameOver/gameWon sıfırlanmıyor artık (state'ten okunuyor); yüklenen kayıtta gameWon true ise otomatik kazanma modal'ı açılıyor (Issue #19 BerkhanB, Issue #23 byalperr).
+  - v0.4.53 (20 May 2026): Birim bazlı unvan havuzu - her idari birim için göreve özel 5 unvan tanımlandı (Ulaşım: Şoför/Kıdemli Şoför/Tamirci/Servis Sorumlusu/Ulaşım Müdürü vb.); ADMIN_UNITS.titles alanı; getUnitTitles/getUnitTitleSalary/isUnitManagerTitle helper'ları; eski kayıtlarda migration (Memur→birim unvanı); modal birim unvanlarını gösterir (EfekanSalman Issue #17).
   - v0.4.52 (16 May 2026): BAP bildirim spam + Olaylar UI — renderResearchPanel'de .proj-decision-btn delegate listener her UI yenilemesinde birikiyordu; panel._projDecisionDelegateAttached flag ile tek seferlik ekleme sağlandı (Issue #22). Bu Dönem Olaylar'da description'sız event'ler "Olay" placeholder gösteriyordu; validEvents filtresi + "Bu dönemde önemli bir olay yaşanmadı." boş durum mesajı (Issue #21). Her ikisi EfekanSalman raporu.
 
 ## Aktif Oyuncu Raporcuları

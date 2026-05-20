@@ -6,6 +6,15 @@
 
 export const CHANGELOG = [
   {
+    version: '0.4.53',
+    date: '2026-05-20',
+    title: 'Birim bazlı unvan havuzu',
+    items: [
+      { type: 'feat', text: 'Her idari birim artık göreve özel unvan havuzuna sahip. Ulaşım\'da "Şoför" ve "Tamirci", Yemekhane\'de "Aşçı" ve "Baş Aşçı", Güvenlik\'te "Güvenlik Görevlisi" ve "Vardiya Amiri" gibi gerçekçi unvanlar görünür. Personel alım modalında birime göre doğru unvanlar listelenir, maaş baremleri her unvan için ayrı (EfekanSalman Issue #17).' },
+      { type: 'fix', text: 'Eski kayıtlardaki ortak rütbeler (Memur, Uzman, Şef, Müdür Yrd., Müdür) yüklendiklerinde birime özel unvanlara otomatik dönüştürülür - örneğin Güvenlik biriminde "Şef" artık "Vardiya Amiri" olarak görünür.' },
+    ],
+  },
+  {
     version: '0.4.52',
     date: '2026-05-16',
     title: 'BAP bildirim spam düzeltmesi ve Olaylar UI iyileştirmesi',

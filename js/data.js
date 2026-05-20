@@ -2218,6 +2218,13 @@ export const ADMIN_UNITS = {
       3: { satisfactionBonus: 5,  efficiencyBonus: 0.2, description: 'Tam dijital otomasyon' },
     },
     satisfactionFactor: 'bureaucracy',
+    titles: [
+      { name: 'Memur',                   salary: { min: 14_000, max: 18_000 } },
+      { name: 'Uzman',                   salary: { min: 18_000, max: 25_000 } },
+      { name: 'Şef',                     salary: { min: 22_000, max: 30_000 } },
+      { name: 'Müdür Yardımcısı',        salary: { min: 28_000, max: 38_000 } },
+      { name: 'Öğrenci İşleri Müdürü',   salary: { min: 35_000, max: 50_000 } },
+    ],
   },
   kariyer_merkezi: {
     id: 'kariyer_merkezi',
@@ -2234,6 +2241,13 @@ export const ADMIN_UNITS = {
       3: { satisfactionBonus: 7,  careerBonus: 0.30, description: 'Uluslararası kariyer ağı' },
     },
     satisfactionFactor: 'kariyer',
+    titles: [
+      { name: 'Danışman',             salary: { min: 14_000, max: 18_000 } },
+      { name: 'Uzman Danışman',       salary: { min: 18_000, max: 25_000 } },
+      { name: 'Kıdemli Danışman',     salary: { min: 22_000, max: 30_000 } },
+      { name: 'Kariyer Müdür Yrd.',   salary: { min: 28_000, max: 38_000 } },
+      { name: 'Kariyer Müdürü',       salary: { min: 35_000, max: 50_000 } },
+    ],
   },
   ulasim: {
     id: 'ulasim',
@@ -2250,6 +2264,13 @@ export const ADMIN_UNITS = {
       3: { satisfactionBonus: 8,  routes: 10, description: 'Metro/tramvay bağlantısı' },
     },
     satisfactionFactor: 'ulasim',
+    titles: [
+      { name: 'Şoför',             salary: { min: 14_000, max: 18_000 } },
+      { name: 'Kıdemli Şoför',     salary: { min: 18_000, max: 25_000 } },
+      { name: 'Tamirci',           salary: { min: 22_000, max: 30_000 } },
+      { name: 'Servis Sorumlusu',  salary: { min: 28_000, max: 38_000 } },
+      { name: 'Ulaşım Müdürü',     salary: { min: 35_000, max: 50_000 } },
+    ],
   },
   kutuphane_hizmetleri: {
     id: 'kutuphane_hizmetleri',
@@ -2266,6 +2287,13 @@ export const ADMIN_UNITS = {
       3: { satisfactionBonus: 5,  researchBonus: 0.10, description: 'Uluslararası veri tabanları' },
     },
     satisfactionFactor: 'kutuphane',
+    titles: [
+      { name: 'Görevli',                  salary: { min: 14_000, max: 18_000 } },
+      { name: 'Kütüphaneci',              salary: { min: 18_000, max: 25_000 } },
+      { name: 'Kıdemli Kütüphaneci',      salary: { min: 22_000, max: 30_000 } },
+      { name: 'Kütüphane Müdür Yrd.',     salary: { min: 28_000, max: 38_000 } },
+      { name: 'Kütüphane Müdürü',         salary: { min: 35_000, max: 50_000 } },
+    ],
   },
   bilgi_teknolojileri: {
     id: 'bilgi_teknolojileri',
@@ -2282,6 +2310,13 @@ export const ADMIN_UNITS = {
       3: { satisfactionBonus: 7,  techBonus: 0.20, description: 'HPC küme + bulut altyapı' },
     },
     satisfactionFactor: 'it',
+    titles: [
+      { name: 'Teknisyen',               salary: { min: 14_000, max: 18_000 } },
+      { name: 'Sistem Uzmanı',           salary: { min: 18_000, max: 25_000 } },
+      { name: 'Kıdemli Sistem Uzmanı',   salary: { min: 22_000, max: 30_000 } },
+      { name: 'IT Müdür Yrd.',           salary: { min: 28_000, max: 38_000 } },
+      { name: 'IT Müdürü',               salary: { min: 35_000, max: 50_000 } },
+    ],
   },
   saglik_merkezi: {
     id: 'saglik_merkezi',
@@ -2298,6 +2333,13 @@ export const ADMIN_UNITS = {
       3: { satisfactionBonus: 8,  description: 'Tam teşekküllü poliklinik' },
     },
     satisfactionFactor: 'saglik',
+    titles: [
+      { name: 'Sağlık Memuru',          salary: { min: 14_000, max: 18_000 } },
+      { name: 'Hemşire',                salary: { min: 18_000, max: 25_000 } },
+      { name: 'Sorumlu Hemşire',        salary: { min: 22_000, max: 30_000 } },
+      { name: 'Sağlık Müdür Yrd.',      salary: { min: 28_000, max: 38_000 } },
+      { name: 'Sağlık Merkezi Müdürü',  salary: { min: 35_000, max: 50_000 } },
+    ],
   },
   yemekhane_yonetimi: {
     id: 'yemekhane_yonetimi',
@@ -2314,6 +2356,13 @@ export const ADMIN_UNITS = {
       3: { satisfactionBonus: 7,  description: 'Premium yemek + diyet menü' },
     },
     satisfactionFactor: 'yemek_yonetim',
+    titles: [
+      { name: 'Bulaşıkçı',         salary: { min: 14_000, max: 18_000 } },
+      { name: 'Aşçı Yardımcısı',   salary: { min: 18_000, max: 25_000 } },
+      { name: 'Aşçı',              salary: { min: 22_000, max: 30_000 } },
+      { name: 'Baş Aşçı',         salary: { min: 28_000, max: 38_000 } },
+      { name: 'Yemekhane Müdürü',  salary: { min: 35_000, max: 50_000 } },
+    ],
   },
   guvenlik: {
     id: 'guvenlik',
@@ -2330,6 +2379,13 @@ export const ADMIN_UNITS = {
       3: { satisfactionBonus: 5,  description: '7/24 güvenlik + acil müdahale ekibi' },
     },
     satisfactionFactor: 'guvenlik',
+    titles: [
+      { name: 'Güvenlik Görevlisi',          salary: { min: 14_000, max: 18_000 } },
+      { name: 'Kıdemli Güvenlik Görevlisi',  salary: { min: 18_000, max: 25_000 } },
+      { name: 'Vardiya Amiri',               salary: { min: 22_000, max: 30_000 } },
+      { name: 'Güvenlik Şefi',               salary: { min: 28_000, max: 38_000 } },
+      { name: 'Güvenlik Müdürü',             salary: { min: 35_000, max: 50_000 } },
+    ],
   },
   temizlik_bakim: {
     id: 'temizlik_bakim',
@@ -2346,6 +2402,13 @@ export const ADMIN_UNITS = {
       3: { satisfactionBonus: 5,  description: 'Yeşil kampüs sertifikası' },
     },
     satisfactionFactor: 'temizlik',
+    titles: [
+      { name: 'Temizlik Personeli',  salary: { min: 14_000, max: 18_000 } },
+      { name: 'Bahçıvan',            salary: { min: 18_000, max: 25_000 } },
+      { name: 'Tesisatçı',           salary: { min: 22_000, max: 30_000 } },
+      { name: 'Bakım Şefi',          salary: { min: 28_000, max: 38_000 } },
+      { name: 'Tesis Müdürü',        salary: { min: 35_000, max: 50_000 } },
+    ],
   },
   uluslararasi_ofis: {
     id: 'uluslararasi_ofis',
@@ -2362,6 +2425,13 @@ export const ADMIN_UNITS = {
       3: { satisfactionBonus: 4,  intlBonus: 0.25, description: 'Çift diploma programları' },
     },
     satisfactionFactor: 'uluslararasi',
+    titles: [
+      { name: 'Uzman',                           salary: { min: 14_000, max: 18_000 } },
+      { name: 'Kıdemli Uzman',                   salary: { min: 18_000, max: 25_000 } },
+      { name: 'Şef',                             salary: { min: 22_000, max: 30_000 } },
+      { name: 'Müdür Yardımcısı',                salary: { min: 28_000, max: 38_000 } },
+      { name: 'Uluslararası İlişkiler Müdürü',   salary: { min: 35_000, max: 50_000 } },
+    ],
   },
 };
 
@@ -2442,6 +2512,9 @@ export const ACCREDITATION_BODIES = {
   },
 };
 
+// Legacy/fallback unvan listesi — eski kayıtlarda hâlâ bu değerler olabilir.
+// Yeni kodda ADMIN_UNITS[unitId].titles kullanılır; bu tablo sadece migration ve
+// bilinmeyen birimler için fallback olarak korunur.
 export const ADMIN_TITLES = {
   'Memur':      { min: 14_000, max: 18_000 },
   'Uzman':      { min: 18_000, max: 25_000 },
@@ -2451,20 +2524,21 @@ export const ADMIN_TITLES = {
 };
 
 // Başlangıç idari personel dağılımı (küçük üniversite için)
+// Unvanlar birime özel yeni havuzdan seçildi (pozisyon 4=Müdür, 3=Müdür Yrd., 2=orta, 1=uzman, 0=alt)
 export const ADMIN_INITIAL_STAFF = [
-  { unit: 'ogrenci_isleri',      title: 'Müdür',      count: 1 },
-  { unit: 'ogrenci_isleri',      title: 'Uzman',       count: 1 },
-  { unit: 'kariyer_merkezi',     title: 'Uzman',       count: 1 },
-  { unit: 'ulasim',              title: 'Şef',         count: 1 },
-  { unit: 'kutuphane_hizmetleri', title: 'Şef',        count: 1 },
-  { unit: 'bilgi_teknolojileri', title: 'Uzman',       count: 1 },
-  { unit: 'saglik_merkezi',      title: 'Uzman',       count: 1 },
-  { unit: 'yemekhane_yonetimi',  title: 'Şef',         count: 1 },
-  { unit: 'guvenlik',            title: 'Şef',         count: 1 },
-  { unit: 'guvenlik',            title: 'Memur',       count: 1 },
-  { unit: 'temizlik_bakim',      title: 'Şef',         count: 1 },
-  { unit: 'temizlik_bakim',      title: 'Memur',       count: 1 },
-  { unit: 'uluslararasi_ofis',   title: 'Uzman',       count: 1 },
+  { unit: 'ogrenci_isleri',       title: 'Öğrenci İşleri Müdürü',    count: 1 },
+  { unit: 'ogrenci_isleri',       title: 'Uzman',                     count: 1 },
+  { unit: 'kariyer_merkezi',      title: 'Uzman Danışman',            count: 1 },
+  { unit: 'ulasim',               title: 'Tamirci',                   count: 1 },
+  { unit: 'kutuphane_hizmetleri', title: 'Kıdemli Kütüphaneci',       count: 1 },
+  { unit: 'bilgi_teknolojileri',  title: 'Sistem Uzmanı',             count: 1 },
+  { unit: 'saglik_merkezi',       title: 'Hemşire',                   count: 1 },
+  { unit: 'yemekhane_yonetimi',   title: 'Aşçı',                      count: 1 },
+  { unit: 'guvenlik',             title: 'Vardiya Amiri',             count: 1 },
+  { unit: 'guvenlik',             title: 'Güvenlik Görevlisi',        count: 1 },
+  { unit: 'temizlik_bakim',       title: 'Tesisatçı',                 count: 1 },
+  { unit: 'temizlik_bakim',       title: 'Temizlik Personeli',        count: 1 },
+  { unit: 'uluslararasi_ofis',    title: 'Kıdemli Uzman',             count: 1 },
 ];
 
 // ─────────────────────────────────────────────────────────────────────────────

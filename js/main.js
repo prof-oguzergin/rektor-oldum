@@ -8,8 +8,8 @@ console.log('[main] main.js modülü yükleniyor...');
 // IMPORT
 // ─────────────────────────────────────────────────────────────────────────────
 
-import { initGame, nextTurn, getState, setState, applyDecision, assignCourses, applyQuotas, assignDeptHead, reassignFacultyToDept, generateAdminCandidates, hireAdminStaff, upgradeAdminUnit, promoteAdminStaff, fireAdminStaff, updateAdminStaffSalary, assignUnitManager, RANDOM_EVENTS, ACHIEVEMENTS, getAchievementStats, organizeAlumniEvent, applyRandomEventChoice, ACCREDITATION_BODIES, applyForAccreditation, checkAccreditationRequirements, establishTTO, upgradeTTO, acceptDeal, rejectDeal, foundClub, upgradeClub, dissolveClub, CLUB_TYPES, CLUB_CATEGORIES, SPORTS, foundTeam, upgradeTeam, dissolveTeam, setCourseDifficulty } from './game.js?v=0.4.51';
-import { ADMIN_TITLES } from './data.js?v=0.4.49';
+import { initGame, nextTurn, getState, setState, applyDecision, assignCourses, applyQuotas, assignDeptHead, reassignFacultyToDept, generateAdminCandidates, hireAdminStaff, upgradeAdminUnit, promoteAdminStaff, fireAdminStaff, updateAdminStaffSalary, assignUnitManager, RANDOM_EVENTS, ACHIEVEMENTS, getAchievementStats, organizeAlumniEvent, applyRandomEventChoice, ACCREDITATION_BODIES, applyForAccreditation, checkAccreditationRequirements, establishTTO, upgradeTTO, acceptDeal, rejectDeal, foundClub, upgradeClub, dissolveClub, CLUB_TYPES, CLUB_CATEGORIES, SPORTS, foundTeam, upgradeTeam, dissolveTeam, setCourseDifficulty, getUnitTitles, getUnitTitleSalary } from './game.js?v=0.4.53';
+import { ADMIN_TITLES } from './data.js?v=0.4.53';
 
 import {
   showScreen,
@@ -2275,14 +2275,14 @@ window._onAdminTitleSelectionChange = (idx, chosenTitle) => {
   const cache = window._adminCandidateCache || [];
   const c = cache[idx];
   if (!c) return;
-  const TITLE_ORDER_H = ['Memur', 'Uzman', 'Şef', 'Müdür Yrd.', 'Müdür'];
-  const sugT   = c.suggestedTitle || 'Uzman';
-  const sugIdx = TITLE_ORDER_H.indexOf(sugT);
-  const choIdx = TITLE_ORDER_H.indexOf(chosenTitle);
+  const unitTitles = getUnitTitles(c.unit);
+  const sugT   = c.suggestedTitle || unitTitles[1] || unitTitles[0] || 'Uzman';
+  const sugIdx = unitTitles.indexOf(sugT);
+  const choIdx = unitTitles.indexOf(chosenTitle);
 
   const warnEl   = document.getElementById(`admin-hire-warning-${idx}`);
   const salaryEl = document.getElementById(`admin-hire-salary-${idx}`);
-  const bar      = ADMIN_TITLES[chosenTitle] || { min: 14000, max: 50000 };
+  const bar      = getUnitTitleSalary(c.unit, chosenTitle);
   const bareMid  = Math.round((bar.min + bar.max) / 2);
 
   if (!warnEl) return;

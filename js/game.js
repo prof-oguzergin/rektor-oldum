@@ -32,7 +32,7 @@ import {
   ACCREDITATION_BODIES,
   SCENARIOS,
   BANKS,
-} from './data.js?v=0.4.39';
+} from './data.js?v=0.4.53';
 
 import { calculateEconomy, applyBudget, calculateLoanPayment, processLoanPayments } from './economy.js?v=0.4.24';
 import { generateInitialFaculty, updateAllFacultyHappiness, generateApplicants, generateFaculty, getSalaryRange, calculateOverallRating, getFacultyRatingTrend } from './faculty.js?v=0.4.39';
@@ -403,14 +403,13 @@ function _randomAdminName() {
   return `${first} ${last}`;
 }
 
-// Deneyim seviyesine göre önerilen rütbeyi hesapla
-function _suggestTitleFromStats(experienceLevel, leadership, totalExperience) {
-  if (experienceLevel === 'junior') return 'Memur';
-  if (experienceLevel === 'mid') {
-    return leadership >= 60 ? 'Şef' : 'Uzman';
-  }
+// Deneyim seviyesine göre önerilen rütbeyi hesapla (birim bazlı)
+function _suggestTitleFromStats(unitId, experienceLevel, leadership, totalExperience) {
+  const titles = getUnitTitles(unitId);
+  if (experienceLevel === 'junior') return titles[0];
+  if (experienceLevel === 'mid') return leadership >= 60 ? titles[2] : titles[1];
   // senior
-  return (leadership >= 75 && totalExperience >= 18) ? 'Müdür' : 'Müdür Yrd.';
+  return (leadership >= 75 && totalExperience >= 18) ? titles[4] : titles[3];
 }
 
 // Personel üret. opts: { title } (eski yol) veya { experienceLevel } (yeni aday yolu)
@@ -439,13 +438,13 @@ function generateAdminStaffMember(unitId, opts) {
 
   // Eğer title verilmemişse (aday yolu): suggestedTitle hesapla, title null bırak
   const resolvedSuggestedTitle = experienceLevel
-    ? _suggestTitleFromStats(experienceLevel, leadership, totalExperience)
+    ? _suggestTitleFromStats(unitId, experienceLevel, leadership, totalExperience)
     : null;
   const resolvedTitle = title || null;
 
   // Maaş beklentisi: aday için suggestedTitle baremi üzerinden, sabit için kendi baremi
-  const baremeTitle = resolvedTitle || resolvedSuggestedTitle || 'Uzman';
-  const salaryRange = ADMIN_TITLES[baremeTitle] || { min: 14_000, max: 18_000 };
+  const baremeTitle = resolvedTitle || resolvedSuggestedTitle || getUnitTitles(unitId)[1] || 'Uzman';
+  const salaryRange = getUnitTitleSalary(unitId, baremeTitle);
   const bareMid     = Math.round((salaryRange.min + salaryRange.max) / 2);
   const salaryExpectation = Math.round(bareMid * (0.95 + Math.random() * 0.15)); // %95–110
   const salary = randInt(salaryRange.min, salaryRange.max);
@@ -621,7 +620,7 @@ function _applyAdminBuildingBonuses(adminUnits, buildings) {
 
 const ADMIN_TITLE_ORDER = ['Memur', 'Uzman', 'Şef', 'Müdür Yrd.', 'Müdür'];
 
-/** Unvanın bir üstünü döndürür (yoksa null) */
+/** Unvanın bir üstünü döndürür (yoksa null) — legacy fallback */
 function _nextAdminTitle(title) {
   const idx = ADMIN_TITLE_ORDER.indexOf(title);
   return idx >= 0 && idx < ADMIN_TITLE_ORDER.length - 1
@@ -629,32 +628,63 @@ function _nextAdminTitle(title) {
     : null;
 }
 
-/** Maaş barem orta noktasını döndürür */
-function _titleMidpoint(title) {
-  const range = ADMIN_TITLES[title] || { min: 14_000, max: 18_000 };
+/** Maaş barem orta noktasını döndürür — birim bazlı veya legacy */
+function _titleMidpoint(title, unitId) {
+  const range = unitId ? getUnitTitleSalary(unitId, title) : (ADMIN_TITLES[title] || { min: 14_000, max: 18_000 });
   return Math.round((range.min + range.max) / 2);
+}
+
+/** Birimin unvan listesini döndürür (alt→üst sırada). */
+export function getUnitTitles(unitId) {
+  return ADMIN_UNITS[unitId]?.titles?.map(t => t.name) || ADMIN_TITLE_ORDER;
+}
+
+/** Unvanın maaş baremini birim bazlı döndürür. */
+export function getUnitTitleSalary(unitId, title) {
+  const t = ADMIN_UNITS[unitId]?.titles?.find(x => x.name === title);
+  if (t) return t.salary;
+  return ADMIN_TITLES[title] || { min: 14_000, max: 18_000 };
+}
+
+/** Bir unvanın bir üstünü birim bazlı döndürür. */
+function _nextUnitTitle(unitId, currentTitle) {
+  const titles = ADMIN_UNITS[unitId]?.titles;
+  if (!titles) return _nextAdminTitle(currentTitle);
+  const idx = titles.findIndex(t => t.name === currentTitle);
+  if (idx < 0 || idx >= titles.length - 1) return null;
+  return titles[idx + 1].name;
+}
+
+/** Bir unvan birim için yönetici seviyesinde mi (son 2 unvan)? */
+export function isUnitManagerTitle(unitId, title) {
+  const titles = ADMIN_UNITS[unitId]?.titles;
+  if (!titles) return title === 'Müdür' || title === 'Müdür Yrd.';
+  const idx = titles.findIndex(t => t.name === title);
+  return idx >= titles.length - 2;
 }
 
 /**
  * Terfi uygunluğunu kontrol eder ve staff.promotionEligible'ı günceller.
- * Kriter:
- *   Memur → Uzman:     2+ yıl, quality > 55, efficiency > 50
- *   Uzman → Şef:       3+ yıl, quality > 65, leadership > 55
- *   Şef → Müdür Yrd.:  3+ yıl, quality > 70, leadership > 65
- *   Müdür Yrd. → Müdür:4+ yıl, quality > 75, leadership > 70
+ * Pozisyon bazlı kriter (0=en alt, 4=en üst):
+ *   0 → 1: 2+ yıl, quality > 55, efficiency > 50
+ *   1 → 2: 3+ yıl, quality > 65, leadership > 55
+ *   2 → 3: 3+ yıl, quality > 70, leadership > 65
+ *   3 → 4: 4+ yıl, quality > 75, leadership > 70
  */
 function _checkPromotionEligibility(staff) {
-  const t = staff.title;
+  const titleNames = getUnitTitles(staff.unit);
+  const idx = titleNames.indexOf(staff.title);
   const yip = safeNum(staff.yearsInPosition);
   const q   = safeNum(staff.quality);
   const eff = safeNum(staff.efficiency);
   const led = safeNum(staff.leadership);
 
   let eligible = false;
-  if (t === 'Memur')      eligible = yip >= 2 && q > 55 && eff > 50;
-  else if (t === 'Uzman') eligible = yip >= 3 && q > 65 && led > 55;
-  else if (t === 'Şef')   eligible = yip >= 3 && q > 70 && led > 65;
-  else if (t === 'Müdür Yrd.') eligible = yip >= 4 && q > 75 && led > 70;
+  if (idx === 0)      eligible = yip >= 2 && q > 55 && eff > 50;
+  else if (idx === 1) eligible = yip >= 3 && q > 65 && led > 55;
+  else if (idx === 2) eligible = yip >= 3 && q > 70 && led > 65;
+  else if (idx === 3) eligible = yip >= 4 && q > 75 && led > 70;
+  // idx === 4 (en üst) veya bilinmeyen → terfi yok
 
   if (eligible && !staff.promotionEligible) {
     // Yeni uygunluk başladı
@@ -673,8 +703,9 @@ function _updateAdminStaffPerformance(staff) {
   // Alt istatistikleri hafifçe geliştir (deneyim etkisi)
   staff.efficiency    = Math.min(100, safeNum(staff.efficiency)    + randInt(0, 2));
   staff.techSkills    = Math.min(100, safeNum(staff.techSkills)    + randInt(0, 1));
-  // Liderlik: Şef ve üstü unvanlarda daha hızlı gelişir
-  const titleIdx = ADMIN_TITLE_ORDER.indexOf(staff.title);
+  // Liderlik: Orta ve üstü pozisyonlarda (idx >= 2) daha hızlı gelişir
+  const titleNames = getUnitTitles(staff.unit);
+  const titleIdx   = titleNames.indexOf(staff.title);
   if (titleIdx >= 2) {
     staff.leadership = Math.min(100, safeNum(staff.leadership) + randInt(0, 1));
   }
@@ -705,8 +736,8 @@ function _updateAdminStaffPerformance(staff) {
   staff.yearsInPosition = safeNum(staff.yearsInPosition) + 0.5;
 
   // Mutluluk: maaş vs. barem etkisi
-  const midpoint = _titleMidpoint(staff.title);
-  const range = ADMIN_TITLES[staff.title] || { min: 14_000, max: 25_000 };
+  const midpoint = _titleMidpoint(staff.title, staff.unit);
+  const range = getUnitTitleSalary(staff.unit, staff.title);
   if (safeNum(staff.salary) > midpoint) {
     staff.happiness = Math.min(100, safeNum(staff.happiness) + randInt(0, 3));
   } else if (safeNum(staff.salary) < range.min) {
@@ -724,7 +755,7 @@ function _calculateAdminTurnover(adminStaff) {
   for (const staff of adminStaff) {
     let leaveChance = 0.02;
 
-    const midpoint = _titleMidpoint(staff.title);
+    const midpoint = _titleMidpoint(staff.title, staff.unit);
     if (safeNum(staff.salary) < midpoint) leaveChance += 0.05;
     if (staff.promotionEligible && safeNum(staff.semestersSinceEligible) > 3) leaveChance += 0.08;
     if (safeNum(staff.happiness) < 40) leaveChance += 0.06;
@@ -752,7 +783,7 @@ function _assignUnitManagers(adminUnits, adminStaff) {
 
   for (const [unitId, unit] of Object.entries(adminUnits)) {
     const eligible = adminStaff.filter(
-      s => s.unit === unitId && (s.title === 'Müdür' || s.title === 'Müdür Yrd.')
+      s => s.unit === unitId && isUnitManagerTitle(unitId, s.title)
     );
     if (eligible.length === 0) {
       unit.managerId   = null;
@@ -796,10 +827,10 @@ export function promoteAdminStaff(staffId) {
   if (!_state) return { success: false, message: 'Oyun başlatılmamış.' };
   const staff = (_state.adminStaff || []).find(s => s.id === staffId);
   if (!staff) return { success: false, message: 'Personel bulunamadı.' };
-  const nextTitle = _nextAdminTitle(staff.title);
+  const nextTitle = _nextUnitTitle(staff.unit, staff.title);
   if (!nextTitle) return { success: false, message: 'Bu unvan zaten en yüksek.' };
 
-  const newRange = ADMIN_TITLES[nextTitle];
+  const newRange = getUnitTitleSalary(staff.unit, nextTitle);
   const newSalary = Math.round((newRange.min + newRange.max) / 2); // Yeni baremde orta noktadan başla
   staff.title                  = nextTitle;
   staff.salary                 = Math.max(staff.salary, newSalary); // Mevcut maaş düşmesin
@@ -856,8 +887,10 @@ export function assignUnitManager(unitId, staffId) {
   }
   const staff = (_state.adminStaff || []).find(s => s.id === staffId);
   if (!staff) return { success: false, message: 'Personel bulunamadı.' };
-  if (staff.title !== 'Müdür' && staff.title !== 'Müdür Yrd.') {
-    return { success: false, message: 'Sadece Müdür veya Müdür Yrd. yönetici atanabilir.' };
+  if (!isUnitManagerTitle(unitId, staff.title)) {
+    const titles = getUnitTitles(unitId);
+    const topTwo = titles.slice(-2).join(' veya ');
+    return { success: false, message: `Sadece ${topTwo} yönetici atanabilir.` };
   }
   unit.managerId         = staff.id;
   unit.managerName       = staff.name;
@@ -867,36 +900,42 @@ export function assignUnitManager(unitId, staffId) {
 
 // İdari personel adayı üret (işe alma modalı için)
 // levelKey: 'junior' | 'mid' | 'senior' (yeni yol)
-//           VEYA eski title string ('Memur', 'Uzman', vb.) — backward compat
+//           VEYA birime özel unvan string'i VEYA eski legacy unvan — backward compat
 export function generateAdminCandidates(unitId, levelKey, count = 3) {
   const candidates = [];
-  // Eski yol: ADMIN_TITLES'ta varsa title olarak davran
-  const isOldTitle = Object.prototype.hasOwnProperty.call(ADMIN_TITLES, levelKey);
+  const expLevels = ['junior', 'mid', 'senior'];
+  const isExpLevel = expLevels.includes(levelKey);
+  // Birim bazlı unvan adı mı yoksa legacy unvan mı?
+  const unitTitles = getUnitTitles(unitId);
+  const isKnownTitle = unitTitles.includes(levelKey) || Object.prototype.hasOwnProperty.call(ADMIN_TITLES, levelKey);
   for (let i = 0; i < count; i++) {
-    if (isOldTitle) {
+    if (isExpLevel) {
+      candidates.push(generateAdminStaffMember(unitId, { experienceLevel: levelKey }));
+    } else if (isKnownTitle) {
       candidates.push(generateAdminStaffMember(unitId, { title: levelKey }));
     } else {
-      candidates.push(generateAdminStaffMember(unitId, { experienceLevel: levelKey }));
+      candidates.push(generateAdminStaffMember(unitId, { experienceLevel: 'mid' }));
     }
   }
   return candidates;
 }
 
 // İdari personel işe al
-// chosenTitle: opsiyonel — yoksa candidate.suggestedTitle veya 'Uzman' kullanılır
+// chosenTitle: opsiyonel — yoksa candidate.suggestedTitle veya birim 2. unvanı kullanılır
 export function hireAdminStaff(candidate, chosenTitle) {
   if (!_state) return;
   if (!_state.adminStaff) _state.adminStaff = [];
 
-  const title   = chosenTitle || candidate.suggestedTitle || candidate.title || 'Uzman';
-  const baremeT = ADMIN_TITLES[title] || { min: 14_000, max: 18_000 };
+  const unitId  = candidate.unit;
+  const unitTitles = getUnitTitles(unitId);
+  const title   = chosenTitle || candidate.suggestedTitle || candidate.title || unitTitles[1] || 'Uzman';
+  const baremeT = getUnitTitleSalary(unitId, title);
   const bareMid = Math.round((baremeT.min + baremeT.max) / 2);
 
   // Maaş ve mutluluk/sadakat: önerilen rütbeyle karşılaştır
   const sugT    = candidate.suggestedTitle || title;
-  const TITLE_ORDER_H = ['Memur', 'Uzman', 'Şef', 'Müdür Yrd.', 'Müdür'];
-  const sugIdx  = TITLE_ORDER_H.indexOf(sugT);
-  const choIdx  = TITLE_ORDER_H.indexOf(title);
+  const sugIdx  = unitTitles.indexOf(sugT);
+  const choIdx  = unitTitles.indexOf(title);
 
   let finalSalary = Math.max(candidate.salaryExpectation || bareMid, baremeT.min);
   let happAdj = 0, loyaltyAdj = 0;
@@ -4336,6 +4375,21 @@ function migrateState(state) {
         }
         building.assignedDepartments = [];
       }
+    }
+  }
+
+  // v0.4.53 Migration: eski ortak rütbeler (Memur/Uzman/Şef/Müdür Yrd./Müdür) birim özel unvanlara dönüştür
+  for (const s of (state.adminStaff || [])) {
+    const newTitles = ADMIN_UNITS[s.unit]?.titles;
+    if (!newTitles) continue; // bilinmeyen birim, dokunma
+    const newTitleNames = newTitles.map(t => t.name);
+    if (newTitleNames.includes(s.title)) continue; // zaten yeni unvan
+    // Eski rütbeyi pozisyon ile yeni unvana çevir
+    const oldIdx = ADMIN_TITLE_ORDER.indexOf(s.title);
+    if (oldIdx >= 0 && oldIdx < newTitleNames.length) {
+      const oldTitle = s.title;
+      s.title = newTitleNames[oldIdx];
+      console.log(`[game] migrateState: ${s.name} (${s.unit}) unvanı güncellendi: ${oldTitle} → ${s.title}`);
     }
   }
 }

@@ -4,9 +4,9 @@
  * Vanilla JS, framework yok.
  */
 
-import { DEPARTMENTS, DEPARTMENT_CURRICULA, UNIVERSITY_TYPES, UNIVERSITY_MODELS, USD_TO_TL, DIFFICULTY_SETTINGS, BUILDINGS, SEMESTER_MONTHS, FACULTIES, DEPT_TO_FACULTY, SALARY_SCALES, ADMIN_UNITS, ADMIN_TITLES, ADMIN_UNIT_BUILDINGS, ACCREDITATION_BODIES, SCENARIOS, BANKS } from './data.js?v=0.4.48';
+import { DEPARTMENTS, DEPARTMENT_CURRICULA, UNIVERSITY_TYPES, UNIVERSITY_MODELS, USD_TO_TL, DIFFICULTY_SETTINGS, BUILDINGS, SEMESTER_MONTHS, FACULTIES, DEPT_TO_FACULTY, SALARY_SCALES, ADMIN_UNITS, ADMIN_TITLES, ADMIN_UNIT_BUILDINGS, ACCREDITATION_BODIES, SCENARIOS, BANKS } from './data.js?v=0.4.53';
 import { DEPARTMENT_FIELDS, getSalaryRange, renderFacultyAvatar, calculateOverallRating, getFacultyRatingTrend } from './faculty.js?v=0.4.39';
-import { AVAILABLE_NEW_DEPARTMENTS, getCourseEffectiveDifficulty } from './game.js?v=0.4.50';
+import { AVAILABLE_NEW_DEPARTMENTS, getCourseEffectiveDifficulty, getUnitTitles, getUnitTitleSalary } from './game.js?v=0.4.53';
 import { calculateIncome, calculateExpenses, calculateLoanPayment } from './economy.js?v=0.4.24';
 import { renderCampusMap, handleCampusClick, handleCampusHover, clearHover } from './campus-renderer.js?v=0.4.24';
 
@@ -7222,12 +7222,11 @@ export function renderAdminPanel(state, onHireAdmin, onUpgradeUnit) {
     return (name || '').split(' ').map(n => n[0]).slice(0, 2).join('').toUpperCase();
   }
 
-  // Unvan listesi (terfi için)
-  const TITLE_ORDER = ['Memur', 'Uzman', 'Şef', 'Müdür Yrd.', 'Müdür'];
-
-  function _nextTitle(title) {
-    const idx = TITLE_ORDER.indexOf(title);
-    return (idx >= 0 && idx < TITLE_ORDER.length - 1) ? TITLE_ORDER[idx + 1] : null;
+  // Unvan listesi (terfi için) — birim bazlı fallback ile
+  function _nextTitle(title, unitId) {
+    const titles = getUnitTitles(unitId);
+    const idx = titles.indexOf(title);
+    return (idx >= 0 && idx < titles.length - 1) ? titles[idx + 1] : null;
   }
 
   // Admin personel kartı (faculty-card stiliyle)
@@ -7235,8 +7234,8 @@ export function renderAdminPanel(state, onHireAdmin, onUpgradeUnit) {
     const quality        = m.quality || 0;
     const ratingColor    = _adminRatingColor(quality);
     const ratingBg       = _adminRatingBg(quality);
-    const titleRange     = ADMIN_TITLES[m.title] || { min: 14_000, max: 25_000 };
-    const nextTitleName  = _nextTitle(m.title);
+    const titleRange     = getUnitTitleSalary(m.unit, m.title);
+    const nextTitleName  = _nextTitle(m.title, m.unit);
     const expYears       = Math.round((m.totalExperience || m.experience || 0) * 2) / 2;
     const happiness      = m.happiness ?? 60;
     const happClass      = happiness >= 70 ? 'high' : happiness >= 45 ? 'mid' : 'low';
@@ -7556,7 +7555,11 @@ export function renderAdminPanel(state, onHireAdmin, onUpgradeUnit) {
 
       <!-- Terfi Bekleyen Banner -->
       ${(() => {
-        const promotionCount = adminStaff.filter(m => m.promotionEligible && TITLE_ORDER.indexOf(m.title) < TITLE_ORDER.length - 1).length;
+        const promotionCount = adminStaff.filter(m => {
+          if (!m.promotionEligible) return false;
+          const unitTitlesArr = getUnitTitles(m.unit);
+          return unitTitlesArr.indexOf(m.title) < unitTitlesArr.length - 1;
+        }).length;
         if (promotionCount === 0) return '';
         return `<div style="
           background:rgba(245,166,35,0.12);
@@ -7598,7 +7601,7 @@ export function renderAdminPanel(state, onHireAdmin, onUpgradeUnit) {
           let va = a[sortKey] ?? 0;
           let vb = b[sortKey] ?? 0;
           if (sortKey === 'name') { va = a.name || ''; vb = b.name || ''; }
-          if (sortKey === 'title') { va = TITLE_ORDER.indexOf(a.title); vb = TITLE_ORDER.indexOf(b.title); }
+          if (sortKey === 'title') { va = getUnitTitles(a.unit).indexOf(a.title); vb = getUnitTitles(b.unit).indexOf(b.title); }
           if (sortKey === 'experience') { va = a.totalExperience || a.experience || 0; vb = b.totalExperience || b.experience || 0; }
           if (typeof va === 'string') return sortAsc ? va.localeCompare(vb, 'tr') : vb.localeCompare(va, 'tr');
           return sortAsc ? va - vb : vb - va;
@@ -7727,11 +7730,11 @@ function _showAdminStaffDetail(staffId, adminStaff) {
   const m = adminStaff.find(s => s.id === staffId);
   if (!m) return;
 
-  const TITLE_ORDER = ['Memur', 'Uzman', 'Şef', 'Müdür Yrd.', 'Müdür'];
-  const titleRange  = ADMIN_TITLES[m.title] || { min: 14_000, max: 25_000 };
+  const unitTitlesForDetail = getUnitTitles(m.unit);
+  const titleRange  = getUnitTitleSalary(m.unit, m.title);
   const nextTitleName = (() => {
-    const idx = TITLE_ORDER.indexOf(m.title);
-    return (idx >= 0 && idx < TITLE_ORDER.length - 1) ? TITLE_ORDER[idx + 1] : null;
+    const idx = unitTitlesForDetail.indexOf(m.title);
+    return (idx >= 0 && idx < unitTitlesForDetail.length - 1) ? unitTitlesForDetail[idx + 1] : null;
   })();
   const expYears    = Math.round((m.totalExperience || m.experience || 0) * 2) / 2;
   const happiness   = m.happiness ?? 60;
@@ -7852,7 +7855,8 @@ export function renderAdminHireModal(unitId, candidates, onHire, currentLevel) {
   const template = ADMIN_UNITS[unitId];
   if (!template) return;
 
-  const TITLE_ORDER_UI = ['Memur', 'Uzman', 'Şef', 'Müdür Yrd.', 'Müdür'];
+  // Birim bazlı unvan listesi
+  const unitTitleList = getUnitTitles(unitId);
 
   // Deneyim seviyesi seçenekleri
   const levelOptions = [
@@ -7867,9 +7871,9 @@ export function renderAdminHireModal(unitId, candidates, onHire, currentLevel) {
   window._adminCandidateCache = candidates;
 
   const candidateRows = candidates.map((c, idx) => {
-    const sugT   = c.suggestedTitle || 'Uzman';
-    const titleOpts = TITLE_ORDER_UI.map(t => {
-      const bar = ADMIN_TITLES[t];
+    const sugT   = c.suggestedTitle || unitTitleList[1] || unitTitleList[0] || 'Uzman';
+    const titleOpts = unitTitleList.map(t => {
+      const bar = getUnitTitleSalary(unitId, t);
       return `<option value="${t}" ${t === sugT ? 'selected' : ''}>${t} (${formatMoney(bar.min)}–${formatMoney(bar.max)}/ay)</option>`;
     }).join('');
 
