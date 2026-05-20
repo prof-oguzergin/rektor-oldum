@@ -1471,6 +1471,9 @@ input[type="range"].budget-slider::-webkit-slider-thumb:hover {
   position: fixed;
   bottom: 80px;
   right: 20px;
+  /* iOS home indicator için güvenli alan */
+  bottom: max(80px, calc(env(safe-area-inset-bottom) + 24px));
+  right: max(20px, env(safe-area-inset-right));
   z-index: 9999;
   animation: slideIn 0.3s ease;
 }

@@ -175,12 +175,14 @@ function _showStep(index) {
   const nextLabel = isLast ? 'Oyuna Başla →' : 'Sonraki →';
 
   _modalEl.innerHTML = `
-    <div class="tutorial-header">
-      <span class="tutorial-step-counter">${index + 1} / ${total}</span>
-      <button class="tutorial-skip-btn" id="tutorial-skip">Atla</button>
+    <div class="tutorial-modal-body">
+      <div class="tutorial-header">
+        <span class="tutorial-step-counter">${index + 1} / ${total}</span>
+        <button class="tutorial-skip-btn" id="tutorial-skip">Atla</button>
+      </div>
+      <h3 class="tutorial-title">${step.title}</h3>
+      <div class="tutorial-content">${step.content}</div>
     </div>
-    <h3 class="tutorial-title">${step.title}</h3>
-    <div class="tutorial-content">${step.content}</div>
     <div class="tutorial-footer">
       <button class="tutorial-next-btn btn btn-primary" id="tutorial-next">${nextLabel}</button>
     </div>

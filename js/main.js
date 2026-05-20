@@ -52,11 +52,11 @@ import {
   on,
 } from './ui.js?v=0.4.52';
 
-import { CHANGELOG, hasUnseenChanges, setLastSeenVersion } from './changelog.js?v=0.4.52';
+import { CHANGELOG, hasUnseenChanges, setLastSeenVersion } from './changelog.js?v=0.4.54';
 
 import { saveGame, loadGame, autoSave, getSaveSlots, deleteSave, exportSave, importSave, sanitizeForSave } from './save.js?v=0.4.28';
 import { calculateScore, scoreBreakdown, submitScore, getTopScores, initFirebase, isLeaderboardUnavailable, saveLocalScore, getLocalScores } from './leaderboard.js?v=0.4.45';
-import { showTutorialIfNeeded, replayTutorial } from './tutorial.js?v=0.4.24';
+import { showTutorialIfNeeded, replayTutorial } from './tutorial.js?v=0.4.54';
 import { initAudio, playSound, toggleMute, isMuted, startMusic, stopMusic, setMusicVolume, setSFXVolume, getAudioSettings } from './audio.js?v=0.4.24';
 
 import { generateTransferMarket, renderFacultyAvatar, calculateOverallRating, getFacultyRatingTrend } from './faculty.js?v=0.4.39';

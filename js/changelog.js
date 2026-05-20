@@ -6,6 +6,16 @@
 
 export const CHANGELOG = [
   {
+    version: '0.4.54',
+    date: '2026-05-21',
+    title: 'iOS Safari mobil kullanılabilirlik',
+    items: [
+      { type: 'fix', text: 'iOS Safari\'de oyun artık düzgün oynanabilir. Eksik viewport-fit=cover meta tag eklendi, 100dvh dinamik viewport yüksekliği kullanılıyor, safe-area-inset env değerleri uygulandı. Top bar (Sonraki Dönem dahil tüm aksiyon butonları) artık tüm cihazlarda görünür (enesduran Issue #24).' },
+      { type: 'fix', text: 'Rehber penceresinin "Atla" ve "Sonraki" butonları artık her zaman ekranın altında sabit görünür, mobilde uzun içerikli adımlarda butona erişim sorunu giderildi. Pencere mobil ekrana uyumlu boyutlandırıldı.' },
+      { type: 'fix', text: 'Mobilde form alanlarına (input, select, textarea) dokunulduğunda iOS Safari\'nin otomatik yakınlaştırma davranışı engellendi (minimum font boyutu 16px uygulandı).' },
+    ],
+  },
+  {
     version: '0.4.53',
     date: '2026-05-20',
     title: 'Birim bazlı unvan havuzu',
