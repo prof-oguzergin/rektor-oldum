@@ -6,6 +6,15 @@
 
 export const CHANGELOG = [
   {
+    version: '0.4.55',
+    date: '2026-05-21',
+    title: 'Tutorial mobil tam ekran modal',
+    items: [
+      { type: 'fix', text: 'Rehber penceresi mobilde artık tam ekran modal olarak açılır. Stat kartlarıyla iç içe geçme sorunu giderildi; mobil arka plan tamamen karartılır, "Atla / Sonraki" butonları her zaman ekranın altında sabit görünür (enesduran Issue #24).' },
+      { type: 'fix', text: 'Rehber açıkken arka plandaki sayfa kayması engellendi (body scroll lock). iOS Safari\'de tutorial aktifken sayfa düzgün sabit kalır.' },
+    ],
+  },
+  {
     version: '0.4.54',
     date: '2026-05-21',
     title: 'iOS Safari mobil kullanılabilirlik',

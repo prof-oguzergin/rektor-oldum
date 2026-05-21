@@ -117,6 +117,9 @@ function _removeHighlights() {
 
 function _applyHighlight(selector) {
   if (!selector) return;
+  // Mobilde highlight efekti devre dışı — CSS override ile de kapatılıyor,
+  // ama JS tarafında da erken çıkış yaparak tutarlılık sağlanıyor.
+  if (window.matchMedia('(max-width: 768px)').matches) return;
   const el = _qs(selector);
   if (el) {
     el.classList.add('tutorial-highlight');
@@ -161,6 +164,9 @@ function _showStep(index) {
     _finishTutorial();
     return;
   }
+
+  // Body scroll kilidi aktif — iOS Safari'de arka plan kaymaz
+  document.body.classList.add('tutorial-active');
 
   _currentStep = index;
   const step   = TUTORIAL_STEPS[index];
@@ -221,6 +227,8 @@ function _showStep(index) {
 function _finishTutorial() {
   localStorage.setItem(TUTORIAL_DONE_KEY, '1');
   _destroyOverlay();
+  // Body scroll kilidi kaldır
+  document.body.classList.remove('tutorial-active');
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
