@@ -8,7 +8,7 @@ console.log('[main] main.js modülü yükleniyor...');
 // IMPORT
 // ─────────────────────────────────────────────────────────────────────────────
 
-import { initGame, nextTurn, getState, setState, applyDecision, assignCourses, applyQuotas, assignDeptHead, reassignFacultyToDept, generateAdminCandidates, hireAdminStaff, upgradeAdminUnit, promoteAdminStaff, fireAdminStaff, updateAdminStaffSalary, assignUnitManager, RANDOM_EVENTS, ACHIEVEMENTS, getAchievementStats, organizeAlumniEvent, applyRandomEventChoice, ACCREDITATION_BODIES, applyForAccreditation, checkAccreditationRequirements, establishTTO, upgradeTTO, acceptDeal, rejectDeal, foundClub, upgradeClub, dissolveClub, CLUB_TYPES, CLUB_CATEGORIES, SPORTS, foundTeam, upgradeTeam, dissolveTeam, setCourseDifficulty, getUnitTitles, getUnitTitleSalary } from './game.js?v=0.4.53';
+import { initGame, nextTurn, getState, setState, applyDecision, assignCourses, applyQuotas, assignDeptHead, reassignFacultyToDept, generateAdminCandidates, hireAdminStaff, upgradeAdminUnit, promoteAdminStaff, fireAdminStaff, updateAdminStaffSalary, assignUnitManager, RANDOM_EVENTS, ACHIEVEMENTS, getAchievementStats, organizeAlumniEvent, applyRandomEventChoice, ACCREDITATION_BODIES, applyForAccreditation, checkAccreditationRequirements, establishTTO, upgradeTTO, acceptDeal, rejectDeal, foundClub, upgradeClub, dissolveClub, CLUB_TYPES, CLUB_CATEGORIES, SPORTS, foundTeam, upgradeTeam, dissolveTeam, setCourseDifficulty, getUnitTitles, getUnitTitleSalary, isUnitManagerTitle } from './game.js?v=0.4.56';
 import { ADMIN_TITLES } from './data.js?v=0.4.53';
 
 import {
@@ -50,9 +50,9 @@ import {
   showGameWonModal,
   el,
   on,
-} from './ui.js?v=0.4.52';
+} from './ui.js?v=0.4.56';
 
-import { CHANGELOG, hasUnseenChanges, setLastSeenVersion } from './changelog.js?v=0.4.55';
+import { CHANGELOG, hasUnseenChanges, setLastSeenVersion } from './changelog.js?v=0.4.56';
 
 import { saveGame, loadGame, autoSave, getSaveSlots, deleteSave, exportSave, importSave, sanitizeForSave } from './save.js?v=0.4.28';
 import { calculateScore, scoreBreakdown, submitScore, getTopScores, initFirebase, isLeaderboardUnavailable, saveLocalScore, getLocalScores } from './leaderboard.js?v=0.4.45';
@@ -2357,10 +2357,10 @@ window._onAdjustAdminSalary = function(staffId) {
 window._onAssignUnitManager = function(unitId) {
   const state = getState();
   const eligible = (state.adminStaff || []).filter(
-    s => s.unit === unitId && (s.title === 'Müdür' || s.title === 'Müdür Yrd.')
+    s => s.unit === unitId && isUnitManagerTitle(unitId, s.title)
   );
   if (eligible.length === 0) {
-    showNotification('Bu birimde Müdür veya Müdür Yrd. bulunmuyor.', 'warning');
+    showNotification('Bu birimde yönetici seviyesinde personel bulunmuyor (en üst iki unvan).', 'warning');
     return;
   }
   const options = eligible.map((s, i) => `${i + 1}. ${s.name} (${s.title}, Liderlik: ${s.leadership})`).join('\n');

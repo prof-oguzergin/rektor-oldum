@@ -970,6 +970,8 @@ export function hireAdminStaff(candidate, chosenTitle) {
   _state.adminStaff.push(staffMember);
   // Birim istatistiklerini güncelle
   syncAdminUnitStats(_state.adminUnits, _state.adminStaff, _state.buildings);
+  // Yeni alınan personel yönetici seviyesindeyse birime otomatik yönetici ata
+  _assignUnitManagers(_state.adminUnits, _state.adminStaff);
 }
 
 // İdari birim yükselt

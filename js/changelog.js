@@ -6,6 +6,15 @@
 
 export const CHANGELOG = [
   {
+    version: '0.4.56',
+    date: '2026-05-28',
+    title: 'Birim yöneticisi atama düzeltmesi',
+    items: [
+      { type: 'fix', text: 'Birim bazlı unvanlar gelince (v0.4.53) yönetici atama kontrolü eski "Müdür / Müdür Yrd." adlarını arıyordu; "Öğrenci İşleri Müdürü", "Güvenlik Müdürü" gibi yeni unvanlar tanınmıyor, "yönetici bulunmuyor" hatası çıkıyordu. Artık her birimin en üst iki unvanı yönetici sayılır (EfekanSalman Issue #25).' },
+      { type: 'fix', text: 'Yönetici seviyesinde bir personel işe alındığında birime otomatik yönetici atanır; önceden dönem geçişine kadar "yönetici atanmamış" cezası devam ediyordu.' },
+    ],
+  },
+  {
     version: '0.4.55',
     date: '2026-05-21',
     title: 'Tutorial mobil tam ekran modal',
