@@ -6,7 +6,7 @@
 
 import { DEPARTMENTS, DEPARTMENT_CURRICULA, UNIVERSITY_TYPES, UNIVERSITY_MODELS, USD_TO_TL, DIFFICULTY_SETTINGS, BUILDINGS, SEMESTER_MONTHS, FACULTIES, DEPT_TO_FACULTY, SALARY_SCALES, ADMIN_UNITS, ADMIN_TITLES, ADMIN_UNIT_BUILDINGS, ACCREDITATION_BODIES, SCENARIOS, BANKS } from './data.js?v=0.4.53';
 import { DEPARTMENT_FIELDS, getSalaryRange, renderFacultyAvatar, calculateOverallRating, getFacultyRatingTrend } from './faculty.js?v=0.4.39';
-import { AVAILABLE_NEW_DEPARTMENTS, getCourseEffectiveDifficulty, getUnitTitles, getUnitTitleSalary } from './game.js?v=0.4.56';
+import { AVAILABLE_NEW_DEPARTMENTS, getCourseEffectiveDifficulty, getUnitTitles, getUnitTitleSalary } from './game.js?v=0.4.59';
 import { calculateIncome, calculateExpenses, calculateLoanPayment } from './economy.js?v=0.4.24';
 import { renderCampusMap, handleCampusClick, handleCampusHover, clearHover } from './campus-renderer.js?v=0.4.24';
 
@@ -2035,13 +2035,102 @@ export function renderFacultyPanel(state, onTransferMarket, onFacultyDetail, onO
       });
 
     } else {
-      // Kart görünümü
-      const grid = el('faculty-grid');
-      if (grid) {
-        grid.innerHTML = filtered.map(f => renderFacultyCard(f, depts)).join('');
-      } else {
-        container.innerHTML = `<div class="faculty-grid" id="faculty-grid">${filtered.map(f => renderFacultyCard(f, depts)).join('')}</div>`;
+      // Kart görünümü — bölümlere göre gruplandırılmış
+      // Bölüm sıralaması: açık bölümler state sırasıyla, sonra "Diğer"
+      const openDepts = depts.filter(d => d.isOpen);
+
+      // Her hocayı bölümüne göre grupla
+      const byDept = {};
+      const unassigned = [];
+      for (const f of filtered) {
+        const deptId = f.department || f.departmentId;
+        const dept = openDepts.find(d => d.id === deptId);
+        if (dept) {
+          if (!byDept[deptId]) byDept[deptId] = { dept, members: [] };
+          byDept[deptId].members.push(f);
+        } else {
+          unassigned.push(f);
+        }
       }
+
+      // Grupları rendered HTML'e dönüştür
+      const groupsHtml = openDepts
+        .filter(d => byDept[d.id])
+        .map(d => {
+          const { dept, members } = byDept[d.id];
+          const icon = dept.icon || '🏛';
+          const name = dept.name || dept.shortName || d.id;
+          const groupId = `faculty-group-${dept.id}`;
+          return `
+            <details open class="faculty-dept-group">
+              <summary class="faculty-dept-group-header">
+                <span class="faculty-dept-group-icon">${icon}</span>
+                <span class="faculty-dept-group-name">${name}</span>
+                <span class="faculty-dept-group-count">(${members.length})</span>
+              </summary>
+              <div class="faculty-grid faculty-dept-grid" id="${groupId}">
+                ${members.map(f => renderFacultyCard(f, depts)).join('')}
+              </div>
+            </details>`;
+        }).join('');
+
+      const unassignedHtml = unassigned.length > 0 ? `
+        <details open class="faculty-dept-group">
+          <summary class="faculty-dept-group-header">
+            <span class="faculty-dept-group-icon">❓</span>
+            <span class="faculty-dept-group-name">Diğer</span>
+            <span class="faculty-dept-group-count">(${unassigned.length})</span>
+          </summary>
+          <div class="faculty-grid faculty-dept-grid">
+            ${unassigned.map(f => renderFacultyCard(f, depts)).join('')}
+          </div>
+        </details>` : '';
+
+      container.innerHTML = `
+        <style>
+          .faculty-dept-group { margin-bottom: 8px; }
+          .faculty-dept-group-header {
+            display: flex; align-items: center; gap: 8px;
+            padding: 8px 12px;
+            background: var(--bg-secondary);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            cursor: pointer;
+            user-select: none;
+            font-size: 13px;
+            font-weight: 700;
+            list-style: none;
+          }
+          .faculty-dept-group[open] > .faculty-dept-group-header {
+            border-bottom-left-radius: 0;
+            border-bottom-right-radius: 0;
+            border-bottom-color: transparent;
+          }
+          .faculty-dept-group-header::-webkit-details-marker { display: none; }
+          .faculty-dept-group-header::before {
+            content: '▶';
+            font-size: 10px;
+            color: var(--text-muted);
+            transition: transform .2s;
+            flex-shrink: 0;
+          }
+          .faculty-dept-group[open] > .faculty-dept-group-header::before {
+            transform: rotate(90deg);
+          }
+          .faculty-dept-group-icon { font-size: 16px; }
+          .faculty-dept-group-name { flex: 1; }
+          .faculty-dept-group-count { color: var(--text-muted); font-weight: 400; font-size: 12px; }
+          .faculty-dept-grid {
+            border: 1px solid var(--border);
+            border-top: none;
+            border-bottom-left-radius: 8px;
+            border-bottom-right-radius: 8px;
+            padding: 8px;
+          }
+        </style>
+        ${groupsHtml}${unassignedHtml}
+        ${filtered.length === 0 ? '<div style="color:var(--text-muted);padding:16px;text-align:center;">Bu filtreyle hoca bulunamadı.</div>' : ''}
+      `;
     }
   }
 

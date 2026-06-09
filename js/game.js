@@ -2184,6 +2184,40 @@ const _PROJECT_NAME_TEMPLATES = {
   'Klinik Psikoloji':        ['{obj} Hastalıklarında Yeni Tanı Yöntemleri', 'Kişiselleştirilmiş {obj} Tedavi Yaklaşımları', '{obj} Biyobelirteçlerinin Klinik Değerlendirmesi'],
   'Kardiyoloji':             ['İleri Evre {obj} Kardiyak Tanı Yöntemi', '{obj} Kalp Yetmezliği Erken Tespit Sistemi', 'Yapay Zeka Destekli {obj} EKG Analizi'],
   'Onkoloji':                ['{obj} Kanser Erken Tanı Biyobelirteçleri', 'Hedefe Yönelik {obj} Kanser Tedavi Modeli', 'İmmünoterapi Tabanlı {obj} Kanser Araştırması'],
+
+  // ── Tıp Fakültesi ──────────────────────────────────────────────────────────
+  'Nöroloji':                ['{obj} için Erken Tanı Biyobelirteçlerinin Belirlenmesi', '{obj} Hastalığında Nöroprotektif Tedavi Yaklaşımları', 'Fonksiyonel MRI ile {obj} Hastalarında Beyin Ağı Haritalaması'],
+  'Dahiliye':                ['{obj} Hastalarında Kişiselleştirilmiş Tedavi Protokolü', 'Polifarmasi Yönetiminde {obj} Klinik Karar Destek Sistemi', '{obj} Yönetiminde Dijital Takip Modeli'],
+  'Cerrahi':                 ['{obj} Ameliyatlarında Minimal İnvaziv Teknik Geliştirme', 'Robotik Yardımlı {obj} Cerrahisinde Güvenlik Protokolü', '{obj} Postoperatif Komplikasyon Erken Tespit Sistemi'],
+  'Pediatri':                ['{obj} Olgularında Beslenme Müdahalesinin Etkinliği', '{obj} için Erken Tanı ve Tarama Programı Optimizasyonu', '{obj} İzleminde Yapay Zeka Destekli Karar Sistemleri'],
+  'Radyoloji':               ['{obj} ile Erken Teşhis Doğruluğunun Artırılması', 'Yapay Zeka Destekli {obj} Bulgularının Sınıflandırılması', '{obj} Eşliğinde Girişimsel İşlemlerin Başarı Analizi'],
+
+  // ── Diş Hekimliği Fakültesi ────────────────────────────────────────────────
+  'Ortodonti':               ['{obj} ile İskelet Maloklüzyonu Erken Tedavi Protokolü', 'Dijital {obj} Tedavi Planlamasında Yapay Zeka Desteği', '{obj} Braket Sistemlerinde Tedavi Süresi Optimizasyonu'],
+  'Oral Cerrahi':            ['{obj} Olgularında Cerrahi Sonrası İyileşmenin Hızlandırılması', '{obj} Tedavisinde Trombositten Zengin Fibrinin Etkinliği', '{obj} Sonuçlarının Uzun Dönem Klinik Takibi'],
+  'Endodonti':               ['Kök Kanalı Tedavisinde {obj} Başarı Oranı Analizi', '{obj} Uygulamalarında Apikal Sızıntının Değerlendirilmesi', 'Rejeneratif Endodontide {obj} Doku Yenileme Kapasitesi'],
+  'Periodontoloji':          ['{obj} Periodontal Hastalık İlerleme Biyobelirteçleri', 'Trombosit Kaynaklı {obj} Periodontal Doku Rejenerasyonu', '{obj} Sistemik Hastalık ile Periodontal Korelasyon Analizi'],
+  'Protetik Diş Tedavisi':   ['{obj} Restorasyonlarında Aderans Dayanıklılığı Testi', 'Dijital İz Alma ile {obj} Uyum Hassasiyetinin Değerlendirilmesi', '{obj} Uygulamalarında Oklüzal Yük Dağılımının Sonlu Elemanlar Analizi'],
+
+  // ── Eczacılık Fakültesi ────────────────────────────────────────────────────
+  'Farmakoloji':             ['{obj} İlaç Etkileşimleri ve Klinik Güvenlik Profili', '{obj} Reseptör Bağlanma Afinitesi Tahmin Modeli', 'Kronik Hastalıklarda {obj} Farmakokinetiğinin Popülasyon Analizi'],
+  'Farmasötik Kimya':        ['Yeni {obj} Kanser Biyoaktif Bileşik Tasarımı', '{obj} Molekül Hedefli İlaç Etken Madde Sentezi', 'Halojensiz {obj} Yeşil Sentez Yolunun Geliştirilmesi'],
+  'Klinik Eczacılık':        ['{obj} Hastalarında Politerapi Rasyonalizasyonu ve İlaç Uyum Programı', '{obj} Servisinde Antibiyotik Yönetim Programının Etkinliği', 'Yaşlı {obj} Hastalarında Doz Güvenliği Protokolü'],
+  'Farmakognozy':            ['{obj} Bitkisel Ekstraktların Antimikrobiyal Etkinlik Analizi', 'Türkiye Endemik {obj} Bitkilerinde Fitokimyasal Tarama', '{obj} Doğal Ürün Standardizasyon ve Kalite Kontrol Yöntemi'],
+
+  // ── Hemşirelik ─────────────────────────────────────────────────────────────
+  'Dahiliye Hemşireliği':    ['{obj} Hastalarında Öz-Yönetim Eğitiminin Etkinliği', '{obj} Bakımında Kanıta Dayalı Hemşirelik Protokolü', '{obj} Yönetiminde Hemşire Liderliğinde Klinik İzlem Modeli'],
+  'Cerrahi Hemşirelik':      ['{obj} Postoperatif Ağrı Yönetiminde Hemşirelik Müdahalesi', '{obj} Perioperatif Bakımda Enfeksiyon Önleme Protokolü', '{obj} Ameliyatları Sonrası Erken Mobilizasyon Programı'],
+  'Toplum Sağlığı':          ['{obj} Toplumsal Tarama Programı Etkinlik ve Maliyet Analizi', '{obj} Okul Sağlığı Hemşireliği Müdahale Modeli', '{obj} Kronik Hastalık Önlemede Sağlık Okuryazarlığı Programı'],
+  'Yoğun Bakım':             ['{obj} Hastalarında Erken Uyarı Skorlama Sistemi', 'Yoğun Bakımda {obj} Yönetimi için Güvenlik Protokolü', 'Yoğun Bakım Hastalarında {obj} ve Sirkadyen Ritim İlişkisi'],
+
+  // ── Biyomedikal Mühendisliği ───────────────────────────────────────────────
+  'Tıbbi Görüntüleme':       ['Derin Öğrenme ile {obj} Tıbbi Görüntü Segmentasyon Sistemi', '{obj} MRI Sinyal Gürültü Oranını Artıran Yeniden Yapılandırma', 'Az Işınlı {obj} BT Görüntülemede Yapay Zeka Tabanlı Gürültü Giderme'],
+  'Biyomekanik':             ['{obj} Eklem Protezi Kinematik ve Kinetik Analizi', 'Yürüyüş Analizi ile {obj} Spor Yaralanması Risk Tahmini', 'Sonlu Elemanlar Yöntemi ile {obj} Kemik Biyomekanik Modeli'],
+  'Biyoelektronik':          ['Giyilebilir {obj} Biyosensör Tasarımı ve Klinik Doğrulama', '{obj} Sinir-Makine Arayüzü Sinyal Kodlama Algoritması', 'İmplante Edilebilir {obj} Elektrot Uzun Dönem Biyouyumluluk Analizi'],
+  'Doku Mühendisliği':       ['İskele Bazlı {obj} Doku Rejenerasyonu In-Vitro Modeli', '{obj} Biyobaskılı Yapı ile Kıkırdak Onarım Protokolü', '{obj} Kök Hücre Farklılaşması için Biyoreaktör Tasarımı'],
+  'Protez Tasarımı':         ['{obj} Protezi ile Fonksiyonel Rehabilitasyon Klinik Çalışması', 'Açık Kaynak {obj} Protezi için Düşük Maliyetli Üretim Sistemi', '{obj} Protezlerinde Gömülü Sensörle Kullanım Geri Bildirimi Analizi'],
+
   'Medeni Hukuk':            ['Dijital {obj} Hakların Korunması', 'Yapay Zeka ve {obj} Hukuku Karşılaştırmalı Analiz', '{obj} Kişisel Veri Gizliliği Hukuk Çerçevesi'],
   'Ticaret Hukuku':          ['E-Ticaret {obj} Hukuki Düzenleme Analizi', 'Uluslararası {obj} Hukuk Normları Araştırması', 'Fintech {obj} Regülasyon Çerçevesi'],
   'default': [
@@ -2211,6 +2245,40 @@ const _PROJECT_OBJECTS = {
   'Yapı Mühendisliği':       ['Köprü', 'Yüksek Bina', 'Tünel', 'Baraj', 'Prefabrik'],
   'Operasyon Araştırması':   ['Hastane', 'Liman', 'Havalimanı', 'Depo', 'Üretim'],
   'Finans':                  ['Kripto', 'Sigortacılık', 'Banka', 'Yatırım Fonu', 'Emeklilik'],
+
+  // ── Tıp Fakültesi ──────────────────────────────────────────────────────────
+  'Nöroloji':                ['Multiple Skleroz', 'Alzheimer', 'Parkinson', 'Epilepsi', 'Huntington'],
+  'Dahiliye':                ['Tip-2 Diyabet', 'Kronik Böbrek Yetmezliği', 'Romatoid Artrit', 'Karaciğer Sirozu', 'Tiroid'],
+  'Cerrahi':                 ['Laparoskopik Kolesistektomi', 'Kolorektal', 'Bariatrik', 'Torasik', 'Endokrin'],
+  'Pediatri':                ['Prematürite', 'Çocuk Obezitesi', 'Konjenital Kalp Hastalığı', 'Çocukluk Çağı Astımı', 'Neonatal Sepsis'],
+  'Radyoloji':               ['Meme Görüntüleme', 'Karaciğer MRI', 'Akciğer BT', 'Beyin Perfüzyon BT', 'Prostat MRI'],
+
+  // ── Diş Hekimliği Fakültesi ────────────────────────────────────────────────
+  'Ortodonti':               ['Şeffaf Plak', 'Mini İmplant Ankraj', 'Erken Karışık Dentisyon', 'Sınıf III Maloklüzyon', 'Dijital Sefalometri'],
+  'Oral Cerrahi':            ['Gömük Yirmilik Diş', 'Dental İmplant', 'Bisfosfonat İlişkili Osteonekroz', 'Ortognatik Cerrahi', 'Kemik Grefti'],
+  'Endodonti':               ['Döner Eğe Sistemleri', 'Biyoseramik Dolgu', 'Trombositten Zengin Fibrin', 'Kalsiyum Silikat Çimento', 'Mineral Trioksit Agregat'],
+  'Periodontoloji':          ['Sigara Kullanan Periodontitis', 'Peri-implantit', 'Diyabetik Periodontal', 'Trombositten Zengin Plazma', 'Antibiyotik Adjuvan'],
+  'Protetik Diş Tedavisi':   ['Zirkonyum Altyapı', 'İmplant Üstü Overdenture', 'CAD/CAM Kron', 'Lamina Veneer', 'Akrilik Kaide'],
+
+  // ── Eczacılık Fakültesi ────────────────────────────────────────────────────
+  'Farmakoloji':             ['SSRI-MAOI', 'Antikoagülan-Aspirin', 'Metformin', 'Warfarin', 'Kanser Kemoterapötik'],
+  'Farmasötik Kimya':        ['EGFR İnhibitörü', 'PARP İnhibitörü', 'Tirozin Kinaz', 'Flavonoid Türevi', 'HDAC İnhibitörü'],
+  'Klinik Eczacılık':        ['Onkoloji', 'Kardiyoloji', 'Psikiyatri', 'Yoğun Bakım', 'Nefroloji'],
+  'Farmakognozy':            ['Salvia', 'Thymus', 'Hypericum', 'Origanum', 'Centaurea'],
+
+  // ── Hemşirelik ─────────────────────────────────────────────────────────────
+  'Dahiliye Hemşireliği':    ['Diyabetik Ayak', 'Kalp Yetmezliği', 'Kronik Böbrek Hastalığı', 'Romatoid Artrit', 'KOAH'],
+  'Cerrahi Hemşirelik':      ['Abdominal', 'Ortopedi', 'Kardiyovasküler', 'Nöroşirurji', 'Transplantasyon'],
+  'Toplum Sağlığı':          ['Aile Planlaması', 'Okul Çağı Obezitesi', 'Yaşlı Ev Bakımı', 'Koroner Kalp', 'Tüberküloz'],
+  'Yoğun Bakım':             ['Sepsis', 'Mekanik Ventilasyon', 'Deliryum', 'Akut Böbrek Hasarı', 'Çoklu Organ Yetmezliği'],
+
+  // ── Biyomedikal Mühendisliği ───────────────────────────────────────────────
+  'Tıbbi Görüntüleme':       ['Meme Kanseri', 'Beyin Tümörü', 'Retina', 'Karaciğer Lezyonu', 'Pulmoner Nodül'],
+  'Biyomekanik':             ['Total Diz Protezi', 'Spinal Füzyon Kafes', 'Omuz İmplantı', 'Çapraz Bağ', 'Kalça Protezi'],
+  'Biyoelektronik':          ['EEG Uyku Apnesi', 'Kardiyak Ritim', 'EMG Kas Yorgunluğu', 'EKG Aritmisi', 'İşitme Cihazı'],
+  'Doku Mühendisliği':       ['Kıkırdak Onarım', 'Kemik Defekt', 'Cilt Yanık', 'Korneyal', 'Kardiyak Yama'],
+  'Protez Tasarımı':         ['Miyoelektrik El', 'Diz Üstü', 'Transtibial', 'Transhumeral', 'Osseointegre Bacak'],
+
   'default':                 ['Sürdürülebilir Kalkınma', 'Çevresel', 'Toplumsal', 'Eğitim', 'Sağlık', 'Enerji', 'Ulaşım', 'Dijital'],
 };
 
@@ -3633,6 +3701,25 @@ export function nextTurn() {
   }
   _state.meta.turn++;
 
+  // Yanıtsız ilan başvurularını temizle (2 dönem geçmişse otomatik çekilir)
+  {
+    if (!_state.pendingApplicants) _state.pendingApplicants = [];
+    const beforeCount = _state.pendingApplicants.length;
+    _state.pendingApplicants = _state.pendingApplicants.filter(a =>
+      (_state.meta.turn - (a.applicationDate ?? _state.meta.turn)) < 2
+    );
+    const withdrawnCount = beforeCount - _state.pendingApplicants.length;
+    if (withdrawnCount > 0) {
+      if (!simResults.events) simResults.events = [];
+      simResults.events.push({
+        type: 'info',
+        icon: '📋',
+        title: 'Başvurular Geri Çekildi',
+        description: `${withdrawnCount} başvuru sahibi yanıt alamadığı için başvurusunu geri çekti.`,
+      });
+    }
+  }
+
   // Açık ilanlar için başvurucu üret
   if (_state.openPositions && _state.openPositions.length > 0) {
     if (!_state.pendingApplicants) _state.pendingApplicants = [];
@@ -4533,6 +4620,14 @@ function migrateState(state) {
         }
         building.assignedDepartments = [];
       }
+    }
+  }
+
+  // v0.4.59 Migration: applicationDate alanı olmayan ilan başvurularına mevcut dönemi yaz
+  // (anında silinmesinler; önümüzdeki 2 dönem boyunca görünürde kalsınlar)
+  for (const a of (state.pendingApplicants || [])) {
+    if (a.applicationDate == null) {
+      a.applicationDate = state.meta?.turn ?? 1;
     }
   }
 

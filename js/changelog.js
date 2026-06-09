@@ -6,6 +6,16 @@
 
 export const CHANGELOG = [
   {
+    version: '0.4.59',
+    date: '2026-06-10',
+    title: 'Sağlık bilimleri proje konuları, kadro gruplaması ve otomatik başvuru geri çekilmesi',
+    items: [
+      { type: 'feat', text: 'Tıp, Diş Hekimliği, Eczacılık, Hemşirelik ve Biyomedikal Mühendisliği uzmanlıklarına özel araştırma proje konuları eklendi (23 uzmanlık alanı için gerçekçi TÜBİTAK/BAP tarzı konu havuzu). Diş hekimliği araştırma konularının alakasız olduğuna dair geri bildirim giderildi (kocamane18 Issue #27).' },
+      { type: 'feat', text: 'Kadro panelinde hocalar artık bölümlere göre gruplanıyor. Her grubun başlığında bölüm ikonu, adı ve hoca sayısı görünür; başlığa tıklayarak grup açılıp kapatılabilir (kocamane18 Issue #27).' },
+      { type: 'fix', text: 'Yanıt verilmeyen kadro başvuruları 2 dönem sonra otomatik geri çekiliyor; başvuru listesi artık sonsuza dek birikiyor. Kaç başvurunun geri çekildiği dönem özetinde gösterilir (kocamane18 Issue #27).' },
+    ],
+  },
+  {
     version: '0.4.58',
     date: '2026-06-09',
     title: 'Serbest devam modu ve erken uyarı sistemi',
