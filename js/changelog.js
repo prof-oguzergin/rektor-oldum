@@ -6,6 +6,16 @@
 
 export const CHANGELOG = [
   {
+    version: '0.4.58',
+    date: '2026-06-09',
+    title: 'Serbest devam modu ve erken uyarı sistemi',
+    items: [
+      { type: 'feat', text: 'Oyunu kazandığınızda artık "Serbest Devam Et" seçeneği var. Senaryonun zorunlu hedefi kaldırılır, üniversitenizi sınırsızca büyütmeye devam edebilirsiniz. Üst çubukta küçük "Serbest Mod" rozeti görünür. Serbest moddayken liderlik tablosuna yeni skor gönderilmez (puan güvenliği için) (Esovarta73 Issue #26, kocamane18 Issue #27).' },
+      { type: 'feat', text: 'Senaryo bitişine 2 dönem kala "Senaryo hedefi 2 dönem sonra denetlenecek" uyarısı; bütçe 3 dönemdir negatifse iflas uyarısı; öğrenci sayısı kapasitenin %25 altında 3 dönemdir ise kapanma uyarısı gösterilir. Oyunun ne zaman ve neden bitebileceği önceden bildirilir (kocamane18 Issue #27).' },
+      { type: 'feat', text: 'Yeni oyun kurulumunda senaryo kartlarında tahmini oyun süresi (dönem ve yıl olarak) gösteriliyor.' },
+    ],
+  },
+  {
     version: '0.4.57',
     date: '2026-06-09',
     title: 'Kontenjan exploit kapatıldı',

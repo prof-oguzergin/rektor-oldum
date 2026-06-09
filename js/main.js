@@ -8,7 +8,7 @@ console.log('[main] main.js modülü yükleniyor...');
 // IMPORT
 // ─────────────────────────────────────────────────────────────────────────────
 
-import { initGame, nextTurn, getState, setState, applyDecision, assignCourses, applyQuotas, assignDeptHead, reassignFacultyToDept, generateAdminCandidates, hireAdminStaff, upgradeAdminUnit, promoteAdminStaff, fireAdminStaff, updateAdminStaffSalary, assignUnitManager, RANDOM_EVENTS, ACHIEVEMENTS, getAchievementStats, organizeAlumniEvent, applyRandomEventChoice, ACCREDITATION_BODIES, applyForAccreditation, checkAccreditationRequirements, establishTTO, upgradeTTO, acceptDeal, rejectDeal, foundClub, upgradeClub, dissolveClub, CLUB_TYPES, CLUB_CATEGORIES, SPORTS, foundTeam, upgradeTeam, dissolveTeam, setCourseDifficulty, getUnitTitles, getUnitTitleSalary, isUnitManagerTitle } from './game.js?v=0.4.57';
+import { initGame, nextTurn, getState, setState, applyDecision, assignCourses, applyQuotas, assignDeptHead, reassignFacultyToDept, generateAdminCandidates, hireAdminStaff, upgradeAdminUnit, promoteAdminStaff, fireAdminStaff, updateAdminStaffSalary, assignUnitManager, RANDOM_EVENTS, ACHIEVEMENTS, getAchievementStats, organizeAlumniEvent, applyRandomEventChoice, ACCREDITATION_BODIES, applyForAccreditation, checkAccreditationRequirements, establishTTO, upgradeTTO, acceptDeal, rejectDeal, foundClub, upgradeClub, dissolveClub, CLUB_TYPES, CLUB_CATEGORIES, SPORTS, foundTeam, upgradeTeam, dissolveTeam, setCourseDifficulty, getUnitTitles, getUnitTitleSalary, isUnitManagerTitle, enableFreeMode } from './game.js?v=0.4.58';
 import { ADMIN_TITLES } from './data.js?v=0.4.53';
 
 import {
@@ -50,9 +50,9 @@ import {
   showGameWonModal,
   el,
   on,
-} from './ui.js?v=0.4.56';
+} from './ui.js?v=0.4.58';
 
-import { CHANGELOG, hasUnseenChanges, setLastSeenVersion } from './changelog.js?v=0.4.57';
+import { CHANGELOG, hasUnseenChanges, setLastSeenVersion } from './changelog.js?v=0.4.58';
 
 import { saveGame, loadGame, autoSave, getSaveSlots, deleteSave, exportSave, importSave, sanitizeForSave } from './save.js?v=0.4.28';
 import { calculateScore, scoreBreakdown, submitScore, getTopScores, initFirebase, isLeaderboardUnavailable, saveLocalScore, getLocalScores } from './leaderboard.js?v=0.4.45';
@@ -565,6 +565,17 @@ function _startGameWithState(state) {
     }
   };
 
+  // Serbest mod: kazanma modal'ından "Serbest Devam Et" butonuyla çağrılır (Issue #26)
+  window._onEnableFreeMode = () => {
+    const result = enableFreeMode();
+    if (result.success) {
+      hideModal();
+      showNotification('Serbest mod aktif. Senaryo hedefi kaldırıldı, oyununuza devam edebilirsiniz.', 'success', 5000);
+      _persistState();
+      refreshGameUI();
+    }
+  };
+
   refreshGameUI();
   // Ambient müziği başlat (mute değilse)
   if (!isMuted()) startMusic();
@@ -951,6 +962,20 @@ function _continueAfterEvents(summary, state) {
   refreshGameUI();
   console.log(`[main] Tur tamamlandı → Tur ${state?.meta?.turn}`);
 
+  // Erken uyarılar (senaryo bitişi, iflas riski, düşük öğrenci)
+  if (Array.isArray(summary?.earlyWarnings)) {
+    summary.earlyWarnings.forEach(key => {
+      if (key.startsWith('scenario_end:')) {
+        const goal = key.slice('scenario_end:'.length);
+        showNotification(`⏱️ Senaryo hedefi 2 dönem sonra denetlenecek: ${goal}`, 'warning', 6000);
+      } else if (key === 'bankruptcy_risk') {
+        showNotification('⚠️ Bütçeniz 3 dönemdir negatif. Kredi ödemelerinde gecikme sürerse iflas riski var.', 'warning', 6000);
+      } else if (key === 'low_student') {
+        showNotification('⚠️ Öğrenci sayısı kapasitenin %25 altında 3 dönemdir. 6 döneme tamamlanırsa kapanma riski.', 'warning', 6000);
+      }
+    });
+  }
+
   // Oyun kazanıldıysa kutlama ekranını göster
   if (summary?.gameWon) {
     setTimeout(() => {
@@ -984,6 +1009,12 @@ function _showLeaderboardSubmitModal(isGameOver = false) {
   const state = getState();
   if (!state) {
     showNotification('Önce bir oyun başlatmalısın.', 'warning');
+    return;
+  }
+
+  // Serbest moddayken liderlik tablosuna skor gönderilmez (puan güvenliği)
+  if (state._internal?.freeMode) {
+    showNotification('Serbest modda liderlik tablosuna skor gönderilmez.', 'info', 4000);
     return;
   }
 

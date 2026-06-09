@@ -281,6 +281,9 @@ export function showGameWonModal(state, winReason, calculateScore, scoreBreakdow
         <button id="won-leaderboard-btn" class="btn btn-primary btn-sm">
           🏆 Leaderboard'a Gönder
         </button>
+        <button id="won-freemode-btn" class="btn btn-success btn-sm">
+          ⏩ Serbest Devam Et
+        </button>
         <button id="won-new-game-btn" class="btn btn-ghost btn-sm">
           🎮 Yeni Oyuna Başla
         </button>
@@ -292,6 +295,10 @@ export function showGameWonModal(state, winReason, calculateScore, scoreBreakdow
   document.getElementById('won-leaderboard-btn')?.addEventListener('click', () => {
     hideModal();
     if (onSubmitScore) onSubmitScore();
+  });
+
+  document.getElementById('won-freemode-btn')?.addEventListener('click', () => {
+    if (typeof window._onEnableFreeMode === 'function') window._onEnableFreeMode();
   });
 
   document.getElementById('won-new-game-btn')?.addEventListener('click', () => {
@@ -658,9 +665,24 @@ function _renderScenarioCards() {
       <div class="scenario-card-desc">Üniversite tipini, zorluğu ve bölümleri sen seç. Hiçbir senaryo kısıtı yok, klasik açılış.</div>
       <div class="scenario-card-footer">
         <span class="scenario-flavor">"Boş tuval, sınırsız olasılık."</span>
+        <span class="scenario-meta" style="font-size:11px;color:var(--text-muted,#888);margin-left:8px;">⏱️ Sınırsız</span>
       </div>
     </div>
   `;
+
+  // Senaryo süre etiketi hesabı
+  function _scenarioDuration(winCondition) {
+    if (!winCondition) return 'Açık uçlu';
+    if (winCondition.maxTurns) {
+      const t = winCondition.maxTurns;
+      return `${t} dönem (~${Math.round(t / 2)} yıl)`;
+    }
+    if (winCondition.consecutiveTurns) {
+      const t = winCondition.consecutiveTurns;
+      return `En az ${t} dönem (~${Math.round(t / 2)} yıl)`;
+    }
+    return 'Açık uçlu';
+  }
 
   const realCards = Object.values(SCENARIOS).map(s => `
     <div class="scenario-card" data-scenario-id="${s.id}">
@@ -675,6 +697,7 @@ function _renderScenarioCards() {
       <div class="scenario-card-desc">${s.description}</div>
       <div class="scenario-card-footer">
         <span class="scenario-flavor">${s.flavorText}</span>
+        <span class="scenario-meta" style="font-size:11px;color:var(--text-muted,#888);margin-left:8px;">⏱️ ${_scenarioDuration(s.winCondition)}</span>
       </div>
     </div>
   `).join('');
@@ -934,6 +957,22 @@ export function updateTopBar(state) {
     bannerEl.style.display = 'block';
   } else if (bannerEl) {
     bannerEl.style.display = 'none';
+  }
+
+  // Serbest mod rozeti (üst çubukta küçük altın rozet)
+  let freeBadge = el('freemode-badge');
+  if (state._internal?.freeMode) {
+    if (!freeBadge) {
+      freeBadge = document.createElement('div');
+      freeBadge.id = 'freemode-badge';
+      freeBadge.style.cssText = 'background:rgba(245,158,11,0.15);border:1px solid #f5a623;color:#f5a623;padding:4px 10px;border-radius:6px;font-size:11px;font-weight:600;display:inline-block;margin-left:8px;vertical-align:middle;';
+      freeBadge.textContent = '🆓 Serbest Mod';
+      const nameEl2 = el('uni-name-display');
+      if (nameEl2 && nameEl2.parentNode) nameEl2.parentNode.insertBefore(freeBadge, nameEl2.nextSibling);
+    }
+    freeBadge.style.display = 'inline-block';
+  } else if (freeBadge) {
+    freeBadge.style.display = 'none';
   }
 }
 

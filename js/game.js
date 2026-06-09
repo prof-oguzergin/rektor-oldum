@@ -1515,6 +1515,8 @@ export function initGame(playerName, universityName, universityType, difficulty,
       consecutiveLowStudentTurns: 0,
       gameOver: false,
       gameWon: false,
+      freeMode: false,
+      lastWarning: {},
     },
 
     // ── Araştırma bütçesi (hoca başına dönemlik fon) ───────────────────────
@@ -3707,6 +3709,9 @@ export function nextTurn() {
   // Kazanma/kaybetme kontrolü
   const winLoseResult = checkWinLose();
 
+  // Erken uyarıları topla (senaryo bitişi, iflas riski, düşük öğrenci)
+  const earlyWarnings = _checkEarlyWarnings();
+
   // Özet oluştur
   const summary = getTurnSummary(simResults);
 
@@ -3714,6 +3719,7 @@ export function nextTurn() {
     ...summary,
     ...winLoseResult,
     simWarnings: simResults.warnings,
+    earlyWarnings,
   };
 }
 
@@ -4070,8 +4076,8 @@ export function checkWinLose() {
     };
   }
 
-  // ── KAZANMA KOŞULLARI (sandbox'ta aktif değil) ────────────────────────────
-  if (!_state.meta.isSandbox) {
+  // ── KAZANMA KOŞULLARI (sandbox ve serbest modda aktif değil) ─────────────
+  if (!_state.meta.isSandbox && !_state._internal?.freeMode) {
     // ── Senaryo kazanma/kaybetme koşulları ──────────────────────────────────
     const scenarioWin = _state.meta.scenarioWinCondition;
     if (scenarioWin) {
@@ -4161,6 +4167,84 @@ export function checkWinLose() {
   }
 
   return { gameOver: false, gameWon: false, reason: null };
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// enableFreeMode — Kazanma sonrası serbest devam
+// ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * Kazanma ekranından "Serbest Devam Et" seçildiğinde çağrılır.
+ * Senaryo hedefini kaldırır, oyunu normal akışa döndürür.
+ * Serbest moddayken checkWinLose kazanma koşullarını atlar; yalnızca iflas
+ * ve öğrenci kaybı kontrolleri çalışmaya devam eder.
+ *
+ * @returns {{ success: boolean, message: string }}
+ */
+export function enableFreeMode() {
+  if (!_state) return { success: false, message: 'Oyun başlatılmamış.' };
+  _state._internal.freeMode    = true;
+  _state._internal.gameWon     = false;
+  _gameWon                     = false;
+  // Senaryo hedefini kaldır — tekrar tetiklenmesin
+  if (_state.meta) _state.meta.scenarioWinCondition = null;
+  return { success: true };
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// _describeScenarioGoal — Senaryo hedefi kısa açıklaması (uyarılarda kullanılır)
+// ─────────────────────────────────────────────────────────────────────────────
+
+function _describeScenarioGoal(sw) {
+  if (!sw) return 'senaryo hedefi';
+  if (sw.type === 'prestige')       return `Saygınlık ${sw.target}`;
+  if (sw.type === 'ranking')        return `Dünya sıralaması ilk ${sw.target}`;
+  if (sw.type === 'budget_positive') return `${sw.consecutiveTurns} dönem üst üste pozitif bütçe`;
+  return 'senaryo hedefi';
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// _checkEarlyWarnings — Dönem sonu erken uyarı kontrolü
+// ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * Senaryo bitişine, iflas riskine ve düşük öğrenciye yaklaşıldığında uyarılar üretir.
+ * main.js bu uyarıları okuyup showNotification ile gösterir.
+ *
+ * @returns {string[]} Tetiklenen uyarı anahtarları: 'scenario_end' | 'bankruptcy_risk' | 'low_student'
+ */
+export function _checkEarlyWarnings() {
+  if (!_state) return [];
+  const warnings = [];
+  const turn = _state.meta.turn;
+  const lastWarning = _state._internal.lastWarning || {};
+
+  // A. Senaryo bitişine 2 dönem kala uyarı
+  const sw = _state.meta?.scenarioWinCondition;
+  if (sw && sw.maxTurns) {
+    const remaining = sw.maxTurns - turn;
+    if (remaining === 2 && lastWarning.scenarioEnd !== turn) {
+      warnings.push('scenario_end:' + _describeScenarioGoal(sw));
+      _state._internal.lastWarning = { ...lastWarning, scenarioEnd: turn };
+    }
+  }
+
+  // B. Ardışık bütçe açığı / iflas riski
+  const deficit = _state._internal.consecutiveDeficitTurns || 0;
+  const bankruptcyTurns = _state._internal.bankruptcyTurns || 0;
+  if ((deficit >= 3 || bankruptcyTurns >= 3) && lastWarning.bankruptcy !== turn) {
+    warnings.push('bankruptcy_risk');
+    _state._internal.lastWarning = { ..._state._internal.lastWarning, bankruptcy: turn };
+  }
+
+  // C. Düşük öğrenci sayısı
+  const lowStu = _state._internal.consecutiveLowStudentTurns || 0;
+  if (lowStu >= 3 && lastWarning.lowStudent !== turn) {
+    warnings.push('low_student');
+    _state._internal.lastWarning = { ..._state._internal.lastWarning, lowStudent: turn };
+  }
+
+  return warnings;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
