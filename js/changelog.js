@@ -6,6 +6,14 @@
 
 export const CHANGELOG = [
   {
+    version: '0.4.57',
+    date: '2026-06-09',
+    title: 'Kontenjan exploit kapatıldı',
+    items: [
+      { type: 'security', text: 'Kontenjan ekranında çok büyük sayılar girip harçtan dev gelir elde etme açığı kapatıldı. Sunucu tarafı doğrulama eklendi: her bölüm için kontenjan, atanmış derslik kapasitesinin %110\'u veya 800 (hangisi düşükse) ile sınırlı. Negatif veya geçersiz değerler 0\'a, aşırı toplamlar kapasiteye orantılı olarak kırpılıyor (Esovarta73 Issue #26).' },
+    ],
+  },
+  {
     version: '0.4.56',
     date: '2026-05-28',
     title: 'Birim yöneticisi atama düzeltmesi',

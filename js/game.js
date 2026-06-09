@@ -1661,11 +1661,83 @@ export function initGame(playerName, universityName, universityType, difficulty,
  *
  * @param {object} quotas — { deptId: { tamBurslu, yariBurslu, ucretli }, ... }
  */
+/**
+ * Bir bölüm için sertl derslik kapasitesi (atanmış binalardan).
+ * UI tarafındaki hesabın sunucu eşdeğeri (v0.4.57 - exploit fix).
+ */
+function _calcDeptClassroomCapacity(state, deptId) {
+  let seats = 0;
+  const completed = (state.buildings || []).filter(b => b.isCompleted);
+  for (const b of completed) {
+    if (!(b.assignedDepartments || []).includes(deptId)) continue;
+    const bldgDef = BUILDINGS[b.type];
+    const classrooms = b.currentCapacity?.classrooms || 0;
+    const bLevel    = b.level || 1;
+    const szByLvl   = bldgDef?.classroomSizeByLevel;
+    const clsSize   = szByLvl ? (szByLvl[bLevel] ?? szByLvl[1] ?? bldgDef?.classroomSize ?? 40)
+                              : (bldgDef?.classroomSize ?? 40);
+    seats += classrooms * clsSize;
+  }
+  return seats;
+}
+
+/**
+ * Tek bir alan değerini güvenli tam sayıya çevirir, [0, max] aralığına klampler.
+ * NaN, negatif, ondalık, string -> hepsi tutarlı.
+ */
+function _sanitizeQuotaField(v, max) {
+  const n = parseInt(v, 10);
+  if (!Number.isFinite(n) || n < 0) return 0;
+  return Math.min(n, max);
+}
+
 export function applyQuotas(quotas) {
   if (!_state) throw new Error('Oyun başlatılmamış.');
-  _state.students.quotas = { ..._state.students.quotas, ...quotas };
+  if (!quotas || typeof quotas !== 'object') return { success: false, message: 'Geçersiz kontenjan verisi.' };
+
+  // Bölüm başına makul tavan: 4 yıl × derslik kapasitesinin %110'u (yıllık kapasitenin biraz üzerine izin)
+  // Derslik kapasitesi hesaplanamıyorsa absolute 800 tavan kullan.
+  const ABS_MAX_PER_DEPT = 800;
+  const sanitized = {};
+  let clampedAny = false;
+
+  for (const [deptId, q] of Object.entries(quotas)) {
+    if (!q || typeof q !== 'object') continue;
+    const dept = (_state.departments || []).find(d => d.id === deptId);
+    if (!dept || !dept.isOpen) continue; // bilinmeyen veya kapalı bölüm
+
+    const classroomCap = _calcDeptClassroomCapacity(_state, deptId);
+    // Bir dönemde bir bölüme alınabilecek yeni öğrenci tavanı.
+    // Derslik kapasitesi mevcutsa onun %110'u (esnek), yoksa absolute tavan.
+    const deptCap = classroomCap > 0
+      ? Math.min(ABS_MAX_PER_DEPT, Math.ceil(classroomCap * 1.1))
+      : ABS_MAX_PER_DEPT;
+
+    const tam  = _sanitizeQuotaField(q.tamBurslu,  deptCap);
+    const yari = _sanitizeQuotaField(q.yariBurslu, deptCap);
+    const uret = _sanitizeQuotaField(q.ucretli,    deptCap);
+    let total  = tam + yari + uret;
+
+    // Toplam kontenjan bölüm tavanını aşmasın - orantılı kırp
+    let outTam = tam, outYari = yari, outUret = uret;
+    if (total > deptCap) {
+      const factor = deptCap / total;
+      outTam  = Math.floor(tam  * factor);
+      outYari = Math.floor(yari * factor);
+      outUret = Math.floor(uret * factor);
+      clampedAny = true;
+    }
+    // Orijinal değerlerden herhangi biri klamplandıysa işaretle
+    if (outTam !== Number(q.tamBurslu) || outYari !== Number(q.yariBurslu) || outUret !== Number(q.ucretli)) {
+      clampedAny = true;
+    }
+
+    sanitized[deptId] = { tamBurslu: outTam, yariBurslu: outYari, ucretli: outUret };
+  }
+
+  _state.students.quotas = { ..._state.students.quotas, ...sanitized };
   _state.students.quotaScreenShown = true;
-  return { success: true };
+  return { success: true, clamped: clampedAny };
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
