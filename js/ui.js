@@ -1056,7 +1056,7 @@ export function renderDashboard(state) {
         `${state.departments?.length ?? 0} bölüm`)}
       ${_statCardHtml('Yayın', formatNumber(state.research?.publications ?? 0), null,
         `${state.research?.patents ?? 0} patent`)}
-      ${_statCardHtml('Mezun', formatNumber(state.alumni?.length ?? 0), null,
+      ${_statCardHtml('Mezun', formatNumber(state.alumniData?.totalGraduates ?? 0), null,
         'Toplam mezun')}
     </div>
 

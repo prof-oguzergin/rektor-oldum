@@ -6,6 +6,14 @@
 
 export const CHANGELOG = [
   {
+    version: '0.4.61',
+    date: '2026-06-18',
+    title: 'Mezun sayısı tutarsızlığı düzeltildi',
+    items: [
+      { type: 'fix', text: 'Genel Bakış sekmesindeki "Mezun" sayısı, Mezunlar sekmesindeki toplam mezun sayısından farklı görünüyordu (örneğin Genel Bakış 4, Mezunlar 243). Genel Bakış yanlışlıkla yalnızca yıldız mezunları sayıyordu; artık her iki ekran da toplam mezun sayısını aynı kaynaktan gösteriyor (kocamane18 Issue #29).' },
+    ],
+  },
+  {
     version: '0.4.60',
     date: '2026-06-18',
     title: 'Yerleşke kapasite kullanımı çift sayım düzeltmesi',
