@@ -6,6 +6,15 @@
 
 export const CHANGELOG = [
   {
+    version: '0.4.62',
+    date: '2026-06-18',
+    title: 'Kapasite durumu açıklaması ve yükseltme süresi göstergesi',
+    items: [
+      { type: 'feat', text: 'Bölümler sekmesindeki "Kapasite aşıldı / Dolmak üzere / Normal" durumunun üzerine fare ile gelince açıklama balonu çıkıyor: ne anlama geldiği, mevcut öğrenci/kapasite sayısı ve ne yapılması gerektiği yazıyor (kocamane18 Issue #29 madde 2).' },
+      { type: 'feat', text: 'Bina yükseltme butonunda artık yükseltmenin kaç dönem süreceği de gösteriliyor (örneğin "Düzey 2\'ye Yükselt (5,0M ₺ · 2 dönem)"). Oyuncu yükseltmeye başlamadan süreyi görebilir (kocamane18 Issue #29 madde 4).' },
+    ],
+  },
+  {
     version: '0.4.61',
     date: '2026-06-18',
     title: 'Mezun sayısı tutarsızlığı düzeltildi',

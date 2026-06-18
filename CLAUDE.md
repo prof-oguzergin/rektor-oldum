@@ -2,7 +2,7 @@
 
 - GitHub: https://github.com/prof-oguzergin/rektor-oldum (private)
 - Yayında: https://prof-oguzergin.github.io/rektor-oldum/
-- Durum: v0.4.61 — aktif geliştirme, oyuncu rapor akışı (Erdinç, Emir, Burak, AkaDemi, Yusuf, Fatih)
+- Durum: v0.4.62 — aktif geliştirme, oyuncu rapor akışı (Erdinç, Emir, Burak, AkaDemi, Yusuf, Fatih)
 - Dizin: C:\Users\Z GAMES\Yapay Zeka\university-tycoon
 
 ## Teknik

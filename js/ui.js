@@ -1237,6 +1237,11 @@ export function renderDepartmentsPanel(state) {
         // Kapasite durumu mesajı
         const fillRatio  = capacity > 0 ? enrolled / capacity : 0;
         const statusText = fillRatio > 1.0 ? '⚠️ Kapasite aşıldı' : fillRatio > 0.85 ? '⚡ Dolmak üzere' : '✓ Normal';
+        const statusTip  = fillRatio > 1.0
+          ? `Öğrenci sayısı (${enrolled}) bölüm kapasitesini (${capacity}) aştı. Hoca ve derslik başına düşen öğrenci artar; eğitim kalitesi ve öğrenci memnuniyeti düşebilir. Yeni derslik/bina yapın ya da sonraki dönem kontenjanı azaltın.`
+          : fillRatio > 0.85
+            ? `Bölüm kapasitesinin (${capacity}) %85'inden fazlası dolu (${enrolled} öğrenci). Önümüzdeki dönemlerde kapasiteyi artırmayı planlayın.`
+            : `Öğrenci sayısı (${enrolled}) kapasite (${capacity}) sınırları içinde. Sorun yok.`;
 
         // Ders istatistikleri (stats.courseStats varsa kullan, yoksa eski basit görünüme dön)
         const courseStats = stats.courseStats || [];
@@ -1310,7 +1315,7 @@ export function renderDepartmentsPanel(state) {
               <span style="font-size:28px;">${dept.icon || '🏫'}</span>
               <div style="flex:1;">
                 <div style="font-size:15px;font-weight:700;">${dept.name}</div>
-                <div style="font-size:12px;color:var(--text-muted);">${deptFaculty.length} hoca · ${deptFaculty.reduce((s, f) => s + ((f.currentLoad?.assignedCourses || []).length), 0)} ders yükü · ${statusText}</div>
+                <div style="font-size:12px;color:var(--text-muted);">${deptFaculty.length} hoca · ${deptFaculty.reduce((s, f) => s + ((f.currentLoad?.assignedCourses || []).length), 0)} ders yükü · <span title="${statusTip}" style="cursor:help;border-bottom:1px dotted currentColor;">${statusText}</span></div>
               </div>
               <div style="text-align:right;margin-right:8px;">
                 <div style="font-size:20px;font-weight:700;color:${edColor};">${edQuality}</div>
@@ -3585,6 +3590,8 @@ export function renderCampusPanel(state, onBuildStart, onDecision) {
           const upgCost = b.isCompleted && b.level < maxLvl
             ? Math.round((cat.cost || 0) * Math.pow((BUILDINGS[b.type]?.upgradeCostMultiplier ?? 1.5), b.level))
             : 0;
+          // Yükseltme süresi (dönem) — oyuncu butona basmadan önce görsün (madde 4)
+          const upgTurns = BUILDINGS[b.type]?.constructionTurns ?? cat.constructionTime ?? 2;
 
           // Kapasite referansları
           const cap  = b.currentCapacity || {};
@@ -3863,7 +3870,7 @@ export function renderCampusPanel(state, onBuildStart, onDecision) {
                           data-building-id="${b.id}"
                           ${budget < upgCost ? 'disabled title="Yetersiz bütçe"' : ''}
                           style="font-size:11px;">
-                    ▲ Düzey ${nextLevel}'e Yükselt (${formatMoney(upgCost)})
+                    ▲ Düzey ${nextLevel}'e Yükselt (${formatMoney(upgCost)} · ${upgTurns} dönem)
                   </button>` : `<span style="font-size:11px;color:#64748b;align-self:center;">Maks. düzey</span>`}
                 ${cat.assignable ? `
                 <button class="btn-campus-assign btn-small"
