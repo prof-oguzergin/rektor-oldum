@@ -245,6 +245,71 @@ function calculateBuildingUsage(building, state) {
 }
 
 /**
+ * Tüm yerleşke için kullanım/kapasite özetini hesaplar (Yerleşke Özeti kartları).
+ * calculateBuildingUsage bina başına çalıştığından, bir bölüm birden fazla binaya
+ * atanınca özet toplamında çift sayım oluyordu (Issue #28: "45/24 kullanımda").
+ * Bu fonksiyon her bölümü tam olarak bir kez sayar, kapasiteyi binalardan toplar.
+ * @param {object} state — Oyun durumu
+ * @returns {{ totalClassrooms, usedClassrooms, totalOffices, usedOffices, totalLabs, usedLabs, totalBeds }}
+ */
+export function calculateCampusUsageSummary(state) {
+  const completed = (state.buildings || []).filter(b => b.isCompleted);
+
+  let totalClassrooms = 0, totalOffices = 0, totalLabs = 0, totalBeds = 0;
+  let csWeightedSum = 0, csCount = 0;
+  for (const b of completed) {
+    const cap = b.currentCapacity || {};
+    totalClassrooms += cap.classrooms || 0;
+    totalOffices    += cap.offices    || 0;
+    totalLabs       += cap.labs       || 0;
+    totalBeds       += cap.beds       || 0;
+    // Ağırlıklı ortalama derslik boyutu (düzeye göre değişebilir)
+    if ((cap.classrooms || 0) > 0) {
+      const catalog = BUILDINGS[b.type];
+      const byLvl   = catalog?.classroomSizeByLevel;
+      const lvl     = b.level || 1;
+      const sz      = byLvl ? (byLvl[lvl] ?? byLvl[1] ?? 40) : (catalog?.classroomSize ?? 40);
+      csWeightedSum += sz * (cap.classrooms || 0);
+      csCount       += (cap.classrooms || 0);
+    }
+  }
+  const avgClassroomSize = csCount > 0 ? (csWeightedSum / csCount) : 40;
+
+  // Kullanım: her bölüm tam olarak bir kez sayılır (çift sayım önlenir)
+  let usedClassrooms = 0, usedLabs = 0;
+  let totalProf = 0, totalDr = 0, totalArgo = 0;
+  for (const dept of (state.departments || [])) {
+    if (dept.isOpen === false) continue;
+    const dd = state.students?.byDepartment?.[dept.id];
+    const studentCount = dd
+      ? ((dd.year1?.count || 0) + (dd.year2?.count || 0) + (dd.year3?.count || 0) + (dd.year4?.count || 0))
+      : 0;
+    usedClassrooms += avgClassroomSize > 0 ? Math.ceil(studentCount / avgClassroomSize) : 0;
+    if (dept.category === 'muhendislik' || dept.category === 'fen') {
+      usedLabs += Math.ceil(studentCount / 60);
+    }
+    const df = (state.faculty || []).filter(f => (f.department || f.departmentId) === dept.id);
+    totalProf += df.filter(f => ['profesor', 'docent'].includes(f.title)).length;
+    totalDr   += df.filter(f => f.title === 'dr_ogr_uyesi').length;
+    totalArgo += df.filter(f => f.title === 'argö').length;
+  }
+
+  // Akıllı ofis ataması (global): boş ofis varsa 1/kişi, yetmezse Dr 2/ofis, ArGö 3/ofis
+  let usedOffices = totalProf;
+  let remaining = Math.max(0, totalOffices - usedOffices);
+  if (totalDr > 0) {
+    if (remaining >= totalDr) { usedOffices += totalDr; remaining -= totalDr; }
+    else { usedOffices += remaining + Math.ceil((totalDr - remaining) / 2); remaining = 0; }
+  }
+  if (totalArgo > 0) {
+    if (remaining >= totalArgo) { usedOffices += totalArgo; remaining -= totalArgo; }
+    else { usedOffices += remaining + Math.ceil((totalArgo - remaining) / 3); remaining = 0; }
+  }
+
+  return { totalClassrooms, usedClassrooms, totalOffices, usedOffices, totalLabs, usedLabs, totalBeds };
+}
+
+/**
  * Lab binalarına atanan bölümlerin labScore değerini yeniden hesaplar.
  * Bir bölüme atanmış her lab binası düzey × 25 puan katkı sağlar (maks 100).
  */

@@ -6,7 +6,7 @@
 
 import { DEPARTMENTS, DEPARTMENT_CURRICULA, UNIVERSITY_TYPES, UNIVERSITY_MODELS, USD_TO_TL, DIFFICULTY_SETTINGS, BUILDINGS, SEMESTER_MONTHS, FACULTIES, DEPT_TO_FACULTY, SALARY_SCALES, ADMIN_UNITS, ADMIN_TITLES, ADMIN_UNIT_BUILDINGS, ACCREDITATION_BODIES, SCENARIOS, BANKS } from './data.js?v=0.4.53';
 import { DEPARTMENT_FIELDS, getSalaryRange, renderFacultyAvatar, calculateOverallRating, getFacultyRatingTrend } from './faculty.js?v=0.4.39';
-import { AVAILABLE_NEW_DEPARTMENTS, getCourseEffectiveDifficulty, getUnitTitles, getUnitTitleSalary } from './game.js?v=0.4.59';
+import { AVAILABLE_NEW_DEPARTMENTS, getCourseEffectiveDifficulty, getUnitTitles, getUnitTitleSalary, calculateCampusUsageSummary } from './game.js?v=0.4.60';
 import { calculateIncome, calculateExpenses, calculateLoanPayment } from './economy.js?v=0.4.24';
 import { renderCampusMap, handleCampusClick, handleCampusHover, clearHover } from './campus-renderer.js?v=0.4.24';
 
@@ -3531,23 +3531,15 @@ export function renderCampusPanel(state, onBuildStart, onDecision) {
   const completedBuildings = buildings.filter(b => b.isCompleted);
   const inProgressBuildings = buildings.filter(b => !b.isCompleted);
 
-  let totalArea = 0, totalOffices = 0, usedOffices = 0;
-  let totalClassrooms = 0, usedClassrooms = 0;
-  let totalLabs = 0, usedLabs = 0;
-  let totalBeds = 0, totalMaintenance = 0;
-
+  let totalArea = 0, totalMaintenance = 0;
   completedBuildings.forEach(b => {
-    const cap = b.currentCapacity || {};
-    totalArea       += b.area || 0;
-    totalOffices    += cap.offices    || 0;
-    usedOffices     += (b.usedCapacity?.offices    || 0);
-    totalClassrooms += cap.classrooms || 0;
-    usedClassrooms  += (b.usedCapacity?.classrooms || 0);
-    totalLabs       += cap.labs       || 0;
-    usedLabs        += (b.usedCapacity?.labs       || 0);
-    totalBeds       += cap.beds       || 0;
+    totalArea        += b.area || 0;
     totalMaintenance += b.maintenanceCost || 0;
   });
+
+  // Kapasite/kullanım özeti: her bölüm bir kez sayılır (çift sayım önlenir, Issue #28)
+  const _usage = calculateCampusUsageSummary(state);
+  const { totalOffices, usedOffices, totalClassrooms, usedClassrooms, totalLabs, usedLabs, totalBeds } = _usage;
 
   // Katalog sözlüğü
   const catalogMap = {};

@@ -6,6 +6,14 @@
 
 export const CHANGELOG = [
   {
+    version: '0.4.60',
+    date: '2026-06-18',
+    title: 'Yerleşke kapasite kullanımı çift sayım düzeltmesi',
+    items: [
+      { type: 'fix', text: 'Yerleşke Özeti kartlarında derslik ve laboratuvar kullanımı kapasiteyi aşan saçma değerler gösteriyordu ("45/24 kullanımda"). Bir bölüm birden fazla binaya atandığında o bölümün ihtiyacı her bina için ayrı sayılıyordu. Artık her bölüm yalnızca bir kez sayılıyor, kullanım gerçek toplam ihtiyacı yansıtıyor (sezer-zengin Issue #28).' },
+    ],
+  },
+  {
     version: '0.4.59',
     date: '2026-06-10',
     title: 'Sağlık bilimleri proje konuları, kadro gruplaması ve otomatik başvuru geri çekilmesi',
