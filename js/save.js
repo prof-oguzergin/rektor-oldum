@@ -18,6 +18,27 @@ const MANUAL_SLOTS     = ['slot1', 'slot2', 'slot3'];
 // ─────────────────────────────────────────────────────────────────────────────
 
 /**
+ * State'i doğrudan JSON-güvenli string'e serileştirir (ek parse/stringify döngüsü yapmaz).
+ * @param {object} obj — Serileştirilecek nesne
+ * @returns {string} JSON formatında string
+ */
+export function serializeState(obj) {
+  if (obj === null || obj === undefined) return '{}';
+  if (typeof obj === 'string') return obj;
+  try {
+    return JSON.stringify(obj, (key, value) => {
+      if (typeof value === 'function') return undefined;
+      if (typeof value === 'number' && (isNaN(value) || !isFinite(value))) return 0;
+      if (value === undefined) return null;
+      return value;
+    });
+  } catch (err) {
+    console.error('[save] serializeState hatası, fallback uygulanıyor:', err);
+    return JSON.stringify(obj);
+  }
+}
+
+/**
  * State'i JSON serileştirme için temizler.
  * Fonksiyonları, NaN ve undefined değerleri kaldırır/dönüştürür.
  * Dairesel referanslara karşı güvenli.
@@ -28,12 +49,7 @@ const MANUAL_SLOTS     = ['slot1', 'slot2', 'slot3'];
 export function sanitizeForSave(obj) {
   if (obj === null || obj === undefined) return null;
   try {
-    return JSON.parse(JSON.stringify(obj, (key, value) => {
-      if (typeof value === 'function') return undefined;
-      if (typeof value === 'number' && (isNaN(value) || !isFinite(value))) return 0;
-      if (value === undefined) return null;
-      return value;
-    }));
+    return JSON.parse(serializeState(obj));
   } catch (err) {
     console.error('[save] sanitizeForSave: temizleme hatası, ham nesne döndürülüyor.', err);
     return obj;
@@ -56,12 +72,12 @@ export function saveGame(state, slotName) {
     return false;
   }
   try {
-    const safeState = sanitizeForSave(state);
+    const stateJson = typeof state === 'string' ? state : serializeState(state);
     const payload = {
       version:   SAVE_VERSION,
       timestamp: Date.now(),
       slotName,
-      state:     JSON.stringify(safeState),
+      state:     stateJson,
     };
     localStorage.setItem(SAVE_PREFIX + slotName, JSON.stringify(payload));
     console.log(`[save] Oyun kaydedildi → ${slotName} (${new Date(payload.timestamp).toLocaleString('tr-TR')})`);
@@ -127,12 +143,12 @@ export function autoSave(state) {
     return false;
   }
   try {
-    const safeState = sanitizeForSave(state);
+    const stateJson = typeof state === 'string' ? state : serializeState(state);
     const payload = {
       version:   SAVE_VERSION,
       timestamp: Date.now(),
       slotName:  'autosave',
-      state:     JSON.stringify(safeState),
+      state:     stateJson,
     };
     localStorage.setItem(AUTOSAVE_KEY, JSON.stringify(payload));
     console.log(`[save] Otomatik kayıt → ${new Date(payload.timestamp).toLocaleString('tr-TR')}`);
@@ -256,12 +272,12 @@ export function exportSave(state) {
     return;
   }
   try {
-    const safeState = sanitizeForSave(state);
+    const stateJson = typeof state === 'string' ? state : serializeState(state);
     const payload = {
       version:   SAVE_VERSION,
       timestamp: Date.now(),
       slotName:  'export',
-      state:     JSON.stringify(safeState),
+      state:     stateJson,
     };
     const json = JSON.stringify(payload, null, 2);
     const blob = new Blob([json], { type: 'application/json' });

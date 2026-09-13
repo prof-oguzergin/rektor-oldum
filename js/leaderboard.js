@@ -6,7 +6,7 @@
 
 import { firebaseConfig, APP_CHECK_SITE_KEY } from './firebase-config.js?v=0.4.27';
 import { THE_2024 } from './intl_rankings_the2024.js?v=0.4.39';
-import { calculateIntlPillars, calculateIntlTotalScore, findIntlRank } from './intl_ranking.js?v=0.4.39';
+import { calculateIntlPillars, calculateIntlTotalScore, findIntlRank } from './intl_ranking.js?v=0.4.59';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // TEKİL BAŞLATMA
@@ -172,7 +172,7 @@ export function scoreBreakdown(state) {
 
   const lines = [
     `Saygınlık (${prestige}) × 10 = ${prestige * 10} puan`,
-    `Sıralama (#${ranking}) bonusu = ${(51 - Math.max(1, Math.min(50, ranking))) * 5} puan`,
+    `Ulusal Sıralama (#${ranking}) bonusu = ${(51 - Math.max(1, Math.min(50, ranking))) * 5} puan`,
     `Mezun (${mezun}) / 10 = ${Math.round(mezun / 10)} puan`,
     `Yıl (${yil}) × 2 = ${yil * 2} puan`,
   ];

@@ -99,14 +99,18 @@ export function calculateResearchScore(state) {
   if (!research) return 0;
 
   // Yayın bileşeni: her 5 yayın ~10 puan (tavan 40)
-  const pubScore  = clamp(Math.floor(research.publications / 5) * 10, 0, 40);
+  const pubScore  = clamp(Math.floor((research.publications || 0) / 5) * 10, 0, 40);
 
   // Proje bileşeni: aktif proje başına 4 puan (tavan 20)
-  const projCount = (research.activeProjects || []).length;
+  const projCount = (research.activeResearchProjects || research.activeProjects || []).length;
   const projScore = clamp(projCount * 4, 0, 20);
 
-  // H-indeks bileşeni: h-indeks puanı (tavan 25)
-  const hScore    = clamp((research.hIndex || 0) * 2.5, 0, 25);
+  // H-indeks bileşeni: akademik kadronun ortalama h-indeksi (tavan 25)
+  const faculty = state.faculty || [];
+  const hVal = (research.hIndex != null && research.hIndex > 0)
+    ? research.hIndex
+    : (faculty.length > 0 ? (faculty.reduce((s, f) => s + (f.hIndex || 0), 0) / faculty.length) : 0);
+  const hScore    = clamp(hVal * 2.5, 0, 25);
 
   // Patent bileşeni: patent başına 3 puan (tavan 15)
   const patScore  = clamp((research.patents || 0) * 3, 0, 15);
@@ -383,8 +387,13 @@ export function updateRankings(state) {
     })),
   ];
 
-  // Prestije göre azalan sırala
-  allUniversities.sort((a, b) => b.prestige - a.prestige);
+  // Prestije göre azalan sırala (eşitlik halinde oyuncu üniversitesine öncelik ver)
+  allUniversities.sort((a, b) => {
+    if (b.prestige !== a.prestige) return b.prestige - a.prestige;
+    if (a.isPlayer) return -1;
+    if (b.isPlayer) return 1;
+    return 0;
+  });
 
   // Ranking ata
   allUniversities.forEach((uni, idx) => {

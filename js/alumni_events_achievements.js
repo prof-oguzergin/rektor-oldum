@@ -169,6 +169,19 @@ export function advanceAlumniCareers(state) {
   // Dönem başında yıllık bağışı sıfırla
   state.alumniData.annualDonations = 0;
 
+  // 1) Baseline Bağış: Sıradan mezunlardan gelen küçük bağışlar (Network'e bağlı)
+  // Ağ gücü (0-100) arttıkça toplam mezun sayısından gelen küçük bir akış olur.
+  const network = safeNum(state.alumniData.alumniNetwork);
+  const totalGrads = safeNum(state.alumniData.totalGraduates);
+  if (totalGrads > 0 && network > 10) {
+    // Örn: 1000 mezun, 50 network -> 1000 * 50 * 5 = 250.000 TL baseline
+    const baselineAmount = totalGrads * network * 5 * (0.8 + Math.random() * 0.4);
+    const roundedBase = Math.round(baselineAmount / 1000) * 1000;
+    state.alumniData.annualDonations += roundedBase;
+    state.alumniData.totalDonations = safeNum(state.alumniData.totalDonations) + roundedBase;
+  }
+
+  // 2) Ünlü Mezun Kariyerleri ve Bağışları
   for (const alum of state.alumniData.notableAlumni) {
     if (!alum.isActive) continue;
     alum.yearsAfterGrad = safeNum(alum.yearsAfterGrad) + 0.5;
@@ -207,6 +220,15 @@ export function advanceAlumniCareers(state) {
         state.alumniData.totalDonations = safeNum(state.alumniData.totalDonations) + rounded;
       }
     }
+  }
+
+  // 3) Bağış Kampanyası Çarpanı (💝)
+  // Eğer kampanya aktifse toplam bağış %50 artar
+  if (state.alumniData._donationCampaignActive) {
+    const bonus = Math.round(state.alumniData.annualDonations * 0.50);
+    state.alumniData.annualDonations += bonus;
+    state.alumniData.totalDonations += bonus;
+    state.alumniData._donationCampaignActive = false; // Kullanıldı
   }
 
   // Bütçeye bağış ekle
@@ -297,9 +319,9 @@ export function organizeAlumniEvent(state, type) {
       safeNum(state.students.overallSatisfaction) + 5);
     message = 'Kariyer günü düzenlendi. Öğrenci memnuniyeti +5.';
   } else if (type === 'donation_campaign') {
-    // Sonraki dönem bağışları %30 artsın (flag)
+    // Sonraki dönem bağışları %50 artsın (flag)
     state.alumniData._donationCampaignActive = true;
-    message = 'Bağış kampanyası başlatıldı. Sonraki dönem bağışlar artacak.';
+    message = 'Bağış kampanyası başlatıldı. Sonraki dönem bağışlar %50 daha fazla gelecek.';
   }
   return { success: true, message };
 }
@@ -986,6 +1008,50 @@ export function applyRandomEventChoice(state, eventId, choiceIndex) {
 // ÖZELLİK 3: BAŞARIMLAR
 // ─────────────────────────────────────────────────────────────────────────────
 
+// ─────────────────────────────────────────────────────────────────────────────
+// SIRALAMA KAZANIMLARI İÇİN YARDIMCI: Hem Ulusal hem Dünya (THE) Sırasını Kontrol Et
+// ─────────────────────────────────────────────────────────────────────────────
+function getBestRank(s) {
+  if (!s) return 9999;
+  const ranks = [];
+
+  // Ulusal sıralama
+  if (s.university?.ranking != null) {
+    const r = safeNum(s.university.ranking);
+    if (r > 0) ranks.push(r);
+  }
+  if (s.rankings?.national != null) {
+    const r = safeNum(s.rankings.national);
+    if (r > 0) ranks.push(r);
+  }
+  if (s.ranking != null) {
+    const r = safeNum(s.ranking);
+    if (r > 0) ranks.push(r);
+  }
+
+  // Uluslararası / Dünya Sıralaması (THE)
+  if (s.university?.intlRanking != null) {
+    const r = safeNum(s.university.intlRanking);
+    if (r > 0) ranks.push(r);
+  }
+  if (s.rankings?.international != null) {
+    const r = safeNum(s.rankings.international);
+    if (r > 0) ranks.push(r);
+  }
+  if (s.intlRanking != null) {
+    const r = safeNum(s.intlRanking);
+    if (r > 0) ranks.push(r);
+  }
+
+  // Dünya 1.si Eşiği (THE 2024: Oxford 98.5 skoru ile zirvededir)
+  const intlScore = safeNum(s.university?.intlTotalScore);
+  if (intlScore >= 98.5) {
+    ranks.push(1);
+  }
+
+  return ranks.length > 0 ? Math.min(...ranks) : 9999;
+}
+
 export const ACHIEVEMENTS = [
   // Büyüme
   { id: 'first_hire',      name: '🎓 İlk Transfer',       description: 'İlk hocanızı transfer edin.',                      icon: '🎓', category: 'kadro',     check: (s) => safeNum(s.stats?.totalHires) >= 1 || (s.faculty?.length || 0) >= 1 },
@@ -997,11 +1063,11 @@ export const ACHIEVEMENTS = [
   { id: 'prestige_25',     name: '⭐ Yükselen Yıldız',      description: "Saygınlık 25'e ulaşsın.",                          icon: '⭐', category: 'prestij',  check: (s) => safeNum(s.university?.prestige) >= 25 },
   { id: 'prestige_50',     name: '🌟 Tanınan Üniversite',   description: "Saygınlık 50'ye ulaşsın.",                         icon: '🌟', category: 'prestij',  check: (s) => safeNum(s.university?.prestige) >= 50 },
   { id: 'prestige_80',     name: '💫 Elit Üniversite',       description: "Saygınlık 80'e ulaşsın.",                          icon: '💫', category: 'prestij',  check: (s) => safeNum(s.university?.prestige) >= 80 },
-  // Sıralama
-  { id: 'rank_40',         name: '📊 İlk 40',               description: 'Sıralamada 40. sıraya yükselin.',                  icon: '📊', category: 'siralama', check: (s) => safeNum(s.university?.ranking || 100) <= 40 },
-  { id: 'rank_20',         name: '📈 İlk 20',               description: 'Sıralamada 20. sıraya yükselin.',                  icon: '📈', category: 'siralama', check: (s) => safeNum(s.university?.ranking || 100) <= 20 },
-  { id: 'rank_10',         name: "🏆 İlk 10",               description: "Sıralamada ilk 10'a girin.",                       icon: '🏆', category: 'siralama', check: (s) => safeNum(s.university?.ranking || 100) <= 10 },
-  { id: 'rank_1',          name: '👑 Zirve',                description: '1 numaralı üniversite olun!',                      icon: '👑', category: 'siralama', check: (s) => safeNum(s.university?.ranking || 100) === 1 },
+  // Sıralama (Ulusal ve Uluslararası en iyi dereceyi baz alır)
+  { id: 'rank_40',         name: '📊 İlk 40',               description: 'Sıralamada 40. sıraya yükselin.',                  icon: '📊', category: 'siralama', check: (s) => getBestRank(s) <= 40 },
+  { id: 'rank_20',         name: '📈 İlk 20',               description: 'Sıralamada 20. sıraya yükselin.',                  icon: '📈', category: 'siralama', check: (s) => getBestRank(s) <= 20 },
+  { id: 'rank_10',         name: "🏆 İlk 10",               description: "Sıralamada ilk 10'a girin.",                       icon: '🏆', category: 'siralama', check: (s) => getBestRank(s) <= 10 },
+  { id: 'rank_1',          name: '👑 Zirve',                description: '1 numaralı üniversite olun!',                      icon: '👑', category: 'siralama', check: (s) => getBestRank(s) === 1 },
   // Araştırma
   { id: 'first_project',   name: '🔬 İlk Proje',            description: 'İlk araştırma projeniz kabul edilsin.',            icon: '🔬', category: 'arastirma', check: (s) => (s.research?.activeResearchProjects?.length || 0) + (s.research?.completedProjects?.length || 0) >= 1 },
   { id: 'publications_100',name: '📄 100 Yayın',            description: 'Toplam 100 yayına ulaşın.',                        icon: '📄', category: 'arastirma', check: (s) => safeNum(s.research?.publications) >= 100 },
@@ -1039,13 +1105,13 @@ export const ACHIEVEMENTS = [
   // v0.3: Kulüp Başarımları
   { id: 'kulup_kenti',    name: '🎭 Topluluk Kenti',    description: '8 veya daha fazla aktif topluluk kur.',                        icon: '🎭', category: 'ogrenci', check: (s) => (s.clubs?.active?.length || 0) >= 8 },
   { id: 'kulup_ustasi',   name: '⭐ Topluluk Ustası',   description: 'Bir topluluğu maksimum seviyeye yükselt.',                     icon: '⭐', category: 'ogrenci', check: (s) => (s.clubs?.active || []).some(c => c.level >= 3) },
-  { id: 'sosyal_kampus',  name: '🏫 Sosyal Kampüs',  description: 'Her kategoriden en az bir topluluk kur (5 kategori).',        icon: '🏫', category: 'ogrenci', check: (s) => {
+  { id: 'sosyal_kampus',  name: '🏫 Sosyal Kampüs',  description: 'Her kategoriden en az bir topluluk kur (4 kategori).',        icon: '🏫', category: 'ogrenci', check: (s) => {
     const cats = new Set();
     for (const club of (s.clubs?.active || [])) {
       const type = CLUB_TYPES[club.typeId];
       if (type) cats.add(type.category);
     }
-    return cats.size >= 5;
+    return cats.size >= 4;
   } },
 ];
 

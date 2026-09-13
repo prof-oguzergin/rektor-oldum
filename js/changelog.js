@@ -6,30 +6,174 @@
 
 export const CHANGELOG = [
   {
+    version: '0.4.76',
+    date: '2026-09-14',
+    title: 'İdari Birimler: Yönetici Tanıma ve Terfi Düzeltmeleri',
+    items: [
+      { type: 'fix', text: 'Müdür veya Müdür Yrd. unvanına sahip personellerin birim yöneticisi olarak atanamaması ve "Bu birimde yönetici seviyesinde personel bulunmuyor" uyarısı vermesi sorunu giderildi; hem genel unvanlar hem de birime özel üst unvanlar yönetici kabul edilir.' },
+      { type: 'fix', text: 'İdari personel terfi kontrolünde birim unvanlarının doğru tespit edilmesi sağlandı; personelin terfiye hak kazanıp kazanmadığı ve terfi butonu artık kartlarda ve personel listelerinde doğru şekilde görüntüleniyor.' },
+      { type: 'fix', text: 'Üst paneldeki "X personel terfiye hazır" sayacı ile personellerin bireysel terfi durumları senkronize edildi; terfi butonunun görünmemesi ve otomatik terfi fonksiyonundaki unvan geçiş uyumsuzlukları giderildi.' },
+      { type: 'fix', text: 'Mevcut kayıtlardaki idari personellerin unvanları ve yönetici atamaları oyun yüklendiğinde otomatik olarak doğrulanıp onarılır.' },
+    ],
+  },
+  {
+    version: '0.4.75',
+    date: '2026-09-13',
+    title: 'Ana Menü Butonları ve Modül Yükleme Düzeltmesi',
+    items: [
+      { type: 'fix', text: 'Ana sayfadaki butonların (Yeni Oyun, Kayıt Yükle vb.) tıklanamamasına yol açan modül export çakışması (SyntaxError: Duplicate export) giderildi; tüm ana sayfa butonları eksiksiz çalışıyor.' },
+    ],
+  },
+  {
+    version: '0.4.74',
+    date: '2026-09-13',
+    title: 'Senaryo ve Sıralama Hedefleri: Ulusal vs Dünya Sıralaması Düzeltmesi',
+    items: [
+      { type: 'fix', text: 'Köklü Devlet senaryosunda ("Hedef: İlk 30") kazanma koşulunun 6 üniversiteli ulusal lig yerine THE 2024 Dünya Sıralamasını (intlRanking) baz alması sağlandı.' },
+      { type: 'fix', text: 'Üniversite Türkiye sıralamasında 1. sıraya (veya 6 rakibin üstüne) yükseldiğinde 1 <= 30 karşılaştırmasından dolayı senaryonun 2. turda erken bitmesi ve "Üniversiteniz 1. sıraya yükseldi" bildirimiyle oyunun kilitlenmesi hatası giderildi.' },
+      { type: 'fix', text: 'Mevcut kayıtlar için otomatik onarım: Kayıt yüklendiğinde erken tetiklenmiş olan Oyun Bitti (gameWon) bayrağı temizlenerek oyunun dünya ilk 30 hedefine doğru kesintisiz devam etmesi sağlandı.' },
+      { type: 'fix', text: 'Standart serbest oyunda ulusal 1.lik (Türkiye birinciliği) oyun sonu kilitlemesi kaldırıldı; 1.lik başarımlarla ödüllendirilirken oyun dünya zirvesine (intlRanking #1) ve prestij 90 hedefine kadar devam eder.' },
+      { type: 'feat', text: 'Dashboard ve skor tablosu ekranlarında sıralama hedefleri ve bonusları "Dünya Sıralaması" ve "Ulusal Sıralama" olarak ayrıştırılarak daha net ifade edildi.' },
+    ],
+  },
+  {
+    version: '0.4.73',
+    date: '2026-09-13',
+    title: 'Sayfa Değişimlerinde Yinelenen Başarım Bildirimi Düzeltmesi',
+    items: [
+      { type: 'fix', text: 'Her sekme ve sayfa değişiminde "KAZANIM AÇILDI!" bildiriminin tekrar tekrar ekrana gelmesi sorunu giderildi.' },
+      { type: 'fix', text: 'Başarım kontrolü ve bildirim tetikleyicisi üst bar (updateTopBar) render akışından kaldırıldı; gereksiz tetiklemeler önlendi.' },
+      { type: 'fix', text: 'Kayıt yükleme aşamasında (setState) üniversitenin zaten hak ettiği başarımların kalıcı state içine sessizce işlenmesi sağlandı; eski kayıtlar yüklendiğinde mükerrer bildirim çıkması engellendi.' },
+      { type: 'fix', text: 'Başarımlar sekmesine tıklandığında anlık başarım durumu kalıcı olarak senkronize edilir.' },
+    ],
+  },
+  {
+    version: '0.4.72',
+    date: '2026-09-12',
+    title: 'Araştırma Yönetimi Paneli Yükleme Düzeltmesi',
+    items: [
+      { type: 'fix', text: 'Araştırma sekmesinin boş görünmesine yol açan değişken tanımlama hatası giderildi; aktif projeler, fonlar ve üniversite payı hesaplamaları eksiksiz render ediliyor.' },
+    ],
+  },
+  {
+    version: '0.4.71',
+    date: '2026-09-12',
+    title: 'Özel Sektör / Sanayi Ar-Ge Projeleri Tanıma ve Puanlama Düzeltmesi',
+    items: [
+      { type: 'fix', text: 'Endüstri (Industry) sütununda "Özel Sektör Sanayi Projeleri (-25 Puan / 0 aktif proje)" hatası giderildi; sanayi çağrılarından üretilen tüm projeler artık eksiksiz tanınıyor.' },
+      { type: 'fix', text: 'Dış çağrı üretiminde (externalCalls) Özel Sektör ve AB proje etiketlerinin kaybolmasına neden olan yapısal eksiklik giderildi.' },
+      { type: 'fix', text: '"Sanayi İşbirliği" çağrısına isPrivateSector etiketi ve genel gider kesinti oranı tanımlandı.' },
+      { type: 'fix', text: 'Mevcut kayıtlı oyunlar için otomatik onarım: Kayıt yüklendiğinde sanayi ve özel sektör ortaklı tüm projeler anında isPrivateSector olarak etiketlenerek 25/25 tam puana kavuşturulur.' },
+      { type: 'feat', text: 'Araştırma sekmesinde Özel Sektör / Sanayi projeleri altın sarısı bordür ve rozetle, AB projeleri mavi rozetle görsel olarak belirginleştirildi.' },
+    ],
+  },
+  {
+    version: '0.4.70',
+    date: '2026-09-12',
+    title: 'AB / Horizon Projeleri ve Akreditasyon Yenileme Sistemi Düzeltmesi',
+    items: [
+      { type: 'fix', text: 'Uluslararası Görünüm (THE WUR) sütununda AB Horizon Europe projelerinin tanınmama ve 0 adet görünme sorunu giderildi; aktif ve tamamlanan Horizon/ERC projeleri artık puanlamaya ve kayıp analizine tam olarak yansıtılıyor.' },
+      { type: 'fix', text: 'Akreditasyon (ABET / MÜDEK / THEQA) erken yenileme başvurusu yapıldığında bölümün aktif akreditasyonunun silinmesi / kaybedilmiş gibi görünmesi hatası giderildi; yenileme süresince akredite statüsü ve tüm kazanımları korunur.' },
+      { type: 'fix', text: 'Uluslararası Görünüm panelinde ABET ve THEQA akreditasyonlarının tanınmasını engelleyen statü kontrolü hatası düzeltildi; Küresel Tesisler & Akreditasyonlar puanı tam ve eksiksiz hesaplanıyor.' },
+      { type: 'fix', text: 'Mevcut kayıtlı oyunlar için otomatik onarım eklendi: Yenilenmekte olan akreditasyonlar ve Horizon projeleri kayıt yüklendiğinde anında geçerli duruma getirilir.' },
+      { type: 'feat', text: 'Akreditasyon ve Bölümler ekranlarında yenilenmekte olan akreditasyonlar için "✓ Akredite ⏳ Yenileniyor" durumu ve kalan inceleme süresi gösterimi eklendi.' },
+    ],
+  },
+  {
+    version: '0.4.69',
+    date: '2026-09-12',
+    title: 'İdari Birimler: Yönetici Onaylı Otomatik Terfi Sistemi',
+    items: [
+      { type: 'feat', text: 'Birim kartlarına "⚡ Otomatik Terfi" butonu eklendi: Birimin başında yönetici (Müdür / Müdür Yrd.) varsa o birimdeki tüm terfiye hak kazanmış personeller tek tıkla otomatik terfi ettirilir.' },
+      { type: 'feat', text: 'Yöneticisi olmayan birimlerde buton korumaya alınarak yönetici atama gerekliliği görsel olarak belirtildi.' },
+      { type: 'feat', text: 'İdari Birimler üst paneline "🎓 Otomatik Terfi" butonu ve Terfi Bekleyenler bildirim alanına doğrudan tüm yöneticili birimleri terfi ettirme aksiyonu eklendi.' },
+    ],
+  },
+  {
+    version: '0.4.68',
+    date: '2026-09-12',
+    title: '👑 Zirve (1 Numaralı Üniversite) Başarımı ve Sıralama Kontrolleri Düzeltmesi',
+    items: [
+      { type: 'fix', text: 'Dünya sıralamasında (#1 Zirve / THE 2024) ya da ulusal sıralamada 1. olunduğunda "👑 Zirve" başarımının açılmama sorunu giderildi.' },
+      { type: 'fix', text: 'Sıralama başarımları (İlk 40, İlk 20, İlk 10, Zirve) artık hem ulusal hem de uluslararası (Dünya) sıralamanızdaki en iyi dereceyi dikkate alır.' },
+      { type: 'fix', text: 'Kazanımlar sekmesine tıklandığında ve üst bar güncellemelerinde hak edilen başarımlar beklemeden anında otomatik olarak açılır ve bildirim gösterilir.' },
+      { type: 'balance', text: 'Ulusal sıralamada 100 prestij eşitliği durumunda oyuncu üniversitesine birincilik önceliği tanındı.' },
+      { type: 'fix', text: 'Oyun sonu kazanma denetiminde Dünya 1.liği (Zirve) resmi zafer koşulu olarak tanındı.' },
+    ],
+  },
+  {
+    version: '0.4.67',
+    date: '2026-09-12',
+    title: 'Fakülteler ve Kadro Panelleri Sayfa Açılış Performans Optimizasyonu',
+    items: [
+      { type: 'fix', text: 'Fakülteler sekmesine tıklandığında yaşanan şiddetli donma ve kasma sorunu tamamen giderildi.' },
+      { type: 'fix', text: 'Kapalı <details> içindeki 280+ hocanın binlerce tablo hücresi ve DOM düğümü artık peşin üretilmiyor; hoca listeleri sadece ilgili bölüm tıklandığında anında (0.1ms) lazy olarak çiziliyor.' },
+      { type: 'fix', text: 'Bölümlerdeki hoca taramaları O(D×N) yerine O(1) haritalama (Map) ile tek geçişe indirildi; gereksiz unvan ve puan döngüleri teke düşürüldü.' },
+      { type: 'fix', text: 'Yüzlerce buton dinleyicisi (event listener) yerine ana panel üzerinde tekil olay temsilcisi (event delegation) kurularak bellek yükü sıfırlandı.' },
+      { type: 'feat', text: 'Fakülteler sekmesine "📂 Tüm Hoca Listelerini Aç / Kapat" butonu eklendi.' },
+      { type: 'fix', text: 'Bölümler sekmesinde 600+ ders için her render\'da çalışan 12.000 döngülük uzmanlık arama işlemi önbelleklenerek hızlandırıldı.' },
+      { type: 'fix', text: 'Kadro sekmesi Kart görünümünde 280+ hoca için chunked render (48\'erli gruplar) getirilerek ilk açılış süresi milisaniyeler seviyesine indirildi.' },
+    ],
+  },
+  {
+    version: '0.4.66',
+    date: '2026-09-12',
+    title: 'Bölüm Kapasitesi ve Derslik Yönetimi İyileştirmesi',
+    items: [
+      { type: 'fix', text: 'Bölümler sekmesindeki kafa karıştırıcı "hoca/ders yükü kapasitesi aşıldı" yanılsaması düzeltildi; uyarı artık net olarak öğrenci mevcudu ve derslik kapasitesini (👥 X/Y Öğrenci) ifade ediyor.' },
+      { type: 'fix', text: 'Bölüm kapasite hesaplaması dinamikleştirildi: Kampüste bölüme atanmış Fakülte Binası ve Amfi derslik koltukları artık bölümün resmi öğrenci kapasitesine ekleniyor (sabit 100 tavanı kaldırıldı).' },
+    ],
+  },
+  {
+    version: '0.4.65',
+    date: '2026-09-12',
+    title: 'Öğretim Üyesi Başvuruları: Puan Eşikli Toplu İşlem & İleri Yıl Performans Optimizasyonu',
+    items: [
+      { type: 'feat', text: 'Puan eşikli toplu karar desteği: Belirlenen genel puanın altındaki başvuruları tek tıkla toplu reddetme (örn. Puan < 65) ve belirlenen seviyenin üzerindekileri toplu kabul etme (örn. Puan ≥ 75) özelliği eklendi.' },
+      { type: 'feat', text: 'Eşik değerleri değiştirildiğinde kabul ve ret edilecek aday sayıları dinamik olarak hesaplanarak butonlarda canlı gösterilir.' },
+      { type: 'fix', text: '260+ hocalı ileri yıllarda kadro ilanlarını reddederken oluşan aşırı CPU yükü ve tarayıcı çökmesi (Aw, Snap!) tamamen giderildi.' },
+      { type: 'fix', text: 'Aday reddetme işleminde yıkıcı tam sayfa yenilemesi kaldırıldı; kartlar DOM\'da yerinde ve akıcı animasyonla silinir (in-place DOM removal).' },
+      { type: 'fix', text: 'Fakülte panelinin ilk yüklenmesinde tüm hoca kartlarının gereksiz yere iki kez render edilmesi (524 kart üretimi) düzeltildi; kartlar tek geçişte basılır.' },
+      { type: 'fix', text: 'Her aday için tüm açık bölümlerin yüzlerce dersinin gereksiz taranması kaldırıldı; adayın yalnızca başvurduğu bölüm müfredatı taranarak 24.000 işlem sıfırlandı.' },
+      { type: 'fix', text: 'Kayıt sistemi optimize edildi: seri tıklamalarda thread\'i donduran senkron derin JSON parse/stringify döngüsü yerine 350ms debounce ve tek geçişli serializeState getirildi.' },
+      { type: 'fix', text: 'Üst bardaki "Dünya Sırası" göstergesinin güncellenmeme (#6 kalma) hatası düzeltildi: Sıralama artık sadece dönem geçişinde değil, canlı olarak hesaplanarak Uluslararası Sıralama sekmesiyle (%100 tutarlı) anlık senkronize edilir.' },
+      { type: 'feat', text: 'Üst bardaki "Dünya Sırası" göstergesine tıklandığında doğrudan Uluslararası Sıralama (THE 2024) sekmesini açma kısayolu eklendi.' },
+    ],
+  },
+  {
     version: '0.4.64',
-    date: '2026-08-30',
-    title: 'Açılış sahnesinde saat kulesi görünür oldu',
+    date: '2026-09-12',
+    title: 'Açılış Sahnesi İyileştirmesi ve THE 2024 Sıralama Paneli',
     items: [
       { type: 'fix', text: 'Yeni açılış ekranındaki saat kulesi tam menü panelinin arkasında kalıyordu. Kule sahnenin sol tarafına alındı, boyu uzatıldı ve kampüs silueti biraz yükseltildi; artık kule, kadranı ve tepesindeki fener açıkça görünüyor.' },
+      { type: 'fix', text: 'Yinelenen tablolar kaldırıldı; Dünya Sıralaması (Top 50), Sıralama Komşularınız (±5) ve Türkiye Sıralaması sekmeli ve modern tek bir tabloda birleştirildi.' },
+      { type: 'fix', text: 'Oyuncunun üniversitesi artık küresel sıralama tablosunda ve Türkiye liginde hak ettiği gerçek sırası ve parlayan [SEN] rozetiyle görüntüleniyor.' },
+      { type: 'fix', text: 'Oyuncunun gerisinde kalan üniversitelerin sıra numaralarının güncellenmemesi (#2 oyuncu ve #2 Stanford çakışması) düzeltildi; rakiplerin sıraları dinamik olarak kaydırıldı.' },
+      { type: 'fix', text: 'Sıralamadaki Komşularınız listesindeki ters sıralama hatası ve Türkiye listesindeki eksik üniversite hesabı (17/17) düzeltildi; komşularda anlık puan farkı göstergesi (+/-) eklendi.' },
     ],
   },
   {
     version: '0.4.63',
-    date: '2026-08-30',
-    title: 'Yeni açılış ekranı: sinematik kampüs',
+    date: '2026-09-12',
+    title: 'Sinematik Kampüs Açılışı ve THE Uluslararası / Endüstri Puanı İyileştirmeleri',
     items: [
       { type: 'feat', text: 'Ana menü yeniden tasarlandı. Arkada gece kampüsü sahnesi var: saat kulesi, fakülte blokları, ağaçlar ve sokak fenerleri dört ayrı katmanda çizildi. Fareyi gezdirdikçe katmanlar farklı hızlarda kayıyor (paralaks), pencere ışıkları ve kule feneri yanıp sönüyor. Sahne tamamen SVG ile çizildi, ek görsel dosya yüklenmiyor.' },
       { type: 'feat', text: 'Menü butonları cam görünümlü bir panelde toplandı; Ayarlar, Bildir ve Yenilikler tek satıra alındı. Kayıtlı oyununuz varsa başlığın altında son kaydınız görünüyor: üniversite adı, yıl ve dönem.' },
       { type: 'fix', text: 'Hareket azaltma tercihi açık olan cihazlarda menü animasyonları ve paralaks devre dışı kalıyor.' },
+      { type: 'fix', text: 'Uluslararası puanı (International Outlook) artık yüksek üniversite saygınlığı, ABET/THEQA akreditasyonları, AB (EU) araştırma projeleri ve Konferans Merkezi seviyesini hesaba katıyor; 62 puanlık yapay tavan kaldırıldı.' },
+      { type: 'fix', text: 'Endüstri puanında (Industry) Teknokent binası ve seviyesi, patent telif gelirleri, TTO anlaşmaları ve şirketleşme (spin-off) faaliyetleri tam olarak entegre edildi; 70 puanlık yapay tavan kaldırılarak 95-100 bandına yükselme imkânı sağlandı.' },
     ],
   },
   {
     version: '0.4.62',
-    date: '2026-06-18',
-    title: 'Kapasite durumu açıklaması ve yükseltme süresi göstergesi',
+    date: '2026-09-12',
+    title: 'Kapasite Durumu, Yükseltme Süresi, H-Index ve Atıf İyileştirmeleri',
     items: [
       { type: 'feat', text: 'Bölümler sekmesindeki "Kapasite aşıldı / Dolmak üzere / Normal" durumunun üzerine fare ile gelince açıklama balonu çıkıyor: ne anlama geldiği, mevcut öğrenci/kapasite sayısı ve ne yapılması gerektiği yazıyor (kocamane18 Issue #29 madde 2).' },
       { type: 'feat', text: 'Bina yükseltme butonunda artık yükseltmenin kaç dönem süreceği de gösteriliyor (örneğin "Düzey 2\'ye Yükselt (5,0M ₺ · 2 dönem)"). Oyuncu yükseltmeye başlamadan süreyi görebilir (kocamane18 Issue #29 madde 4).' },
+      { type: 'fix', text: 'H-Index ve toplam atıf hesaplama sistemi düzeltildi; akademik kadronun yayınları üzerinden H-Index artık doğru şekilde hesaplanıyor ve dönemler ilerledikçe atıf birikimi gerçekleşiyor.' },
+      { type: 'fix', text: 'THE Dünya Sıralamasında Araştırma Ortamı (Research Environment) ve ulusal sıralamadaki araştırma puanının H-indeks ve aktif proje bağlantıları düzeltildi; puanlar hak edilen seviyeye yükseltildi.' },
+      { type: 'feat', text: 'Araştırma panelindeki "Bölüm Araştırma Puanları" dinamik hale getirildi; statik 5 üzerinden potansiyel yerine her bölümün hoca gücü, yayın ve projelerine dayalı 100 üzerinden canlı araştırma performansı gösteriliyor.' },
     ],
   },
   {
@@ -42,20 +186,24 @@ export const CHANGELOG = [
   },
   {
     version: '0.4.60',
-    date: '2026-06-18',
-    title: 'Yerleşke kapasite kullanımı çift sayım düzeltmesi',
+    date: '2026-09-12',
+    title: 'Toplu Kadro İlanı ve Yerleşke Kapasite Çift Sayım Düzeltmesi',
     items: [
+      { type: 'feat', text: 'Kadro İlanı Ver ekranına Tek Bölüm / Toplu İlan modu eklendi. Aynı unvan, maaş, araştırma fonu ve lab imkanlarıyla birden fazla bölüm seçilerek tek tıkla toplu ilan verilebiliyor.' },
       { type: 'fix', text: 'Yerleşke Özeti kartlarında derslik ve laboratuvar kullanımı kapasiteyi aşan saçma değerler gösteriyordu ("45/24 kullanımda"). Bir bölüm birden fazla binaya atandığında o bölümün ihtiyacı her bina için ayrı sayılıyordu. Artık her bölüm yalnızca bir kez sayılıyor, kullanım gerçek toplam ihtiyacı yansıtıyor (sezer-zengin Issue #28).' },
     ],
   },
   {
     version: '0.4.59',
-    date: '2026-06-10',
-    title: 'Sağlık bilimleri proje konuları, kadro gruplaması ve otomatik başvuru geri çekilmesi',
+    date: '2026-09-12',
+    title: 'Sağlık Bilimleri Konuları, Kadro Gruplama ve Yerleşke Akordeon Düzeni',
     items: [
+      { type: 'feat', text: 'Yerleşke sekmesindeki tüm binalar ve inşaat seçenekleri kategori bazlı açılır-kapanır akordeon listesi haline getirildi. Her bina tipine tıklandığında mevcut binalar ve en altta "Bir Tane Daha İnşa Et" seçeneği tek bir akışta listeleniyor.' },
       { type: 'feat', text: 'Tıp, Diş Hekimliği, Eczacılık, Hemşirelik ve Biyomedikal Mühendisliği uzmanlıklarına özel araştırma proje konuları eklendi (23 uzmanlık alanı için gerçekçi TÜBİTAK/BAP tarzı konu havuzu). Diş hekimliği araştırma konularının alakasız olduğuna dair geri bildirim giderildi (kocamane18 Issue #27).' },
       { type: 'feat', text: 'Kadro panelinde hocalar artık bölümlere göre gruplanıyor. Her grubun başlığında bölüm ikonu, adı ve hoca sayısı görünür; başlığa tıklayarak grup açılıp kapatılabilir (kocamane18 Issue #27).' },
       { type: 'fix', text: 'Yanıt verilmeyen kadro başvuruları 2 dönem sonra otomatik geri çekiliyor; başvuru listesi artık sonsuza dek birikiyor. Kaç başvurunun geri çekildiği dönem özetinde gösterilir (kocamane18 Issue #27).' },
+      { type: 'fix', text: 'Endüstri (Industry) puanında TTO durumu ve özel sektör (isPrivateSector) projeleri düzeltildi; TTO kurulması, seviye yükseltilmesi ve sanayi projeleri artık Endüstri puanına tam yansıyor.' },
+      { type: 'fix', text: 'Uluslararası (International) puanında prestijli yurt dışı doktoralı hocalar ve Uluslararası İlişkiler Ofisi idari birimi geliştirmeleri hesaba katılarak skorun doğru yükselmesi sağlandı.' },
     ],
   },
   {
@@ -128,7 +276,6 @@ export const CHANGELOG = [
     title: 'Kazanma ekranı ve kayıt koruma',
     items: [
       { type: 'fix', text: 'Oyun kazanıldığında artık senaryo bazlı özel mesaj içeren kutlama ekranı çıkıyor. Final skor kırılımı ve leaderboard\'a gönderme butonu da eklendi. Önceden sadece "Oyun bitti" bildirimi görünüyordu (BerkhanB Issue #19, byalperr Issue #23).' },
-      { type: 'fix', text: 'Kayıt yüklendiğinde oyun kazanılmış veya bitmiş durumu artık korunuyor. v0.4.48\'deki agresif sıfırlama düzeltildi — kazanılmış kaydı yükleyen oyuncu kutlama ekranını görür.' },
     ],
   },
   {

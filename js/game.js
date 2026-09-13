@@ -35,7 +35,7 @@ import {
 } from './data.js?v=0.4.53';
 
 import { calculateEconomy, applyBudget, calculateLoanPayment, processLoanPayments } from './economy.js?v=0.4.24';
-import { generateInitialFaculty, updateAllFacultyHappiness, generateApplicants, generateFaculty, getSalaryRange, calculateOverallRating, getFacultyRatingTrend } from './faculty.js?v=0.4.39';
+import { generateInitialFaculty, updateAllFacultyHappiness, generateApplicants, generateFaculty, getSalaryRange, calculateOverallRating, getFacultyRatingTrend } from './faculty.js?v=0.4.52';
 import {
   generateInitialStudents,
   getTotalEnrolled,
@@ -53,9 +53,9 @@ import {
   processGraduation,
   processAdmissions,
 } from './students.js?v=0.4.24';
-import { calculatePrestige, updateRivals, updateRankings } from './ranking.js?v=0.4.39';
-import { calculateIntlPillars, calculateIntlTotalScore, findIntlRank } from './intl_ranking.js?v=0.4.39';
-import { THE_2024 } from './intl_rankings_the2024.js?v=0.4.39';
+import { calculatePrestige, updateRivals, updateRankings, calculateResearchScore } from './ranking.js?v=0.4.61';
+import { calculateIntlPillars, calculateIntlTotalScore, findIntlRank, isEuProject, isAccredited, isIndustryProject } from './intl_ranking.js?v=0.4.72';
+import { THE_2024 } from './intl_rankings_the2024.js?v=0.4.64';
 import { checkForEvents, applyEventEffects } from './events.js?v=0.4.24';
 import {
   initAlumniState,
@@ -70,7 +70,7 @@ import {
   ACHIEVEMENTS,
 } from './alumni_events_achievements.js?v=0.4.24';
 
-export { RANDOM_EVENTS, ACHIEVEMENTS, getAchievementStats, organizeAlumniEvent, applyRandomEventChoice, ACCREDITATION_BODIES };
+export { RANDOM_EVENTS, ACHIEVEMENTS, getAchievementStats, checkAchievements, organizeAlumniEvent, applyRandomEventChoice, ACCREDITATION_BODIES };
 
 import { initTTOState, establishTTO, upgradeTTO, processTTO, acceptDeal, rejectDeal, TTO_CONFIG } from './tto.js?v=0.4.24';
 export { establishTTO, upgradeTTO, acceptDeal, rejectDeal, TTO_CONFIG };
@@ -350,40 +350,73 @@ function _recalcDeptLabScores(state) {
 function _updateAllBuildingUsage(state) {
   const totalStudents = getTotalEnrolled(state) || 0;
   const totalFaculty  = (state.faculty || []).length;
+  const campusPop     = totalStudents + totalFaculty;
 
+  // Grup binaları
+  const completedYurtlar   = (state.buildings || []).filter(b => b.isCompleted && b.type === 'yurt');
+  const completedYemekhane = (state.buildings || []).filter(b => b.isCompleted && b.type === 'yemekhane');
+  const completedKutuphane = (state.buildings || []).filter(b => b.isCompleted && b.type === 'kutuphane');
+  const completedSpor      = (state.buildings || []).filter(b => b.isCompleted && b.type === 'spor_tesisi');
+
+  // 1. Yurt: toplam yurt talebi (~%40), binalar arasında kapasiteye göre paylaştır
+  const totalDormDemand = Math.round(totalStudents * 0.40);
+  const totalDormCap    = completedYurtlar.reduce((s, b) => s + ((b.currentCapacity?.beds) || 0), 0);
+  for (const b of completedYurtlar) {
+    if (!b.usedCapacity) b.usedCapacity = {};
+    const cap = (b.currentCapacity?.beds) || 0;
+    b.usedCapacity.beds = (totalDormCap > 0 && totalDormDemand > 0)
+      ? Math.min(cap, Math.round(totalDormDemand * (cap / totalDormCap)))
+      : 0;
+  }
+
+  // 2. Yemekhane: günlük yemek talebi (~%65 kampüs nüfusu), tesisler arasında paylaştır
+  const totalMealDemand = Math.round(campusPop * 0.65);
+  const totalMealCap    = completedYemekhane.reduce((s, b) => s + ((b.currentCapacity?.dailyMeals) || 0), 0);
+  for (const b of completedYemekhane) {
+    if (!b.usedCapacity) b.usedCapacity = {};
+    const cap = (b.currentCapacity?.dailyMeals) || 0;
+    b.usedCapacity.dailyMeals = (totalMealCap > 0 && totalMealDemand > 0)
+      ? Math.min(cap, Math.round(totalMealDemand * (cap / totalMealCap)))
+      : 0;
+  }
+
+  // 3. Kütüphane: eş zamanlı (~%25) ve günlük (~%45) ziyaretçi talebi paylaştır
+  const totalLibSimDemand = Math.round(totalStudents * 0.25);
+  const totalLibDlyDemand = Math.round(totalStudents * 0.45);
+  const totalLibSimCap    = completedKutuphane.reduce((s, b) => s + ((b.currentCapacity?.simultaneous) || 0), 0);
+  const totalLibDlyCap    = completedKutuphane.reduce((s, b) => s + ((b.currentCapacity?.daily) || 0), 0);
+  for (const b of completedKutuphane) {
+    if (!b.usedCapacity) b.usedCapacity = {};
+    const sim = (b.currentCapacity?.simultaneous) || 0;
+    const dly = (b.currentCapacity?.daily) || 0;
+    b.usedCapacity.simultaneous = totalLibSimCap > 0
+      ? Math.min(sim, Math.round(totalLibSimDemand * (sim / totalLibSimCap)))
+      : 0;
+    b.usedCapacity.daily = totalLibDlyCap > 0
+      ? Math.min(dly, Math.round(totalLibDlyDemand * (dly / totalLibDlyCap)))
+      : 0;
+  }
+
+  // 4. Spor tesisi: günlük spor talebi (~%35 öğrenci), tesisler arasında paylaştır
+  const totalSporDemand = Math.round(totalStudents * 0.35);
+  const totalSporCap    = completedSpor.reduce((s, b) => s + ((b.currentCapacity?.dailyUsers) || 0), 0);
+  for (const b of completedSpor) {
+    if (!b.usedCapacity) b.usedCapacity = {};
+    const du = (b.currentCapacity?.dailyUsers) || 0;
+    b.usedCapacity.dailyUsers = totalSporCap > 0
+      ? Math.min(du, Math.round(totalSporDemand * (du / totalSporCap)))
+      : 0;
+  }
+
+  // 5. Diğer binalar (fakülte, amfi, lab, araştırma merkezi vb. bölüm bazlı)
   for (const building of (state.buildings || [])) {
     if (!building.isCompleted) continue;
+    if (['yurt', 'yemekhane', 'kutuphane', 'spor_tesisi'].includes(building.type)) continue;
     if (!building.usedCapacity) building.usedCapacity = {};
-
-    if (building.type === 'yurt') {
-      // Yurt: toplam öğrencinin ~%40'ı yurtta (kapasite ile sınırlı)
-      const beds = (building.currentCapacity?.beds) || 0;
-      building.usedCapacity.beds = Math.min(beds, Math.round(totalStudents * 0.40));
-
-    } else if (building.type === 'yemekhane') {
-      // Yemekhane: hizmet ettiği öğrenci + hoca sayısı (kapasite ile sınırlı)
-      const dailyMeals = (building.currentCapacity?.dailyMeals) || 0;
-      building.usedCapacity.dailyMeals = Math.min(dailyMeals, totalStudents + totalFaculty);
-
-    } else if (building.type === 'kutuphane') {
-      // Kütüphane: eş zamanlı kullanım ~öğrencilerin %25'i (kapasite ile sınırlı)
-      const sim = (building.currentCapacity?.simultaneous) || 0;
-      const dly = (building.currentCapacity?.daily) || 0;
-      building.usedCapacity.simultaneous = Math.min(sim, Math.round(totalStudents * 0.25));
-      building.usedCapacity.daily        = Math.min(dly, totalStudents);
-
-    } else if (building.type === 'spor_tesisi') {
-      // Spor tesisi: günlük kullanıcı ~öğrencilerin %60'ı (kapasite ile sınırlı)
-      const du = (building.currentCapacity?.dailyUsers) || 0;
-      building.usedCapacity.dailyUsers = Math.min(du, Math.round(totalStudents * 0.60));
-
-    } else {
-      // Fakülte, araştırma merkezi, amfi vb. — bölüm bazlı hesap
-      const usage = calculateBuildingUsage(building, state);
-      building.usedCapacity.classrooms = usage.usedClassrooms;
-      building.usedCapacity.offices    = usage.usedOffices;
-      building.usedCapacity.labs       = usage.usedLabs;
-    }
+    const usage = calculateBuildingUsage(building, state);
+    building.usedCapacity.classrooms = usage.usedClassrooms;
+    building.usedCapacity.offices    = usage.usedOffices;
+    building.usedCapacity.labs       = usage.usedLabs;
   }
 }
 
@@ -456,8 +489,7 @@ function buildAdminUnitStates(totalStudents) {
 // YARDİMCI: İdari personel oluştur
 // ─────────────────────────────────────────────────────────────────────────────
 
-let _adminIdCounter = 1;
-
+// _adminIdCounter removed to avoid save/load collisions
 function _randomAdminName() {
   const pool = STUDENT_NAME_POOL;
   const isMale = Math.random() < 0.5;
@@ -515,7 +547,7 @@ function generateAdminStaffMember(unitId, opts) {
   const salary = randInt(salaryRange.min, salaryRange.max);
 
   return {
-    id: `admin_${_adminIdCounter++}`,
+    id: `admin_${Date.now()}_${Math.floor(Math.random() * 100000)}`,
     name: _randomAdminName(),
     unit: unitId,
     title: resolvedTitle,             // Aday için null; başlangıç/terfi için dolu
@@ -715,17 +747,41 @@ export function getUnitTitleSalary(unitId, title) {
 function _nextUnitTitle(unitId, currentTitle) {
   const titles = ADMIN_UNITS[unitId]?.titles;
   if (!titles) return _nextAdminTitle(currentTitle);
-  const idx = titles.findIndex(t => t.name === currentTitle);
+  let idx = titles.findIndex(t => t.name === currentTitle);
+  if (idx < 0) {
+    let legacyIdx = ADMIN_TITLE_ORDER.indexOf(currentTitle);
+    if (legacyIdx < 0) {
+      if (currentTitle === 'Müdür' || currentTitle.endsWith('Müdürü')) legacyIdx = titles.length - 1;
+      else if (currentTitle === 'Müdür Yrd.' || currentTitle === 'Müdür Yardımcısı' || currentTitle.includes('Müdür Yrd')) legacyIdx = Math.max(0, titles.length - 2);
+      else if (currentTitle === 'Şef') legacyIdx = 2;
+      else if (currentTitle === 'Uzman') legacyIdx = 1;
+      else if (currentTitle === 'Memur') legacyIdx = 0;
+    }
+    if (legacyIdx >= 0 && legacyIdx < titles.length) {
+      idx = legacyIdx;
+    }
+  }
   if (idx < 0 || idx >= titles.length - 1) return null;
   return titles[idx + 1].name;
 }
 
+/** Dışa aktarılan birim üst unvan bulucu */
+export function getNextUnitTitle(unitId, currentTitle) {
+  return _nextUnitTitle(unitId, currentTitle);
+}
+
 /** Bir unvan birim için yönetici seviyesinde mi (son 2 unvan)? */
 export function isUnitManagerTitle(unitId, title) {
+  if (!title) return false;
+  // Eski ve genel unvanları her zaman yönetici say
+  if (title === 'Müdür' || title === 'Müdür Yrd.' || title === 'Müdür Yardımcısı' || title.endsWith('Müdürü') || title.includes('Müdür')) {
+    return true;
+  }
   const titles = ADMIN_UNITS[unitId]?.titles;
-  if (!titles) return title === 'Müdür' || title === 'Müdür Yrd.';
+  if (!titles) return title.includes('Müdür') || title.includes('Amir');
   const idx = titles.findIndex(t => t.name === title);
-  return idx >= titles.length - 2;
+  if (idx >= 0) return idx >= titles.length - 2;
+  return title.includes('Müdür') || title.includes('Amir') || title.includes('Sorumlu') || title.includes('Şef');
 }
 
 /**
@@ -738,7 +794,19 @@ export function isUnitManagerTitle(unitId, title) {
  */
 function _checkPromotionEligibility(staff) {
   const titleNames = getUnitTitles(staff.unit);
-  const idx = titleNames.indexOf(staff.title);
+  let idx = titleNames.indexOf(staff.title);
+  if (idx < 0) {
+    let legIdx = ADMIN_TITLE_ORDER.indexOf(staff.title);
+    if (legIdx < 0) {
+      if (staff.title === 'Müdür' || staff.title.endsWith('Müdürü')) legIdx = 4;
+      else if (staff.title === 'Müdür Yrd.' || staff.title === 'Müdür Yardımcısı') legIdx = 3;
+      else if (staff.title === 'Şef') legIdx = 2;
+      else if (staff.title === 'Uzman') legIdx = 1;
+      else if (staff.title === 'Memur') legIdx = 0;
+    }
+    if (legIdx >= 0 && legIdx < titleNames.length) idx = legIdx;
+  }
+
   const yip = safeNum(staff.yearsInPosition);
   const q   = safeNum(staff.quality);
   const eff = safeNum(staff.efficiency);
@@ -908,6 +976,97 @@ export function promoteAdminStaff(staffId) {
   syncAdminUnitStats(_state.adminUnits, _state.adminStaff, _state.buildings);
   _assignUnitManagers(_state.adminUnits, _state.adminStaff);
   return { success: true, message: `${staff.name} terfi ettirildi: ${nextTitle}` };
+}
+
+/**
+ * Birim yöneticisi varsa ilgili birimdeki (veya yöneticiye sahip tüm birimlerdeki)
+ * terfiye hak kazanmış personelleri otomatik olarak terfi ettirir.
+ * @param {string|null} unitId - Belirli bir birim ID'si veya tüm yöneticiye sahip birimler için null
+ * @returns {{ success: boolean, message: string, promotedCount: number, details: Array }}
+ */
+export function autoPromoteAdminStaff(unitId = null) {
+  if (!_state) return { success: false, message: 'Oyun başlatılmamış.', promotedCount: 0 };
+  const adminUnits = _state.adminUnits || {};
+  const adminStaff = _state.adminStaff || [];
+
+  const targetUnitIds = unitId ? [unitId] : Object.keys(adminUnits);
+  const promotedList = [];
+  let noManagerUnits = 0;
+
+  for (const uid of targetUnitIds) {
+    const unit = adminUnits[uid];
+    if (!unit) continue;
+
+    // Şart: Birimin başında mutlaka bir yönetici (Müdür / Müdür Yrd.) olmalıdır
+    if (!unit.managerId) {
+      noManagerUnits++;
+      continue;
+    }
+
+    // Bu birimdeki terfiye uygun personelleri bul
+    const eligibleStaff = adminStaff.filter(s => {
+      if (s.unit !== uid) return false;
+      if (!s.promotionEligible) return false;
+      const nextTitle = _nextUnitTitle(s.unit, s.title);
+      return !!nextTitle;
+    });
+
+    for (const staff of eligibleStaff) {
+      const res = promoteAdminStaff(staff.id);
+      if (res.success) {
+        promotedList.push({
+          id: staff.id,
+          name: staff.name,
+          unitId: uid,
+          unitName: ADMIN_UNITS[uid]?.name || uid,
+          newTitle: staff.title,
+        });
+      }
+    }
+  }
+
+  if (promotedList.length > 0) {
+    const unitNames = [...new Set(promotedList.map(p => p.unitName))].join(', ');
+    const msg = unitId
+      ? `${adminUnits[unitId]?.managerName || 'Birim Müdürü'} onayıyla ${promotedList.length} personel terfi ettirildi: ${promotedList.map(p => `${p.name} (${p.newTitle})`).join(', ')}`
+      : `Yöneticili birimlerde (${unitNames}) toplam ${promotedList.length} personel otomatik terfi ettirildi!`;
+    return {
+      success: true,
+      message: msg,
+      promotedCount: promotedList.length,
+      details: promotedList,
+    };
+  }
+
+  if (unitId) {
+    const u = adminUnits[unitId];
+    if (!u?.managerId) {
+      return {
+        success: false,
+        message: 'Bu birimin başında henüz bir yönetici bulunmuyor. Otomatik terfi için önce birim yöneticisi atanmalıdır.',
+        promotedCount: 0,
+      };
+    }
+    return {
+      success: false,
+      message: `${u.managerName || 'Birim Müdürü'}: "Bu birimde şu an terfi koşullarını sağlayan personel bulunmuyor."`,
+      promotedCount: 0,
+    };
+  }
+
+  if (noManagerUnits > 0 && promotedList.length === 0) {
+    return {
+      success: false,
+      message: 'Yöneticisi olan birimlerde terfi bekleyen personel bulunamadı. (Yöneticisiz birimler için önce yönetici atamalısınız)',
+      promotedCount: 0,
+    };
+  }
+
+  return {
+    success: false,
+    message: 'Terfi bekleyen idari personel bulunamadı.',
+    promotedCount: 0,
+  };
 }
 
 /**
@@ -1696,6 +1855,9 @@ export function initGame(playerName, universityName, universityType, difficulty,
       _state.university.totalDebt = (_state.university.totalDebt || 0) + _initDebtAmount;
       // TODO: creditorPressure (2_000_000/dönem min ödeme zorunluluğu) henüz uygulanmıyor.
     }
+    // Yeni oyun olduğu için tekrar migration çalışmasın
+    _state.university._inheritedLoanMigrated = true;
+
     // Yıpranmış binalar (agingInfrastructure)
     if (scenario.specialRules?.agingInfrastructure) {
       _state.buildings.forEach(b => {
@@ -1971,6 +2133,44 @@ export function assignCourses(state) {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+// getDepartmentStudentCapacity — Bölümün bina derslik kapasitesini hesapla
+// ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * Bir bölümün fiziksel öğrenci kapasitesini hesaplar.
+ * Kampüste bölüme atanmış tamamlanmış binaların (Fakülte Binası, Amfi vb.) derslik koltuklarını toplar.
+ * Bina atanmamışsa veya derslik yoksa bölümün taban studentCapacity (100) değerini döndürür.
+ *
+ * @param {object} dept  - Bölüm nesnesi
+ * @param {object} state - Oyun durumu
+ * @returns {number}
+ */
+export function getDepartmentStudentCapacity(dept, state) {
+  if (!dept) return 100;
+  if (!state) return dept.studentCapacity || 100;
+
+  const completedBuildings = (state.buildings || []).filter(b => b.isCompleted);
+  let seats = 0;
+  for (const b of completedBuildings) {
+    const assigned = b.assignedDepartments || [];
+    if (assigned.includes(dept.id)) {
+      const bldgDef    = BUILDINGS[b.type];
+      const bLevel     = b.level || 1;
+      const classrooms = b.currentCapacity?.classrooms
+        ?? (_buildingCapacityAtLevel(bldgDef, bLevel)?.classrooms || 0);
+      const szByLvl    = bldgDef?.classroomSizeByLevel;
+      const clsSize    = szByLvl
+        ? (szByLvl[bLevel] ?? szByLvl[1] ?? bldgDef?.classroomSize ?? 40)
+        : (bldgDef?.classroomSize ?? 40);
+      const bldgSeats  = classrooms * clsSize;
+      seats += assigned.length > 1 ? Math.floor(bldgSeats / assigned.length) : bldgSeats;
+    }
+  }
+
+  return seats > 0 ? seats : (dept.studentCapacity || 100);
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 // calculateDepartmentStats — Bölüm ve ders istatistiklerini hesapla
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -2010,7 +2210,7 @@ export function calculateDepartmentStats(state) {
 
     let totalDropouts = totalEnrolled * 0.02;  // yaklaşık bırakma tahmini
 
-    const capacity = dept.studentCapacity || 100;
+    const capacity = getDepartmentStudentCapacity(dept, state);
 
     // ── Bölüm hocaları ────────────────────────────────────────────────────────
     const deptFaculty = state.faculty.filter(f => (f.department || f.departmentId) === dept.id);
@@ -2409,6 +2609,9 @@ function _generateExternalCalls(state) {
       prestigeReward:   template.prestigeReward,
       publicationBonus: template.publicationBonus,
       baseSuccessChance: template.baseSuccessChance,
+      overheadRate:      template.overheadRate ?? null,
+      isPrivateSector:   template.isPrivateSector || false,
+      isEuProject:       template.isEuProject || template.id === 'horizon_europe' || false,
     });
   }
 }
@@ -2515,10 +2718,11 @@ function _generateFacultyApplications(state) {
           facultyName:           `${titleStr} ${f.name}`,
           facultyTitle:          f.title,
           facultyDept:           f.department,
-          callId:                call.id,
+          callId:                call.typeId || call.id,
           callType:              call.name,
           callIcon:              call.icon,
-          isPrivateSector:       call.isPrivateSector || false,
+          isEuProject:           call.isEuProject || isEuProject(call) || false,
+          isPrivateSector:       call.isPrivateSector || isIndustryProject(call) || false,
           callOverheadRate:      call.overheadRate ?? null,
           projectName,
           requestedFunding:      reqFunding,
@@ -2556,6 +2760,60 @@ function _generateFacultyApplications(state) {
 }
 
 /**
+ * Üniversite araştırma metriklerini (yayınlar, atıflar, H-Index, araştırma skoru) hesaplar ve günceller.
+ * @param {object} state
+ */
+export function updateResearchMetrics(state) {
+  if (!state) return;
+  if (!state.research) {
+    state.research = {
+      activeProjects: [],
+      activeResearchProjects: [],
+      completedProjects: [],
+      pendingProjectApplications: [],
+      externalCalls: [],
+      activeBapCall: null,
+      bapApplications: [],
+      publications: 0,
+      patents: 0,
+      patentRoyalties: 0,
+      totalCitations: 0,
+      hIndex: 0,
+      tubitakProjects: 0,
+      euProjects: 0,
+    };
+  }
+  const faculty = state.faculty || [];
+
+  // 1. Kadrodaki hocaların atıf ve hIndex bütünlüğü
+  faculty.forEach(f => {
+    if (f.citations == null || (f.citations === 0 && (f.publications || 0) > 0)) {
+      const pubs = f.publications || 1;
+      const mult = 3.5 + Math.random() * 3.5;
+      f.citations = Math.max(1, Math.round(pubs * mult));
+    }
+    f.hIndex = Math.floor(Math.sqrt(f.citations || 0));
+  });
+
+  // 2. Üniversite toplam atıfları
+  state.research.totalCitations = faculty.reduce((s, f) => s + (f.citations || 0), 0);
+
+  // 3. Üniversite H-Index:
+  // Akademik kadronun ortalama H-indeksi (THE ve ulusal sıralamadaki 'h-indeks ortalaması' metriği)
+  if (faculty.length > 0) {
+    const avgH = faculty.reduce((s, f) => s + (f.hIndex || 0), 0) / faculty.length;
+    state.research.hIndex = Math.round(avgH * 10) / 10;
+  } else {
+    state.research.hIndex = 0;
+  }
+
+  // 4. Ulusal araştırma skoru
+  if (typeof calculateResearchScore === 'function') {
+    state.research.researchScore = calculateResearchScore(state);
+  }
+}
+
+/**
  * Aktif araştırma projelerini dönem sonunda ilerletir.
  * @param {object} state
  * @param {object} results — simülasyon sonuçları
@@ -2576,7 +2834,19 @@ function _advanceActiveProjects(state, results) {
         state.university.budget   = (isNaN(state.university.budget) ? 0 : state.university.budget)
           + (isNaN(projFunding) ? 0 : projFunding);
         state.university.prestige = Math.min(MAX_PRESTIGE, (state.university.prestige || 0) + (proj.prestigeReward || 0));
-        state.research.publications = (state.research.publications || 0) + (proj.publicationBonus || proj.estimatedPublications || 1);
+        const pubCount = (proj.publicationBonus || proj.estimatedPublications || 1);
+        state.research.publications = (state.research.publications || 0) + pubCount;
+
+        // Bireysel hoca yayın ve atıf sayısını da güncelle
+        if (proj.piId) {
+          const faculty = state.faculty.find(f => f.id === proj.piId);
+          if (faculty) {
+            faculty.publications = (faculty.publications || 0) + pubCount;
+            const projCits = Math.round(pubCount * (4 + Math.random() * 6));
+            faculty.citations = (faculty.citations || 0) + projCits;
+            faculty.hIndex = Math.floor(Math.sqrt(faculty.citations));
+          }
+        }
 
         // Patent üretimi
         if (!state.research.patents) state.research.patents = 0;
@@ -2599,6 +2869,11 @@ function _advanceActiveProjects(state, results) {
         // Patent royalty azalması (3 yıl → 6 dönem sonra süresi dolabilir, basitçe %10/dönem azalt)
         if (state.research.patentRoyalties > 0) {
           state.research.patentRoyalties = Math.round(state.research.patentRoyalties * 0.97);
+        }
+
+        // AB / Horizon projesi tamamlandığında state sayacını artır
+        if (isEuProject(proj)) {
+          state.research.euProjects = (state.research.euProjects || 0) + 1;
         }
 
         results.events.push({
@@ -3001,15 +3276,29 @@ function runSimulation() {
       const teachingStatVal = (f.stats && f.stats.teaching) || f.teachingScore || 40;
       const avgStat = (researchStatVal + teachingStatVal + ((f.stats && f.stats.management) || 40)) / 3;
 
-      // ── Yüksek araştırma statına göre ek yayın şansı (yıldız hoca etkisi) ──
+      // ── Yüksek araştırma statına ve araştırma bütçesine göre ek yayın şansı ──
+      const fundPubBonus  = Math.min(0.35, Math.max(0, ((_state.researchBudgetPerFaculty || 50_000) - 50_000) / 400_000));
       const baseChance    = (dept.avgPublicationPerFaculty / 2) * (researchStatVal / 100);
       // Araştırma 80+ ise ekstra +%30 yayın şansı
       const starBonus     = researchStatVal >= 80 ? 0.30 : researchStatVal >= 70 ? 0.15 : 0;
-      const pubChance     = Math.min(0.95, baseChance * (1 + starBonus));
+      const pubChance     = Math.min(0.95, baseChance * (1 + starBonus + fundPubBonus));
       if (Math.random() < pubChance) {
         f.publications = (f.publications || 0) + 1;
         newPubs++;
         _state.research.publications++;
+        const initialCits = Math.max(1, Math.round((1 + Math.random() * 4) * (researchStatVal / 50)));
+        f.citations = (f.citations || 0) + initialCits;
+        f.hIndex = Math.floor(Math.sqrt(f.citations));
+      }
+
+      // ── Dönemlik doğal atıf birikimi (yayınların akademik dünyada atıf alması) ──
+      const pubs = f.publications || 1;
+      const presFactor = 1 + ((_state.university?.prestige || 30) / 150);
+      const citGainRate = (0.04 + (researchStatVal / 100) * 0.16) * presFactor;
+      const turnCits = Math.max(0, Math.round(pubs * citGainRate * (0.7 + Math.random() * 0.6)));
+      if (turnCits > 0) {
+        f.citations = (f.citations || 0) + turnCits;
+        f.hIndex = Math.floor(Math.sqrt(f.citations));
       }
 
       // ── Yıldız hoca: eğitim etkisi → öğrenci memnuniyetine katkı ──
@@ -3183,6 +3472,9 @@ function runSimulation() {
     change.actions.forEach(msg => results.events.push({ type: 'rival_action', message: msg }));
   });
 
+  // ── 7a. ARAŞTIRMA METRİKLERİ (Yayınlar, Atıflar, H-Index) GÜNCELLE ─────────
+  updateResearchMetrics(_state);
+
   // ── 7b. SIRALAMA HESABI ────────────────────────────────────────────────────
   // updateRivals rakip prestige'lerini günceller; sonrasinda tum universiteleri
   // (player + rakipler) prestige'e gore sirala. Bu cagri olmadigi icin
@@ -3317,6 +3609,9 @@ function runSimulation() {
     // Tarihçeyi max 10 dönem sakla
     f.ratingHistory.push({ semester: _state.meta.turn, rating: newRating });
     if (f.ratingHistory.length > 10) f.ratingHistory.shift();
+
+    // Memnuniyeti tam sayıya yuvarla (floating point hatalarını önlemek için)
+    f.happiness = Math.round(f.happiness ?? 60);
   });
 
   // ── Feature 1: LİSANSÜSTÜ SİMÜLASYONU ────────────────────────────────────
@@ -3652,22 +3947,22 @@ export const AVAILABLE_NEW_DEPARTMENTS = [
   { id: 'mekatronik',       name: 'Mekatronik Müh.',                 faculty: 'muhendislik', category: 'muhendislik',  icon: '🤖',  minFaculty: 3, cost: 2_800_000 },
   { id: 'cevre_muh',        name: 'Çevre Mühendisliği',             faculty: 'muhendislik', category: 'muhendislik',  icon: '🌿',  minFaculty: 3, cost: 2_200_000 },
   { id: 'gida_muh',         name: 'Gıda Mühendisliği',              faculty: 'muhendislik', category: 'muhendislik',  icon: '🍎',  minFaculty: 3, cost: 2_000_000 },
-  { id: 'fizik',            name: 'Fizik',                           faculty: 'muhendislik', category: 'temel_bilim',  icon: '⚛️', minFaculty: 3, cost: 11_000_000 },
-  { id: 'kimya',            name: 'Kimya',                           faculty: 'muhendislik', category: 'temel_bilim',  icon: '🧪',  minFaculty: 3, cost: 10_500_000 },
-  { id: 'matematik',        name: 'Matematik',                       faculty: 'muhendislik', category: 'temel_bilim',  icon: '∑',   minFaculty: 3, cost: 6_000_000 },
-  { id: 'biyoloji',         name: 'Biyoloji',                        faculty: 'muhendislik', category: 'temel_bilim',  icon: '🧬',  minFaculty: 3, cost: 9_000_000 },
+  { id: 'fizik',            name: 'Fizik',                           faculty: 'fen_edebiyat', category: 'temel_bilim',  icon: '⚛️', minFaculty: 3, cost: 11_000_000 },
+  { id: 'kimya',            name: 'Kimya',                           faculty: 'fen_edebiyat', category: 'temel_bilim',  icon: '🧪',  minFaculty: 3, cost: 10_500_000 },
+  { id: 'matematik',        name: 'Matematik',                       faculty: 'fen_edebiyat', category: 'temel_bilim',  icon: '∑',   minFaculty: 3, cost: 6_000_000 },
+  { id: 'biyoloji',         name: 'Biyoloji',                        faculty: 'fen_edebiyat', category: 'temel_bilim',  icon: '🧬',  minFaculty: 3, cost: 9_000_000 },
   { id: 'mimarlik',         name: 'Mimarlık',                        faculty: 'mimarlik',    category: 'mimarlik',     icon: '🏛️', minFaculty: 3, cost: 2_500_000 },
   { id: 'tip',              name: 'Tıp',                             faculty: 'tip',         category: 'saglik',       icon: '🏥',  minFaculty: 5, cost: 15_000_000 },
-  { id: 'eczacilik',        name: 'Eczacılık',                       faculty: 'eczacilik',   category: 'saglik',       icon: '💊',  minFaculty: 4, cost: 5_000_000 },
-  { id: 'dis_hekimligi',    name: 'Diş Hekimliği',                  faculty: 'dis_hekim',   category: 'saglik',       icon: '🦷',  minFaculty: 4, cost: 6_000_000 },
-  { id: 'hemsirelik',       name: 'Hemşirelik',                      faculty: 'saglik',      category: 'saglik',       icon: '🏥',  minFaculty: 3, cost: 5_000_000 },
+  { id: 'eczacilik',        name: 'Eczacılık',                       faculty: 'tip',         category: 'saglik',       icon: '💊',  minFaculty: 4, cost: 5_000_000 },
+  { id: 'dis_hekimligi',    name: 'Diş Hekimliği',                  faculty: 'tip',         category: 'saglik',       icon: '🦷',  minFaculty: 4, cost: 6_000_000 },
+  { id: 'hemsirelik',       name: 'Hemşirelik',                      faculty: 'tip',         category: 'saglik',       icon: '🏥',  minFaculty: 3, cost: 5_000_000 },
   { id: 'isletme',          name: 'İşletme',                         faculty: 'isletme',     category: 'sosyal',       icon: '📈',  minFaculty: 3, cost: 1_800_000 },
   { id: 'iktisat',          name: 'İktisat',                         faculty: 'isletme',     category: 'sosyal',       icon: '💰',  minFaculty: 3, cost: 1_800_000 },
   { id: 'hukuk',            name: 'Hukuk',                           faculty: 'hukuk',       category: 'sosyal',       icon: '⚖️', minFaculty: 3, cost: 8_000_000 },
-  { id: 'psikoloji',        name: 'Psikoloji',                       faculty: 'sosyal',      category: 'sosyal',       icon: '🧠',  minFaculty: 3, cost: 6_000_000 },
+  { id: 'psikoloji',        name: 'Psikoloji',                       faculty: 'fen_edebiyat', category: 'sosyal',       icon: '🧠',  minFaculty: 3, cost: 6_000_000 },
   { id: 'siyaset_bilimi',   name: 'Siyaset Bilimi',                  faculty: 'isletme',     category: 'sosyal',       icon: '🏛️', minFaculty: 3, cost: 1_500_000 },
   { id: 'iletisim',         name: 'İletişim',                        faculty: 'iletisim',    category: 'sosyal',       icon: '📡',  minFaculty: 3, cost: 1_500_000 },
-  { id: 'guzel_sanatlar',   name: 'Güzel Sanatlar',                  faculty: 'guzel_sanat', category: 'sanat',        icon: '🎨',  minFaculty: 3, cost: 1_500_000 },
+  { id: 'guzel_sanatlar',   name: 'Güzel Sanatlar',                  faculty: 'guzel_sanatlar', category: 'sanat',      icon: '🎨',  minFaculty: 3, cost: 1_500_000 },
 ];
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -3681,8 +3976,32 @@ export const AVAILABLE_NEW_DEPARTMENTS = [
  */
 export function nextTurn() {
   if (!_state) throw new Error('Oyun başlatılmamış. Önce initGame() çağırın.');
+
+  // Hatalı senaryo erken zaferi bayrağını güvenceye al ve onar
+  const scWinPre = _state?.meta?.scenarioWinCondition;
+  if (scWinPre?.type === 'ranking') {
+    const isWorldTarget = scWinPre.isWorld || scWinPre.target > 6;
+    const curWorldRank  = _state.university?.intlRanking || 999;
+    if (isWorldTarget && curWorldRank > scWinPre.target) {
+      _gameWon = false;
+      if (_state._internal) {
+        _state._internal.gameWon = false;
+        _state._internal.endMessage = null;
+      }
+    }
+  } else if (!scWinPre && !_state?.meta?.isSandbox) {
+    if (_state?._internal?.gameWon && _state._internal?.endMessage?.includes('ulusal sıralamada 1.')) {
+      _gameWon = false;
+      if (_state._internal) {
+        _state._internal.gameWon = false;
+        _state._internal.endMessage = null;
+      }
+    }
+  }
+
   if (_gameOver || _gameWon) {
-    return { gameOver: _gameOver, gameWon: _gameWon, message: 'Oyun zaten bitti.' };
+    const msg = _state._internal?.endMessage || (_gameWon ? '🏆 Oyun kazanıldı.' : 'Oyun bitti.');
+    return { gameOver: _gameOver, gameWon: _gameWon, message: msg };
   }
 
   // Bekleyen karar varsa tur geçişine izin verme
@@ -3930,8 +4249,9 @@ export function checkAccreditationRequirements(state, dept, body) {
   // Müfredat kapsaması: assignCourses sonuçlarından veya educationQuality'den türet
   const curriculumCoverage = Math.min(1, (dept.educationQuality ?? 50) / 100 + 0.2);
 
+  const totalPubs = deptFaculty.reduce((s, f) => s + (f.publications || 0), 0);
   const avgPubPerFaculty = deptFaculty.length > 0
-    ? (dept.avgPublicationPerFaculty ?? 0)
+    ? totalPubs / deptFaculty.length
     : 0;
 
   const checks = [
@@ -4039,18 +4359,15 @@ export function applyForAccreditation(deptId, bodyId) {
   const acc = dept.accreditation[bodyId];
   if (!acc) return { success: false, message: 'Akreditasyon verisi bulunamadı.' };
 
-  if (acc.status === 'applied' || acc.status === 'under_review') {
+  if (acc.status === 'applied' || acc.status === 'under_review' || acc.isRenewing) {
     return { success: false, message: `${body.name} başvurusu zaten devam ediyor.` };
   }
   if (acc.status === 'granted') {
-    // Süresi yaklaştıysa (son 2 dönem) erken yenileme kabul edilir; UI bu noktada
-    // "Yenile" butonu gösteriyor (Erdinç raporu — eskiden "zaten mevcut" reddediliyordu).
+    // Süresi yaklaştıysa (son 2 dönem) erken yenileme kabul edilir
     const remaining = (acc.expiresAt != null) ? (acc.expiresAt - _state.meta.turn) : null;
     if (remaining == null || remaining > 2) {
       return { success: false, message: `${body.name} akreditasyonu zaten mevcut. Yenileme son 2 dönem kalınca yapılabilir.` };
     }
-    // Erken yenileme: renewal maliyeti, status applied'a alınır, mevcut granted süresi
-    // değerlendirme bitene kadar korunur; yeni dönem grantedAt/expiresAt simulasyonda set edilir.
   }
 
   const isRenewal = (acc.status === 'expired' || acc.status === 'granted');
@@ -4060,14 +4377,30 @@ export function applyForAccreditation(deptId, bodyId) {
   }
 
   _state.university.budget -= cost;
+
+  const processTime = body.processingTime.min +
+    Math.floor(Math.random() * (body.processingTime.max - body.processingTime.min + 1));
+
+  if (acc.status === 'granted') {
+    // Erken yenileme: granted statüsü KORUNUR, sıralama ve YKS bonusu kesintiye uğramaz!
+    acc.isRenewing = true;
+    acc.renewalAppliedAt = _state.meta.turn;
+    acc.renewalProcessTime = processTime;
+    return {
+      success: true,
+      message: `${dept.name} bölümü için ${body.name} yenileme başvurusu yapıldı. Mevcut akreditasyonunuz korunurken değerlendirme ${processTime} dönem sürecek.`,
+    };
+  }
+
+  // İlk başvuru veya süresi dolmuş başvuru
   acc.status = 'applied';
   acc.appliedAt = _state.meta.turn;
-  acc.processTime = body.processingTime.min +
-    Math.floor(Math.random() * (body.processingTime.max - body.processingTime.min + 1));
+  acc.processTime = processTime;
+  acc.isRenewing = false;
 
   return {
     success: true,
-    message: `${dept.name} bölümü için ${body.name} başvurusu yapıldı. Değerlendirme ${acc.processTime} dönem sürecek.`,
+    message: `${dept.name} bölümü için ${body.name} başvurusu yapıldı. Değerlendirme ${processTime} dönem sürecek.`,
   };
 }
 
@@ -4084,35 +4417,78 @@ function _processAccreditations(state, results) {
       const body = ACCREDITATION_BODIES[bodyId];
       if (!body) return;
 
-      // Başvuru değerlendirme
-      if (acc.status === 'applied') {
-        const elapsed = state.meta.turn - acc.appliedAt;
-        const pt = acc.processTime || body.processingTime.min;
+      // 1. Aktif akreditasyon yenileme değerlendirmesi
+      if (acc.status === 'granted' && acc.isRenewing) {
+        const renewalStart = acc.renewalAppliedAt || acc.appliedAt || state.meta.turn;
+        const elapsed = state.meta.turn - renewalStart;
+        const pt = acc.renewalProcessTime || acc.processTime || body.processingTime.min;
         if (elapsed >= pt) {
           const reqResult = checkAccreditationRequirements(state, dept, body);
           if (reqResult.allMet) {
-            acc.status = 'granted';
+            acc.isRenewing = false;
+            acc.renewalAppliedAt = null;
+            acc.renewalProcessTime = null;
             acc.grantedAt = state.meta.turn;
-            acc.expiresAt = state.meta.turn + body.duration;
+            acc.expiresAt = Math.max(acc.expiresAt || 0, state.meta.turn) + body.duration;
+            const renewalPrestige = Math.round(body.prestigeBonus * 0.75);
             state.university.prestige = Math.min(MAX_P,
-              (state.university.prestige || 0) + body.prestigeBonus
+              (state.university.prestige || 0) + renewalPrestige
             );
             results.events.push({
               type: 'accreditation_granted',
-              description: `🏅 ${dept.name} bölümü ${body.name} akreditasyonu aldı! (+${body.prestigeBonus} saygınlık)`,
+              description: `🏅 ${dept.name} bölümü ${body.name} akreditasyonu başarıyla yenilendi! (${body.duration} dönem uzatıldı, +${renewalPrestige} saygınlık)`,
             });
           } else {
-            acc.status = 'rejected';
+            acc.isRenewing = false;
+            acc.renewalAppliedAt = null;
+            acc.renewalProcessTime = null;
             results.events.push({
               type: 'accreditation_rejected',
-              description: `⚠️ ${dept.name} bölümünün ${body.name} başvurusu reddedildi.`,
+              description: `⚠️ ${dept.name} bölümünün ${body.name} akreditasyon yenileme başvurusu onaylanmadı. Mevcut akreditasyon süresi bitene kadar geçerlidir.`,
             });
           }
         }
       }
 
-      // Süre dolumu kontrolü
-      if (acc.status === 'granted' && acc.expiresAt != null && state.meta.turn >= acc.expiresAt) {
+      // 2. İlk başvuru veya süresi dolmuş başvuru değerlendirme
+      else if (acc.status === 'applied') {
+        // Otomatik onarım: süresi dolmadan önce yenilenmeye gönderilmişse granted + isRenewing'e çevir
+        if (acc.grantedAt != null && acc.expiresAt != null && acc.expiresAt > state.meta.turn) {
+          acc.status = 'granted';
+          acc.isRenewing = true;
+          acc.renewalAppliedAt = acc.appliedAt || state.meta.turn;
+          acc.renewalProcessTime = acc.processTime || body.processingTime.min;
+        } else {
+          const elapsed = state.meta.turn - (acc.appliedAt || state.meta.turn);
+          const pt = acc.processTime || body.processingTime.min;
+          if (elapsed >= pt) {
+            const reqResult = checkAccreditationRequirements(state, dept, body);
+            if (reqResult.allMet) {
+              acc.status = 'granted';
+              acc.isRenewing = false;
+              acc.grantedAt = state.meta.turn;
+              acc.expiresAt = state.meta.turn + body.duration;
+              state.university.prestige = Math.min(MAX_P,
+                (state.university.prestige || 0) + body.prestigeBonus
+              );
+              results.events.push({
+                type: 'accreditation_granted',
+                description: `🏅 ${dept.name} bölümü ${body.name} akreditasyonu aldı! (+${body.prestigeBonus} saygınlık)`,
+              });
+            } else {
+              acc.status = 'rejected';
+              acc.isRenewing = false;
+              results.events.push({
+                type: 'accreditation_rejected',
+                description: `⚠️ ${dept.name} bölümünün ${body.name} başvurusu reddedildi.`,
+              });
+            }
+          }
+        }
+      }
+
+      // 3. Süre dolumu kontrolü (yenileme değerlendirmesi sürüyorsa süre dolumu ertelenir)
+      if (acc.status === 'granted' && !acc.isRenewing && acc.expiresAt != null && state.meta.turn >= acc.expiresAt) {
         acc.status = 'expired';
         const penalty = Math.floor(body.prestigeBonus / 2);
         state.university.prestige = Math.max(0, (state.university.prestige || 0) - penalty);
@@ -4122,8 +4498,8 @@ function _processAccreditations(state, results) {
         });
       }
 
-      // Yaklaşan süre uyarısı (2 dönem kala)
-      if (acc.status === 'granted' && acc.expiresAt != null &&
+      // 4. Yaklaşan süre uyarısı (2 dönem kala ve henüz yenileme başvurusu yapılmamışsa)
+      if (acc.status === 'granted' && !acc.isRenewing && acc.expiresAt != null &&
           (acc.expiresAt - state.meta.turn) === 2) {
         results.events.push({
           type: 'accreditation_expiring_soon',
@@ -4143,7 +4519,7 @@ export function getAccreditationYKSBonus(dept) {
   if (!dept.accreditation) return 0;
   let bonus = 0;
   Object.entries(dept.accreditation).forEach(([bodyId, acc]) => {
-    if (acc.status === 'granted') {
+    if (isAccredited(acc)) {
       const body = ACCREDITATION_BODIES[bodyId];
       if (body) bonus += (body.yksBonus || 0);
     }
@@ -4187,11 +4563,12 @@ export function checkWinLose() {
   if (_state.university.loanDefault === true || _state._internal?.bankruptcyTriggered) {
     _gameOver = true;
     _state._internal.gameOver = true;
+    _state._internal.endMessage = 'Üniversite iflas etti! Bir kredi 3 dönem üst üste ödenemedi.';
     return {
       gameOver: true,
       gameWon:  false,
       reason:   'bankruptcy',
-      message:  'Üniversite iflas etti! Bir kredi 3 dönem üst üste ödenemedi.',
+      message:  _state._internal.endMessage,
     };
   }
 
@@ -4220,11 +4597,12 @@ export function checkWinLose() {
   if (_state._internal.consecutiveLowStudentTurns >= STUDENT_TURNS_LIMIT) {
     _gameOver = true;
     _state._internal.gameOver = true;
+    _state._internal.endMessage = `Öğrenci sayısı ${STUDENT_TURNS_LIMIT} dönem boyunca kapasitenin %25'inin altında kaldı. Üniversite kapandı.`;
     return {
       gameOver: true,
       gameWon:  false,
       reason:   'enrollment_collapse',
-      message:  `Öğrenci sayısı ${STUDENT_TURNS_LIMIT} dönem boyunca kapasitenin %25'inin altında kaldı. Üniversite kapandı.`,
+      message:  _state._internal.endMessage,
     };
   }
 
@@ -4239,24 +4617,46 @@ export function checkWinLose() {
       if (scenarioWin.type === 'prestige' && _state.university.prestige >= scenarioWin.target) {
         _gameWon = true;
         _state._internal.gameWon = true;
+        _state._internal.endMessage = `Senaryo tamamlandı! Üniversitenizin saygınlığı ${_state.university.prestige}'e ulaştı. Hedef: ${scenarioWin.target}`;
         return {
           gameOver: false,
           gameWon:  true,
           reason:   'scenario_prestige',
-          message:  `Senaryo tamamlandı! Üniversitenizin saygınlığı ${_state.university.prestige}'e ulaştı. Hedef: ${scenarioWin.target}`,
+          message:  _state._internal.endMessage,
         };
       }
 
       // Senaryo: sıralama hedefi (düşük sayı daha iyi)
-      if (scenarioWin.type === 'ranking' && _state.university.ranking <= scenarioWin.target) {
-        _gameWon = true;
-        _state._internal.gameWon = true;
-        return {
-          gameOver: false,
-          gameWon:  true,
-          reason:   'scenario_ranking',
-          message:  `Senaryo tamamlandı! Üniversiteniz ${_state.university.ranking}. sıraya yükseldi. Hedef: İlk ${scenarioWin.target}`,
-        };
+      if (scenarioWin.type === 'ranking') {
+        const isWorldTarget = scenarioWin.isWorld || scenarioWin.target > 6;
+        let currentRank = isWorldTarget
+          ? _state.university.intlRanking
+          : _state.university.ranking;
+
+        if (isWorldTarget && !currentRank) {
+          try {
+            const intlPillars = calculateIntlPillars(_state);
+            const intlTotal   = calculateIntlTotalScore(intlPillars, THE_2024.pillarsWeights);
+            currentRank       = findIntlRank(intlTotal, THE_2024);
+            _state.university.intlRanking = currentRank;
+          } catch (_) {
+            currentRank = 999;
+          }
+        }
+
+        const rankLabel = isWorldTarget ? 'Dünya sıralamasında' : 'ulusal sıralamada';
+
+        if (currentRank && currentRank <= scenarioWin.target) {
+          _gameWon = true;
+          _state._internal.gameWon = true;
+          _state._internal.endMessage = `Senaryo tamamlandı! Üniversiteniz ${rankLabel} ${currentRank}. sıraya yükseldi. Hedef: İlk ${scenarioWin.target}`;
+          return {
+            gameOver: false,
+            gameWon:  true,
+            reason:   'scenario_ranking',
+            message:  _state._internal.endMessage,
+          };
+        }
       }
 
       // Senaryo: ardışık pozitif bütçe dönemleri
@@ -4269,11 +4669,12 @@ export function checkWinLose() {
         if (_state.meta.scenarioPositiveTurns >= (scenarioWin.consecutiveTurns || 10)) {
           _gameWon = true;
           _state._internal.gameWon = true;
+          _state._internal.endMessage = `Senaryo tamamlandı! Üniversite ${scenarioWin.consecutiveTurns} dönem boyunca pozitif bütçeyle yönetildi.`;
           return {
             gameOver: false,
             gameWon:  true,
             reason:   'scenario_budget_positive',
-            message:  `Senaryo tamamlandı! Üniversite ${scenarioWin.consecutiveTurns} dönem boyunca pozitif bütçeyle yönetildi.`,
+            message:  _state._internal.endMessage,
           };
         }
       }
@@ -4282,11 +4683,12 @@ export function checkWinLose() {
       if (scenarioWin.maxTurns && turn > scenarioWin.maxTurns) {
         _gameOver = true;
         _state._internal.gameOver = true;
+        _state._internal.endMessage = `Senaryo başarısız! ${scenarioWin.maxTurns} dönem içinde hedefe ulaşılamadı.`;
         return {
           gameOver: true,
           gameWon:  false,
           reason:   'scenario_timeout',
-          message:  `Senaryo başarısız! ${scenarioWin.maxTurns} dönem içinde hedefe ulaşılamadı.`,
+          message:  _state._internal.endMessage,
         };
       }
     } else {
@@ -4296,23 +4698,25 @@ export function checkWinLose() {
       if (_state.university.prestige >= 90) {
         _gameWon = true;
         _state._internal.gameWon = true;
+        _state._internal.endMessage = `Tebrikler! Üniversitenizin saygınlık puanı ${_state.university.prestige}'e ulaştı.`;
         return {
           gameOver: false,
           gameWon:  true,
           reason:   'prestige_max',
-          message:  `Tebrikler! Üniversitenizin saygınlık puanı ${_state.university.prestige}'e ulaştı.`,
+          message:  _state._internal.endMessage,
         };
       }
 
-      // Kazanma 2: Sıralama 1. oldu
-      if (_state.university.ranking === 1) {
+      // Kazanma 2: Sıralama 1. oldu (Dünya Zirvesi)
+      if (_state.university.intlRanking === 1) {
         _gameWon = true;
         _state._internal.gameWon = true;
+        _state._internal.endMessage = 'Tebrikler! Üniversiteniz Dünya Sıralamasında 1. sıraya (Zirveye) yükseldi!';
         return {
           gameOver: false,
           gameWon:  true,
           reason:   'ranking_first',
-          message:  'Tebrikler! Üniversiteniz ulusal sıralamada 1. sıraya yükseldi!',
+          message:  _state._internal.endMessage,
         };
       }
     }
@@ -4507,7 +4911,17 @@ export function getTurnSummary(simResults = {}) {
     facultyHappiness: totalFacultyHappiness,
     openDepartments: _state.departments.filter(d => d.isOpen).length,
 
-    events:   simResults.events ?? [],
+    events:   (() => {
+      const evs = simResults.events ?? [];
+      const lowTurns = _state._internal?.consecutiveLowStudentTurns || 0;
+      if (lowTurns > 0 && lowTurns < 6) {
+        evs.push({
+          type: 'warning',
+          description: `⚠️ Uyarı: Öğrenci sayısı kapasitenin %25'inin altında! Bu durum ${6 - lowTurns} dönem daha devam ederse üniversite kapatılacak.`,
+        });
+      }
+      return evs;
+    })(),
     gameOver: _gameOver,
     gameWon:  _gameWon,
 
@@ -4533,6 +4947,46 @@ export function getTurnSummary(simResults = {}) {
 // ─────────────────────────────────────────────────────────────────────────────
 
 /**
+ * İdari personel ve birimlerin veri bütünlüğünü sağlar:
+ * - Eski/ortak unvanları (Memur, Uzman, Şef, Müdür Yrd., Müdür) birim bazlı unvanlara dönüştürür.
+ * - Yöneticisi atanmamış birimlere en uygun personeli (Müdür / Müdür Yrd. / en üst 2 unvan) otomatik atar.
+ * - Terfi uygunluklarını birim hiyerarşisine göre günceller.
+ */
+function _ensureAdminStaffIntegrity(state) {
+  if (!state || !Array.isArray(state.adminStaff) || !state.adminUnits) return;
+
+  for (const s of state.adminStaff) {
+    const unitTitles = ADMIN_UNITS[s.unit]?.titles;
+    if (!unitTitles) continue;
+    const unitTitleNames = unitTitles.map(t => t.name);
+
+    if (!unitTitleNames.includes(s.title)) {
+      let targetIdx = ADMIN_TITLE_ORDER.indexOf(s.title);
+      if (targetIdx < 0) {
+        if (s.title === 'Müdür' || s.title.endsWith('Müdürü')) targetIdx = unitTitleNames.length - 1;
+        else if (s.title === 'Müdür Yrd.' || s.title === 'Müdür Yardımcısı' || s.title.includes('Müdür Yrd')) targetIdx = Math.max(0, unitTitleNames.length - 2);
+        else if (s.title === 'Şef') targetIdx = 2;
+        else if (s.title === 'Uzman') targetIdx = 1;
+        else if (s.title === 'Memur') targetIdx = 0;
+      }
+      if (targetIdx >= 0 && targetIdx < unitTitleNames.length) {
+        const oldTitle = s.title;
+        s.title = unitTitleNames[targetIdx];
+        console.log(`[game] _ensureAdminStaffIntegrity: ${s.name} (${s.unit}) unvanı güncellendi: ${oldTitle} → ${s.title}`);
+      }
+    }
+  }
+
+  // Yöneticileri kontrol et ve ata
+  _assignUnitManagers(state.adminUnits, state.adminStaff);
+
+  // Terfi uygunluklarını kontrol et
+  for (const s of state.adminStaff) {
+    _checkPromotionEligibility(s);
+  }
+}
+
+/**
  * Oyun state'ini dışarıya verir.
  * Derin kopya yapılır; dış kod state'i doğrudan değiştiremez.
  *
@@ -4540,6 +4994,7 @@ export function getTurnSummary(simResults = {}) {
  */
 export function getState() {
   if (!_state) return null;
+  _ensureAdminStaffIntegrity(_state);
   return deepClone(_state);
 }
 
@@ -4558,6 +5013,26 @@ function migrateState(state) {
   if (!state.meta.scenarioId) state.meta.scenarioId = null;
   if (!state.meta.scenarioRules) state.meta.scenarioRules = null;
   if (!state.meta.scenarioWinCondition) state.meta.scenarioWinCondition = null;
+
+  // Hatalı senaryo zaferi bayrağını (Ulusal 1.lik vs Dünya İlk 30) otomatik onar
+  const scWinMig = state.meta?.scenarioWinCondition;
+  if (scWinMig?.type === 'ranking') {
+    const isWorldTarget = scWinMig.isWorld || scWinMig.target > 6;
+    const curWorldRank  = state.university?.intlRanking || 999;
+    if (isWorldTarget && curWorldRank > scWinMig.target) {
+      if (state._internal) {
+        state._internal.gameWon = false;
+        state._internal.endMessage = null;
+      }
+    }
+  } else if (!scWinMig && !state.meta?.isSandbox) {
+    if (state._internal?.gameWon && state._internal?.endMessage?.includes('ulusal sıralamada 1.')) {
+      if (state._internal) {
+        state._internal.gameWon = false;
+        state._internal.endMessage = null;
+      }
+    }
+  }
 
   // v0.3 Feature 2: Akreditasyon (dept.accreditation eski kayıtlarda eksik olabilir)
   for (const dept of (state.departments || [])) {
@@ -4643,11 +5118,11 @@ function migrateState(state) {
   if (
     state.meta?.scenarioId &&
     state.university.loans &&
-    !state.university.loans.some(l => l.type === 'inherited')
+    !state.university._inheritedLoanMigrated
   ) {
     const _scenario = SCENARIOS[state.meta.scenarioId];
     const _migrDebt = _scenario?.specialRules?.startingDebt || _scenario?.specialRules?.legacyDebt || 0;
-    if (_migrDebt > 0) {
+    if (_migrDebt > 0 && !state.university.loans.some(l => l.type === 'inherited')) {
       const _migrTerm = 20;
       const _migrRate = 0.18;
       const _migrPay  = calculateLoanPayment(_migrDebt, _migrRate, _migrTerm);
@@ -4670,6 +5145,7 @@ function migrateState(state) {
       state.university.totalDebt = (state.university.totalDebt || 0) + _migrDebt;
       console.log(`[game] migrateState: ${state.meta.scenarioId} senaryosu için ${_migrDebt} borç loans[]'a eklendi.`);
     }
+    state.university._inheritedLoanMigrated = true;
   }
 
   // v0.4 Feature: Lab binalarında linkedDepartments (eski kayıtlarda assignedDepartments kullanılıyordu)
@@ -4688,6 +5164,9 @@ function migrateState(state) {
     }
   }
 
+  // Araştırma metrikleri ve H-Index bütünlüğü
+  updateResearchMetrics(state);
+
   // v0.4.59 Migration: applicationDate alanı olmayan ilan başvurularına mevcut dönemi yaz
   // (anında silinmesinler; önümüzdeki 2 dönem boyunca görünürde kalsınlar)
   for (const a of (state.pendingApplicants || [])) {
@@ -4696,20 +5175,8 @@ function migrateState(state) {
     }
   }
 
-  // v0.4.53 Migration: eski ortak rütbeler (Memur/Uzman/Şef/Müdür Yrd./Müdür) birim özel unvanlara dönüştür
-  for (const s of (state.adminStaff || [])) {
-    const newTitles = ADMIN_UNITS[s.unit]?.titles;
-    if (!newTitles) continue; // bilinmeyen birim, dokunma
-    const newTitleNames = newTitles.map(t => t.name);
-    if (newTitleNames.includes(s.title)) continue; // zaten yeni unvan
-    // Eski rütbeyi pozisyon ile yeni unvana çevir
-    const oldIdx = ADMIN_TITLE_ORDER.indexOf(s.title);
-    if (oldIdx >= 0 && oldIdx < newTitleNames.length) {
-      const oldTitle = s.title;
-      s.title = newTitleNames[oldIdx];
-      console.log(`[game] migrateState: ${s.name} (${s.unit}) unvanı güncellendi: ${oldTitle} → ${s.title}`);
-    }
-  }
+  // İdari personel unvan bütünlüğü ve yönetici atamaları
+  _ensureAdminStaffIntegrity(state);
 }
 
 // setState — Yüklenen state'i doğrudan uygula (kayıt yükleme için)
@@ -4782,10 +5249,27 @@ export function setState(loadedState) {
             year4: { count: 0, avgYKS: 0, avgGPA: 0, satisfaction: 70, tamBurslu: 0, yariBurslu: 0, ucretli: 0 },
           };
         }
-        // 2) Fakülteler ekranında bölüm görünüyor mu? Görünmüyorsa ekle.
-        if (s.fakulteler && dept.faculty) {
-          const fak = s.fakulteler[dept.faculty];
-          if (fak) {
+        // 2) Fakülteler ekranında bölüm görünüyor mu? Görünmüyorsa otomatik oluştur/ekle.
+        if (!s.fakulteler) s.fakulteler = {};
+        const targetFacId = dept.faculty || DEPT_TO_FACULTY[dept.id] || (
+          Object.entries(FACULTIES).find(([_, fDef]) => fDef.departments?.includes(dept.id))?.[0]
+        ) || 'diger';
+        dept.faculty = targetFacId;
+
+        if (targetFacId !== 'diger') {
+          const fDef = FACULTIES[targetFacId];
+          if (!s.fakulteler[targetFacId]) {
+            s.fakulteler[targetFacId] = {
+              id:          targetFacId,
+              name:        fDef?.name || `${dept.name} Fakültesi`,
+              icon:        fDef?.icon || dept.icon || '🏫',
+              departments: [dept.id],
+              deanId:      null,
+              headCount:   0,
+              studentCount: 0,
+            };
+          } else {
+            const fak = s.fakulteler[targetFacId];
             if (!Array.isArray(fak.departments)) fak.departments = [];
             if (!fak.departments.includes(dept.id)) {
               fak.departments.push(dept.id);
@@ -4865,10 +5349,48 @@ export function setState(loadedState) {
         ['mudek', 'abet', 'theqa'].forEach(bid => {
           if (!dept.accreditation[bid]) {
             dept.accreditation[bid] = { status: 'none', appliedAt: null, grantedAt: null, expiresAt: null, processTime: null };
+          } else {
+            const acc = dept.accreditation[bid];
+            // Otomatik onarım: Kullanıcı erken yenilemeye bastığında 'applied' yapılmışsa
+            // ve süresi dolmamışsa veya grantedAt varsa granted + isRenewing durumuna geri al
+            if (acc.status === 'applied' && acc.grantedAt != null && (acc.expiresAt == null || acc.expiresAt >= s.meta.turn)) {
+              acc.status = 'granted';
+              acc.isRenewing = true;
+              acc.renewalAppliedAt = acc.appliedAt || s.meta.turn;
+              acc.renewalProcessTime = acc.processTime || 2;
+            }
           }
         });
       }
     });
+
+    // Otomatik onarım: AB Horizon ve Özel Sektör / Sanayi projelerinin etiketlenmesi
+    if (s.research) {
+      if (s.research.activeResearchProjects) {
+        s.research.activeResearchProjects.forEach(p => {
+          if (isEuProject(p)) {
+            p.isEuProject = true;
+            p.type = 'eu';
+          }
+          if (isIndustryProject(p)) {
+            p.isPrivateSector = true;
+            p.fundingType = 'industry';
+          }
+        });
+      }
+      if (s.research.completedProjects) {
+        s.research.completedProjects.forEach(p => {
+          if (isEuProject(p)) {
+            p.isEuProject = true;
+            p.type = 'eu';
+          }
+          if (isIndustryProject(p)) {
+            p.isPrivateSector = true;
+            p.fundingType = 'industry';
+          }
+        });
+      }
+    }
 
     // v0.3: Eksik alanları tamamla (senaryo, akreditasyon vb.)
     migrateState(s);
@@ -4895,12 +5417,41 @@ export function setState(loadedState) {
     _gameOver = !!s._internal?.gameOver;
     _gameWon  = !!s._internal?.gameWon;
 
+    // Hatalı senaryo erken zafer bayrağını (Ulusal 1.lik vs Dünya İlk 30 karmaşası) otomatik onar
+    const scWin = s.meta?.scenarioWinCondition;
+    if (scWin?.type === 'ranking') {
+      const isWorldTarget = scWin.isWorld || scWin.target > 6;
+      const curWorldRank  = s.university?.intlRanking || 999;
+      if (isWorldTarget && curWorldRank > scWin.target) {
+        if (s._internal) {
+          s._internal.gameWon = false;
+          s._internal.endMessage = null;
+        }
+        _gameWon = false;
+      }
+    } else if (!scWin && !s.meta?.isSandbox) {
+      if (s._internal?.gameWon && s._internal?.endMessage?.includes('ulusal sıralamada 1.')) {
+        if (s._internal) {
+          s._internal.gameWon = false;
+          s._internal.endMessage = null;
+        }
+        _gameWon = false;
+      }
+    }
+
     // Grace-period sayaçlarını sıfırla: eski kayıtta birikmiş sayaç
     // yükleme anında ani iflas/kapanmayı tetiklemesin.
     if (s._internal) {
       s._internal.consecutiveLowStudentTurns = 0;
       s._internal.bankruptcyTurns            = 0;
     }
+
+    // Araştırma metriklerini (yayınlar, atıflar, H-Index) yüklenen hocalar üzerinden garantiye al
+    updateResearchMetrics(s);
+
+    // Hak edilmiş başarımları kalıcı state içine sessizce kaydet (bildirimsiz senkronize et)
+    if (!s.achievements) s.achievements = {};
+    checkAchievements(s);
 
     _state = s;
     console.log(`[game] setState() tamamlandı → ${s.university?.name}, Tur ${s.meta?.turn}`);
@@ -4909,6 +5460,16 @@ export function setState(loadedState) {
     console.error('[game] setState hatası:', err);
     return false;
   }
+}
+
+/**
+ * Hak edilen başarımları doğrudan aktif oyun durumunda (_state) kontrol eder ve kalıcı kaydeder.
+ * @returns {Array} Yeni açılan başarımlar
+ */
+export function checkAndUpdateAchievements() {
+  if (!_state) return [];
+  if (!_state.achievements) _state.achievements = {};
+  return checkAchievements(_state);
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -5500,7 +6061,15 @@ export function applyDecision(decision) {
 
     // ── Açık Kadro İlanı Ver ─────────────────────────────────────────────────
     case 'post_open_position': {
-      const { position } = decision;
+      const { position, positions } = decision;
+      if (Array.isArray(positions)) {
+        if (!_state.openPositions) _state.openPositions = [];
+        _state.openPositions.push(...positions);
+        return {
+          success: true,
+          message: `${positions.length} bölüme toplu kadro ilanı verildi.`,
+        };
+      }
       if (!position) return { success: false, message: 'position verisi eksik.' };
       if (!_state.openPositions) _state.openPositions = [];
       _state.openPositions.push(position);
@@ -5569,6 +6138,77 @@ export function applyDecision(decision) {
       return { success: true, message: 'Başvuru reddedildi.' };
     }
 
+    // ── Toplu Başvurucu Kabul Et (Eşik Üstü / Seçili Adaylar) ─────────────────
+    case 'bulk_accept_applicants': {
+      const { applicantIds } = decision;
+      if (!Array.isArray(applicantIds) || applicantIds.length === 0) {
+        return { success: false, message: 'Kabul edilecek aday seçilmedi.' };
+      }
+      if (!_state.pendingApplicants) _state.pendingApplicants = [];
+      const idSet = new Set(applicantIds);
+      const accepted = [];
+      const remaining = [];
+
+      for (const app of _state.pendingApplicants) {
+        if (idSet.has(app.id)) {
+          const dept = _state.departments.find(d => d.id === app.department && d.isOpen)
+            || _state.departments.find(d => d.isOpen);
+          if (dept) {
+            const rawSalaryA = app.salaryExpectation || app.salary || 80_000;
+            const newFaculty = {
+              ...app,
+              departmentId:      dept.id,
+              department:        dept.id,
+              salary:            isNaN(rawSalaryA) ? 80_000 : rawSalaryA,
+              currentLoad:       { assignedCourses: [], courses: 0 },
+              activeFromTurn:    _state.meta.turn,
+              applicationSource: 'open_position',
+            };
+            _state.faculty.push(newFaculty);
+            if (!dept.assignedFacultyIds) dept.assignedFacultyIds = [];
+            dept.assignedFacultyIds.push(newFaculty.id);
+            accepted.push(newFaculty);
+          } else {
+            remaining.push(app);
+          }
+        } else {
+          remaining.push(app);
+        }
+      }
+      _state.pendingApplicants = remaining;
+      return {
+        success: true,
+        message: `${accepted.length} öğretim üyesi kadromuza katıldı!`,
+        acceptedCount: accepted.length,
+      };
+    }
+
+    // ── Toplu Başvurucu Reddet (Eşik Altı / Seçili Adaylar) ───────────────────
+    case 'bulk_reject_applicants': {
+      const { applicantIds } = decision;
+      if (!Array.isArray(applicantIds) || applicantIds.length === 0) {
+        return { success: false, message: 'Reddedilecek aday seçilmedi.' };
+      }
+      if (!_state.pendingApplicants) _state.pendingApplicants = [];
+      const idSet = new Set(applicantIds);
+      const beforeCount = _state.pendingApplicants.length;
+      _state.pendingApplicants = _state.pendingApplicants.filter(app => !idSet.has(app.id));
+      const rejectedCount = beforeCount - _state.pendingApplicants.length;
+      return {
+        success: true,
+        message: `${rejectedCount} başvuru reddedildi.`,
+        rejectedCount,
+      };
+    }
+
+    // ── Tüm Başvuruları Reddet ────────────────────────────────────────────────
+    case 'reject_all_applicants': {
+      if (!_state.pendingApplicants) _state.pendingApplicants = [];
+      const count = _state.pendingApplicants.length;
+      _state.pendingApplicants = [];
+      return { success: true, message: `${count} başvuru reddedildi.` };
+    }
+
     // ── Spontane Başvurucu Kabul Et ───────────────────────────────────────────
     case 'accept_spontaneous': {
       const { applicantId, targetDeptId } = decision;
@@ -5620,6 +6260,32 @@ export function applyDecision(decision) {
       const idx = _state.spontaneousApplicants.findIndex(a => a.id === applicantId);
       if (idx !== -1) _state.spontaneousApplicants.splice(idx, 1);
       return { success: true, message: 'Spontane başvuru reddedildi.' };
+    }
+
+    // ── Toplu Spontane Başvuru Reddet ─────────────────────────────────────────
+    case 'bulk_reject_spontaneous': {
+      const { applicantIds } = decision;
+      if (!Array.isArray(applicantIds) || applicantIds.length === 0) {
+        return { success: false, message: 'Reddedilecek spontane aday seçilmedi.' };
+      }
+      if (!_state.spontaneousApplicants) _state.spontaneousApplicants = [];
+      const idSet = new Set(applicantIds);
+      const beforeCount = _state.spontaneousApplicants.length;
+      _state.spontaneousApplicants = _state.spontaneousApplicants.filter(app => !idSet.has(app.id));
+      const rejectedCount = beforeCount - _state.spontaneousApplicants.length;
+      return {
+        success: true,
+        message: `${rejectedCount} spontane başvuru reddedildi.`,
+        rejectedCount,
+      };
+    }
+
+    // ── Tüm Spontane Başvuruları Reddet ────────────────────────────────────────
+    case 'reject_all_spontaneous': {
+      if (!_state.spontaneousApplicants) _state.spontaneousApplicants = [];
+      const count = _state.spontaneousApplicants.length;
+      _state.spontaneousApplicants = [];
+      return { success: true, message: `${count} spontane başvuru reddedildi.` };
     }
 
     // ── Hoca Sözleşme Feshi (Zenginleştirilmiş + Feature 4: Akıllı Çıkarma) ──
@@ -5985,6 +6651,8 @@ export function applyDecision(decision) {
           progress:    0,
           status:      'active',
           startedTurn: _state.meta.turn,
+          isEuProject: app.isEuProject || isEuProject(app) || false,
+          isPrivateSector: app.isPrivateSector || isIndustryProject(app) || false,
           successChance: app.successProbability,
           funding:     app.requestedFunding,
         };
@@ -6295,6 +6963,25 @@ export function applyDecision(decision) {
       return result;
     }
 
+    // ── TTO İşlemleri ────────────────────────────────────────────────────────
+    case 'establish_tto': {
+      return establishTTO(_state);
+    }
+    case 'upgrade_tto': {
+      return upgradeTTO(_state);
+    }
+    case 'accept_tto_deal': {
+      return acceptDeal(_state, decision.dealId);
+    }
+    case 'reject_tto_deal': {
+      return rejectDeal(_state, decision.dealId);
+    }
+
+    // ── İdari Personel Otomatik Terfi ─────────────────────────────────────────
+    case 'auto_promote_admin_staff': {
+      return autoPromoteAdminStaff(decision.unitId);
+    }
+
     // ── Bilinmeyen Karar Tipi ─────────────────────────────────────────────────
     default:
       return {
@@ -6502,4 +7189,22 @@ export function reassignFacultyToDept(facultyId, newDeptId) {
     message: `${hoca.name} "${targetDept.name}" bölümüne taşındı.`,
     warning,
   };
+}
+
+/**
+ * Senaryo kazanıldıktan sonra oyuna serbest modda devam etmeyi sağlar.
+ * Kazanma bayrağını temizler ve isSandbox'ı true yapar.
+ */
+export function continueInSandboxMode() {
+  if (!_state) return { success: false, message: 'Oyun başlatılmamış.' };
+  
+  _gameWon = false;
+  if (_state._internal) {
+    _state._internal.gameWon = false;
+    _state._internal.endMessage = null;
+  }
+  _state.meta.isSandbox = true;
+  
+  console.log('[game] Oyun serbest modda devam ediyor...');
+  return { success: true };
 }

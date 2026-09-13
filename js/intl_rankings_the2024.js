@@ -677,6 +677,18 @@ export const THE_2024 = {
     // 601-800 — bantlar
     // ─────────────────────────────────────────────────────────────────────────
 
+    {
+      rank: null, rankBand: '601-800',
+      name: 'University of Bath', nameTr: 'Bath Üniversitesi',
+      country: 'GB', countryTr: 'Birleşik Krallık',
+      total: 43.1, teaching: 42.0, researchEnvironment: 45.0, citations: 48.5, international: 81.2, industry: 34.5,
+    },
+    {
+      rank: null, rankBand: '601-800',
+      name: 'Lund University', nameTr: 'Lund Üniversitesi',
+      country: 'SE', countryTr: 'İsveç',
+      total: 42.8, teaching: 41.8, researchEnvironment: 44.8, citations: 48.8, international: 78.5, industry: 33.5,
+    },
     // Türk üniversiteleri — 601-800 bant (THE 2024, WebSearch doğrulaması)
     {
       rank: null, rankBand: '601-800',
@@ -695,18 +707,6 @@ export const THE_2024 = {
       name: 'Hacettepe University', nameTr: 'Hacettepe Üniversitesi',
       country: 'TR', countryTr: 'Türkiye',
       total: 41.8, teaching: 40.8, researchEnvironment: 43.8, citations: 47.2, international: 46.3, industry: 31.5,
-    },
-    {
-      rank: null, rankBand: '601-800',
-      name: 'University of Bath', nameTr: 'Bath Üniversitesi',
-      country: 'GB', countryTr: 'Birleşik Krallık',
-      total: 43.1, teaching: 42.0, researchEnvironment: 45.0, citations: 48.5, international: 81.2, industry: 34.5,
-    },
-    {
-      rank: null, rankBand: '601-800',
-      name: 'Lund University', nameTr: 'Lund Üniversitesi',
-      country: 'SE', countryTr: 'İsveç',
-      total: 42.8, teaching: 41.8, researchEnvironment: 44.8, citations: 48.8, international: 78.5, industry: 33.5,
     },
 
     // ─────────────────────────────────────────────────────────────────────────

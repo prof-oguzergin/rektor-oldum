@@ -414,7 +414,7 @@ export function generateFaculty(options = {}) {
     salaryRange,
     seniority,
     contract,
-    happiness: Math.max(10, Math.min(100, happiness)),
+    happiness: Math.round(Math.max(10, Math.min(100, happiness))),
     publications,
     citations,
     hIndex,
@@ -498,8 +498,10 @@ function _generateAvatar(title, gender) {
  */
 export function renderFacultyAvatar(avatar, size = 48) {
   if (!avatar) return '';
+  const actualAvatar = (avatar && typeof avatar === 'object' && avatar.avatar) ? avatar.avatar : avatar;
+  if (!actualAvatar || typeof actualAvatar !== 'object') return '';
 
-  const { skinTone, hairColor, hairStyle, gender, glasses, beardStyle, accessory, ageAppearance } = avatar;
+  const { skinTone, hairColor, hairStyle, gender, glasses, beardStyle, accessory, ageAppearance } = actualAvatar;
   const s = size;
   const cx = s / 2;
   const cy = s / 2;
@@ -925,7 +927,9 @@ export function calculateFieldMatch(faculty, departmentId) {
 export function generateTransferMarket(state) {
   const prestige     = state.prestige ?? 30;
   const marketCount  = randInt(5, 10);
-  const activeDepts  = state.departments ? Object.keys(state.departments) : Object.keys(DEPARTMENTS);
+  const activeDepts  = Array.isArray(state.departments) && state.departments.length > 0
+    ? state.departments.map(d => d.id)
+    : Object.keys(DEPARTMENTS);
 
   // Prestije göre kalite aralığı
   // Prestij 20 → düşük havuz; Prestij 80+ → yüksek havuz

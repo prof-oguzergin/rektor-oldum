@@ -362,7 +362,7 @@ export function updateStudentYears(state, advanceYears = false) {
 
     const totalInDept = (deptData.year1?.count ?? 0) + (deptData.year2?.count ?? 0) +
                         (deptData.year3?.count ?? 0) + (deptData.year4?.count ?? 0);
-    const capacity    = dept.studentCapacity || 100;
+    const capacity    = dept.stats?.capacity || dept.studentCapacity || 100;
     const fillRatio   = capacity > 0 ? totalInDept / capacity : 1;
     const sizeMult    = fillRatio <= 0.70 ? 1.0
                       : fillRatio <= 0.90 ? 0.95
@@ -764,22 +764,23 @@ export function calculateStudentSatisfaction(state) {
   const bursOrani  = totalStudents > 0 ? totalBurslu / totalStudents : 0.10;
   const bursScore  = clamp(bursOrani * 400, 20, 95);
 
-  // Yurt yeterlilik — toplam yatak vs öğrenci
+  // Yurt yeterlilik — toplam yatak vs yurt talebi (~%40 talep, game.js ile uyumlu)
   const totalBeds    = completedBuildings.filter(b => b.type === 'yurt')
     .reduce((s, b) => s + ((b.currentCapacity?.beds) || 0), 0);
   const hasYurt      = totalBeds > 0;
+  const yurtDemand   = Math.max(1, Math.round(totalStudents * 0.40));
   const yurtCoverage = totalStudents > 0 && totalBeds > 0
-    ? Math.min(totalBeds, totalStudents) / totalStudents  // 0..1
+    ? Math.min(totalBeds, yurtDemand) / yurtDemand  // 0..1
     : 0;
   // Yurt skoru: hiç yurt yok → 30, tam kapsama → 85, fazla → 85
   const yurtScore    = !hasYurt ? 30 : clamp(30 + yurtCoverage * 55, 30, 85);
 
-  // Yemekhane yeterlilik — günlük öğün vs öğrenci+hoca
+  // Yemekhane yeterlilik — günlük öğün vs yemek talebi (~%65 kampüs katılımı)
   const totalFaculty2    = (state.faculty || []).length;
   const totalMealCap     = completedBuildings.filter(b => b.type === 'yemekhane')
     .reduce((s, b) => s + ((b.currentCapacity?.dailyMeals) || 0), 0);
   const hasYemek         = totalMealCap > 0;
-  const mealDemand       = totalStudents + totalFaculty2;
+  const mealDemand       = Math.max(1, Math.round((totalStudents + totalFaculty2) * 0.65));
   const mealRatio        = hasYemek && mealDemand > 0 ? totalMealCap / mealDemand : 0;
   // Yeterli (ratio≥1) → 70, yetersiz (%50 kapsama) → 35
   // Yemekhane yönetimi idari birim kalitesi bonusu eklenir
@@ -788,19 +789,21 @@ export function calculateStudentSatisfaction(state) {
     : 0;
   const yemekScore       = !hasYemek ? 30 : clamp(30 + Math.min(mealRatio, 1.2) * 33 + yemekhaneAdminBonus2, 30, 78);
 
-  // Spor tesisi yeterlilik
+  // Spor tesisi yeterlilik — günlük spor talebi (~%35 katılım)
   const totalSporCap     = completedBuildings.filter(b => b.type === 'spor_tesisi')
     .reduce((s, b) => s + ((b.currentCapacity?.dailyUsers) || 0), 0);
   const hasSport         = totalSporCap > 0;
-  const sporRatio        = hasSport && totalStudents > 0 ? totalSporCap / totalStudents : 0;
+  const sporDemand       = Math.max(1, Math.round(totalStudents * 0.35));
+  const sporRatio        = hasSport && sporDemand > 0 ? totalSporCap / sporDemand : 0;
   const sporScore        = !hasSport ? 38 : clamp(38 + Math.min(sporRatio, 1.2) * 28, 38, 72);
 
-  // Kütüphane / konferans → sosyal skor
+  // Kütüphane / konferans → sosyal skor — günlük kütüphane talebi (~%45 katılım)
   const hasKutuphane     = completedBuildings.some(b => b.type === 'kutuphane');
   const hasKonferans     = completedBuildings.some(b => b.type === 'konferans');
   const totalLibCap      = completedBuildings.filter(b => b.type === 'kutuphane')
     .reduce((s, b) => s + ((b.currentCapacity?.daily) || 0), 0);
-  const libRatio         = hasKutuphane && totalStudents > 0 ? totalLibCap / totalStudents : 0;
+  const libDemand        = Math.max(1, Math.round(totalStudents * 0.45));
+  const libRatio         = hasKutuphane && libDemand > 0 ? totalLibCap / libDemand : 0;
   // Kütüphane yeterliyse tam bonus; yetersizse kısmi
   const libBonus         = hasKutuphane ? Math.min(libRatio, 1.0) * 20 : 0;
   const konferansBonus   = hasKonferans ? 8 : 0;
@@ -825,12 +828,13 @@ export function calculateStudentSatisfaction(state) {
 
   // Kariyer skoru: kariyer merkezi + mezun ağı + teknokent
   const alumniCount   = state.alumni.length;
+  const alumniNetwork = state.alumniData?.alumniNetwork || 0;
   const hasTechnopark = state.university.hasTechnoPark;
   const kariyerAdminScore = getAdminUnitScore(state, 'kariyer_merkezi');
   const kariyerBase   = state.adminUnits?.kariyer_merkezi
     ? kariyerAdminScore
-    : clamp(30 + alumniCount * 0.2, 20, 70);
-  const kariyerScore  = clamp(kariyerBase + (hasTechnopark ? 15 : 0) + alumniCount * 0.1, 20, 100);
+    : clamp(30 + alumniCount * 0.15 + alumniNetwork * 0.4, 20, 80);
+  const kariyerScore  = clamp(kariyerBase + (hasTechnopark ? 15 : 0) + alumniNetwork * 0.25, 20, 100);
 
   // Yemekhane yönetim kalitesi bonusu
   const yemekhaneYonetimBonus = state.adminUnits?.yemekhane_yonetimi

@@ -1194,7 +1194,25 @@ export const FACULTIES = {
     id:          'isletme',
     name:        'İşletme Fakültesi',
     icon:        '📊',
-    departments: ['isletme', 'iktisat'],
+    departments: ['isletme', 'iktisat', 'siyaset_bilimi'],
+  },
+  mimarlik: {
+    id:          'mimarlik',
+    name:        'Mimarlık ve Tasarım Fakültesi',
+    icon:        '🏛️',
+    departments: ['mimarlik'],
+  },
+  iletisim: {
+    id:          'iletisim',
+    name:        'İletişim Fakültesi',
+    icon:        '📡',
+    departments: ['iletisim'],
+  },
+  guzel_sanatlar: {
+    id:          'guzel_sanatlar',
+    name:        'Güzel Sanatlar Fakültesi',
+    icon:        '🎨',
+    departments: ['guzel_sanatlar'],
   },
   hukuk: {
     id:          'hukuk',
@@ -2086,6 +2104,7 @@ export const PROJECT_TYPES = [
   {
     id: 'horizon_europe',
     name: 'AB Horizon Europe',
+    isEuProject: true,
     description: 'Avrupa Birliği Araştırma Projesi',
     fundingMin: 2_000_000,
     fundingMax: 10_000_000,
@@ -2107,6 +2126,8 @@ export const PROJECT_TYPES = [
     baseSuccessChance: 0.40,
     prestigeReward: 3,
     publicationBonus: 1,
+    overheadRate: 0.20,
+    isPrivateSector: true,
     icon: '🏭',
   },
   {
@@ -2601,7 +2622,7 @@ export const SCENARIOS = {
       agingInfrastructure: true,    // Binalar %60 durumda başlar
       bureaucracyPenalty: 0.15,     // İşlem gecikmesi +%15
     },
-    winCondition: { type: 'ranking', target: 30, maxTurns: 25 },
+    winCondition: { type: 'ranking', target: 30, isWorld: true, maxTurns: 25 },
     flavorText: '"Geleneği korurken geleceği inşa et."',
   },
 

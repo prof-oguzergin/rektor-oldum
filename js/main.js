@@ -8,8 +8,8 @@ console.log('[main] main.js modülü yükleniyor...');
 // IMPORT
 // ─────────────────────────────────────────────────────────────────────────────
 
-import { initGame, nextTurn, getState, setState, applyDecision, assignCourses, applyQuotas, assignDeptHead, reassignFacultyToDept, generateAdminCandidates, hireAdminStaff, upgradeAdminUnit, promoteAdminStaff, fireAdminStaff, updateAdminStaffSalary, assignUnitManager, RANDOM_EVENTS, ACHIEVEMENTS, getAchievementStats, organizeAlumniEvent, applyRandomEventChoice, ACCREDITATION_BODIES, applyForAccreditation, checkAccreditationRequirements, establishTTO, upgradeTTO, acceptDeal, rejectDeal, foundClub, upgradeClub, dissolveClub, CLUB_TYPES, CLUB_CATEGORIES, SPORTS, foundTeam, upgradeTeam, dissolveTeam, setCourseDifficulty, getUnitTitles, getUnitTitleSalary, isUnitManagerTitle, enableFreeMode } from './game.js?v=0.4.60';
-import { ADMIN_TITLES } from './data.js?v=0.4.53';
+import { initGame, nextTurn, getState, setState, applyDecision, assignCourses, applyQuotas, assignDeptHead, reassignFacultyToDept, generateAdminCandidates, hireAdminStaff, upgradeAdminUnit, promoteAdminStaff, autoPromoteAdminStaff, fireAdminStaff, updateAdminStaffSalary, assignUnitManager, RANDOM_EVENTS, ACHIEVEMENTS, getAchievementStats, checkAchievements, checkAndUpdateAchievements, organizeAlumniEvent, applyRandomEventChoice, ACCREDITATION_BODIES, applyForAccreditation, checkAccreditationRequirements, establishTTO, upgradeTTO, acceptDeal, rejectDeal, foundClub, upgradeClub, dissolveClub, CLUB_TYPES, CLUB_CATEGORIES, SPORTS, foundTeam, upgradeTeam, dissolveTeam, setCourseDifficulty, getUnitTitles, getUnitTitleSalary, isUnitManagerTitle, enableFreeMode, continueInSandboxMode } from './game.js?v=0.4.76';
+import { ADMIN_TITLES, ADMIN_UNITS } from './data.js?v=0.4.76';
 
 import {
   showScreen,
@@ -30,6 +30,7 @@ import {
   renderBudgetPanel,
   renderResearchPanel,
   renderTransferMarket,
+  removeTransferMarketCandidate,
   renderOpenPositionModal,
   renderTurnSummary,
   renderEvent,
@@ -48,18 +49,19 @@ import {
   renderInternationalRankingPanel,
   showChangelogModal,
   showGameWonModal,
+  initSafeModalBackdropDismiss,
   el,
   on,
-} from './ui.js?v=0.4.63';
+} from './ui.js?v=0.4.76';
 
-import { CHANGELOG, hasUnseenChanges, setLastSeenVersion } from './changelog.js?v=0.4.63';
+import { CHANGELOG, hasUnseenChanges, setLastSeenVersion } from './changelog.js?v=0.4.76';
 
-import { saveGame, loadGame, autoSave, getSaveSlots, deleteSave, exportSave, importSave, sanitizeForSave } from './save.js?v=0.4.63';
-import { calculateScore, scoreBreakdown, submitScore, getTopScores, initFirebase, isLeaderboardUnavailable, saveLocalScore, getLocalScores } from './leaderboard.js?v=0.4.45';
-import { showTutorialIfNeeded, replayTutorial } from './tutorial.js?v=0.4.55';
+import { saveGame, loadGame, autoSave, getSaveSlots, deleteSave, exportSave, importSave, sanitizeForSave } from './save.js?v=0.4.76';
+import { calculateScore, scoreBreakdown, submitScore, getTopScores, initFirebase, isLeaderboardUnavailable, saveLocalScore, getLocalScores } from './leaderboard.js?v=0.4.76';
+import { showTutorialIfNeeded, replayTutorial } from './tutorial.js?v=0.4.76';
 import { initAudio, playSound, toggleMute, isMuted, startMusic, stopMusic, setMusicVolume, setSFXVolume, getAudioSettings } from './audio.js?v=0.4.24';
 
-import { generateTransferMarket, renderFacultyAvatar, calculateOverallRating, getFacultyRatingTrend } from './faculty.js?v=0.4.39';
+import { generateTransferMarket, renderFacultyAvatar, calculateOverallRating, getFacultyRatingTrend } from './faculty.js?v=0.4.52';
 import { resolveDecision } from './events.js?v=0.4.24';
 
 // Uluslararası sıralama modülleri
@@ -70,7 +72,7 @@ import {
   findIntlRank,
   getNeighbors as getIntlNeighbors,
   filterByCountry as filterIntlByCountry,
-} from './intl_ranking.js?v=0.4.39';
+} from './intl_ranking.js?v=0.4.59';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // UYGULAMA DURUMU
@@ -83,23 +85,49 @@ let _activeTab = 'dashboard';
 let _transferMarket = null;
 
 // ─────────────────────────────────────────────────────────────────────────────
-// AKSIYON BAZLI OTOMATIK KAYIT YARDIMCISI (FIX A — v0.4.49)
+// AKSIYON BAZLI OTOMATIK KAYIT YARDIMCISI (v0.4.65 - 350ms Debounce & BeforeUnload)
 // ─────────────────────────────────────────────────────────────────────────────
+
+let _persistTimer = null;
 
 /**
  * Anlık state'i localStorage'a kaydeder.
- * Her başarılı aksiyon sonrası çağrılır; dönem sonu beklenmez.
- * localStorage I/O ~1 ms, debouncing gerekmez.
+ * Seri tıklamalarda ve yoğun işlemlerde UI donmasını engellemek için 350ms debouncelanır.
+ * @param {boolean} [immediate=false] — true verilirse debounce beklemeden anında kaydeder.
  */
-function _persistState() {
+function _persistState(immediate = false) {
+  if (immediate) {
+    if (_persistTimer) {
+      clearTimeout(_persistTimer);
+      _persistTimer = null;
+    }
+    _doPersist();
+    return;
+  }
+  if (_persistTimer) clearTimeout(_persistTimer);
+  _persistTimer = setTimeout(() => {
+    _persistTimer = null;
+    _doPersist();
+  }, 350);
+}
+
+function _doPersist() {
   try {
     const state = getState();
     if (!state) return;
-    const safe = sanitizeForSave ? sanitizeForSave(state) : state;
-    autoSave(safe);
+    autoSave(state);
   } catch (e) {
     console.warn('[main] _persistState hatası:', e);
   }
+}
+
+// Sekme kapatılırken veya yenilenirken bekleyen kaydı hemen yaz
+if (typeof window !== 'undefined') {
+  window.addEventListener('beforeunload', () => {
+    if (_persistTimer) {
+      _persistState(true);
+    }
+  });
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -153,12 +181,9 @@ function init() {
     _onLoadGameMenu,
   );
 
-  // Modal kapatma butonları
+  // Modal kapatma butonları ve güvenli backdrop dinleyicisi
   on(el('btn-close-modal'), 'click', () => hideModal());
-  on(el('modal-backdrop'), 'click', (e) => {
-    // Backdrop'a tıklanırsa kapat (modal içine tıklanırsa kapatma)
-    if (e.target.id === 'modal-backdrop') hideModal();
-  });
+  initSafeModalBackdropDismiss();
 
   // Oyun içi Ayarlar butonu (top-bar'daki ⚙️) — ses ayarları modalını açar
   on(el('btn-game-settings'), 'click', () => {
@@ -624,6 +649,40 @@ function _startGameWithState(state) {
     }
   };
 
+  // Eksik idari personelleri doldur
+  window._onFillMissingAdminStaff = () => {
+    const state = getState();
+    if (!state) return;
+
+    let totalHired = 0;
+    const adminUnits = state.adminUnits || {};
+
+    Object.values(ADMIN_UNITS).forEach(template => {
+      const unit = adminUnits[template.id];
+      if (!unit) return;
+
+      const currentCount = (state.adminStaff || []).filter(s => s.unit === template.id).length;
+      const missing = Math.max(0, unit.staffNeeded - currentCount);
+
+      if (missing > 0) {
+        // Rastgele adaylar üret ve işe al (seviye rastgele junior/mid olabilir, mid seçiyoruz)
+        const candidates = generateAdminCandidates(template.id, 'mid', missing);
+        candidates.forEach(c => {
+          hireAdminStaff(c, c.suggestedTitle || 'Uzman');
+          totalHired++;
+        });
+      }
+    });
+
+    if (totalHired > 0) {
+      showNotification(`${totalHired} yeni personel işe alındı ve birimlere atandı.`, 'success');
+      _persistState();
+      refreshGameUI();
+    } else {
+      showNotification('Tüm kadrolar zaten dolu.', 'info');
+    }
+  };
+
   // Serbest mod: kazanma modal'ından "Serbest Devam Et" butonuyla çağrılır (Issue #26)
   window._onEnableFreeMode = () => {
     const result = enableFreeMode();
@@ -673,7 +732,40 @@ function refreshGameUI() {
     return;
   }
 
-  console.log(`[main] refreshGameUI() → aktif sekme: ${_activeTab}, tur: ${state.meta?.turn}`);
+  // Geçmişten gelen kopya kimlikleri (ID) düzelt (Olası save-state bozulmalarına karşı)
+  if (state.adminStaff) {
+    let fixed = false;
+    const seenIds = new Set();
+    state.adminStaff.forEach(staff => {
+      if (!staff.id || seenIds.has(staff.id)) {
+        staff.id = `admin_fixed_${Date.now()}_${Math.floor(Math.random() * 1000000)}`;
+        fixed = true;
+      }
+      seenIds.add(staff.id);
+    });
+    if (fixed) {
+      setState(state);
+      _persistState();
+    }
+  }
+
+  // Anlık Dünya Sıralaması senkronizasyonu
+  try {
+    const pillars = calculateIntlPillars(state);
+    const total = calculateIntlTotalScore(pillars, THE_2024.pillarsWeights);
+    const totalNum = typeof total === 'number' ? total : parseFloat(total) || 0;
+    const liveScore = Math.round(totalNum * 10) / 10;
+    const liveRank = findIntlRank(liveScore, THE_2024);
+    if (state.university && liveRank) {
+      state.university.intlRanking = liveRank;
+      state.university.intlTotalScore = liveScore;
+      if (state.university.scores) {
+        state.university.scores.internationalization = pillars.international;
+      }
+    }
+  } catch (e) {
+    console.warn('[main] refreshGameUI canlı dünya sırası hesaplama hatası:', e);
+  }
 
   // Üst bar
   updateTopBar(state);
@@ -726,9 +818,12 @@ function refreshGameUI() {
     case 'accreditation':
       renderAccreditationPanel(state, _onApplyAccreditation, _onRenewAccreditation);
       break;
-    case 'achievements':
-      renderAchievementsPanel(state, ACHIEVEMENTS, getAchievementStats(state));
+    case 'achievements': {
+      checkAndUpdateAchievements();
+      const s = getState();
+      renderAchievementsPanel(s, ACHIEVEMENTS, getAchievementStats(s));
       break;
+    }
     case 'leaderboard':
       renderLeaderboardPanel(getTopScores).catch(err => {
         showNotification('Skor tablosu yüklenemedi: ' + err.message, 'error');
@@ -832,9 +927,6 @@ function _bindGameScreenEvents() {
   // ── Modal kapat butonu ──────────────────────────────────────────────────
   // HTML'de id="btn-close-modal" (modal-close-btn değil)
   on(el('btn-close-modal'), 'click', hideModal);
-  on(el('modal-overlay'), 'click', (e) => {
-    if (e.target === el('modal-overlay') || e.target.id === 'modal-backdrop') hideModal();
-  });
 
   // ── ❓ Rehber butonu ────────────────────────────────────────────────────
   _injectTutorialReplayButton();
@@ -896,17 +988,35 @@ function _onNextTurn() {
   const currentState = getState();
   if (!currentState) return;
 
+  // Hatalı senaryo erken zafer bayrağını (Ulusal 1.lik vs Dünya İlk 30 karmaşası) temizle
+  const scWin = currentState.meta?.scenarioWinCondition;
+  if (scWin?.type === 'ranking') {
+    const isWorldTarget = scWin.isWorld || scWin.target > 6;
+    const curWorldRank  = currentState.university?.intlRanking || 999;
+    if (isWorldTarget && curWorldRank > scWin.target && currentState._internal?.gameWon) {
+      currentState._internal.gameWon = false;
+      currentState._internal.endMessage = null;
+      setState(currentState);
+    }
+  } else if (!scWin && !currentState.meta?.isSandbox) {
+    if (currentState._internal?.gameWon && currentState._internal?.endMessage?.includes('ulusal sıralamada 1.')) {
+      currentState._internal.gameWon = false;
+      currentState._internal.endMessage = null;
+      setState(currentState);
+    }
+  }
+
   // Oyun bittiyse/kazanıldıysa simülasyon yapma (Emir raporu — boş özet
-  // modal'ı açılıyordu çünkü nextTurn() "Oyun zaten bitti." döndürüp
+  // modal'ı açılıyordu çünkü nextTurn() "Oyun bitti." döndürüp
   // erken çıkıyor, ama UI hâlâ özet render ediyordu).
-  if (currentState.gameOver || currentState.gameWon) {
+  if (currentState._internal?.gameOver || currentState._internal?.gameWon) {
+    const msg = currentState._internal?.endMessage || (currentState._internal?.gameWon ? '🏆 Senaryo Hedefine Ulaşıldı!' : 'Oyun bitti.');
     showNotification(
-      currentState.gameWon
-        ? '🏆 Oyun kazanıldı. Yeni oyun başlatabilirsin.'
-        : 'Oyun bitti. Yeni oyun başlatabilirsin.',
+      `${msg} Skorunu gönderebilir veya devam edebilirsin.`,
       'info',
-      5000,
+      8000,
     );
+    _showLeaderboardSubmitModal(true);
     return;
   }
 
@@ -933,19 +1043,22 @@ function _onNextTurn() {
  * @private
  */
 function _runTurnAfterQuotas() {
+  _transferMarket = null; // Yeni dönemde transfer pazarı sıfırlanır
   const summary = nextTurn();
   const state   = getState();
 
   console.log('[main] nextTurn() tamamlandı. Özet:', summary);
 
-  // Defensive: backend "Oyun zaten bitti." dönerse boş özet modal'ı açma
+  // Defensive: backend "Oyun bitti." dönerse boş özet modal'ı açma
   // (Emir raporu — _onNextTurn'de zaten erken çıkış var, bu son güvenlik ağı).
-  if (/zaten bitti/i.test(summary?.message || '')) {
+  if (summary?.gameOver || summary?.gameWon || state?._internal?.gameOver || state?._internal?.gameWon || /zaten bitti/i.test(summary?.message || '')) {
+    const msg = summary?.message || state?._internal?.endMessage || (state?._internal?.gameWon ? '🏆 Senaryo Hedefine Ulaşıldı!' : 'Oyun bitti.');
     showNotification(
-      state?.gameWon ? '🏆 Oyun kazanıldı. Yeni oyun başlatabilirsin.' : 'Oyun bitti. Yeni oyun başlatabilirsin.',
+      `${msg} Skorunu gönderebilir veya devam edebilirsin.`,
       'info',
-      5000,
+      8000,
     );
+    _showLeaderboardSubmitModal(true);
     return;
   }
 
@@ -1012,10 +1125,6 @@ function _continueAfterEvents(summary, state) {
       hideModal();
       refreshGameUI();
     });
-    const panel = el('tab-dashboard');
-    if (panel) {
-      showModal('Dönem Özeti', panel.innerHTML);
-    }
   }
 
   refreshGameUI();
@@ -1111,6 +1220,7 @@ function _showLeaderboardSubmitModal(isGameOver = false) {
     <div style="display:flex;flex-direction:column;gap:16px;padding:4px 0;">
       ${alreadyBanner}
       <p style="margin:0;font-size:14px;line-height:1.5;">
+        ${state._internal?.endMessage ? `<strong style="color:var(--accent,#5dd6c0);">${state._internal.endMessage}</strong><br><br>` : ''}
         ${alreadySubmitted
           ? 'Aşağıda bu oyunun puanı görünüyor. Yeni gönderim yapılamaz.'
           : 'Skorunu küresel skor tablosuna ekle. İsim girip <strong>Gönder</strong>\'e bas.'}
@@ -1137,7 +1247,12 @@ function _showLeaderboardSubmitModal(isGameOver = false) {
           style="width:100%;box-sizing:border-box;padding:9px 12px;border-radius:8px;border:1px solid rgba(255,255,255,0.15);background:rgba(255,255,255,0.06);color:inherit;font-size:14px;${alreadySubmitted ? 'opacity:0.5;cursor:not-allowed;' : ''}"
         />
       </div>
-      <div style="display:flex;gap:10px;justify-content:flex-end;">
+      <div style="display:flex;gap:10px;justify-content:flex-end;align-items:center;">
+        ${state._internal?.gameWon ? `
+          <button id="lb-continue-btn" class="btn btn-secondary btn-sm" style="margin-right:auto;">
+            🎮 Serbest Modda Devam Et
+          </button>
+        ` : ''}
         <button id="lb-cancel-btn" class="btn btn-ghost btn-sm">${alreadySubmitted ? '✖️ Kapat' : '❌ Vazgeç'}</button>
         <button id="lb-submit-btn" class="btn btn-primary btn-sm" ${alreadySubmitted ? 'disabled style="opacity:0.5;cursor:not-allowed;"' : ''}>
           ${alreadySubmitted ? '✅ Gönderildi' : '🏆 Gönder'}
@@ -1149,6 +1264,15 @@ function _showLeaderboardSubmitModal(isGameOver = false) {
   showModal(heading, bodyHtml);
 
   // Buton handler'ları
+  document.getElementById('lb-continue-btn')?.addEventListener('click', () => {
+    const res = continueInSandboxMode();
+    if (res.success) {
+      showNotification('Oyun serbest modda devam ediyor. Başarılar!', 'success');
+      hideModal();
+      refreshGameUI();
+    }
+  });
+
   document.getElementById('lb-cancel-btn')?.addEventListener('click', () => {
     hideModal();
   });
@@ -1388,6 +1512,23 @@ function _onHireOffer(facultyId, offerOrObj) {
 
   if (!targetDept) {
     showNotification('Hocayı atamak için açık bölüm bulunamadı.', 'danger');
+    const sendBtn = document.getElementById('btn-send-offer');
+    if (sendBtn) {
+      sendBtn.disabled = false;
+      sendBtn.textContent = 'Transfer Et / Teklif Gönder';
+    }
+    return;
+  }
+
+  // Tazminat kontrolü
+  const transferFee = fac.transferFee || 0;
+  if (state.university && transferFee > 0 && state.university.budget < transferFee) {
+    showNotification(`Yetersiz bütçe! Transfer tazminatı için ₺${transferFee.toLocaleString('tr-TR')} gerekli.`, 'danger');
+    const sendBtn = document.getElementById('btn-send-offer');
+    if (sendBtn) {
+      sendBtn.disabled = false;
+      sendBtn.textContent = 'Transfer Et / Teklif Gönder';
+    }
     return;
   }
 
@@ -1399,13 +1540,34 @@ function _onHireOffer(facultyId, offerOrObj) {
   };
 
   const result = applyDecision({ type: 'hire_faculty', facultyData });
-  _transferMarket = null; // Pazarı sıfırla (bir sonraki açılışta yenilensin)
 
   if (result && result.success) {
+    // Tazminatı bütçeden düş
+    if (state.university && transferFee > 0) {
+      state.university.budget -= transferFee;
+    }
+
+    // Transfer edilen hocayı pazardan çıkar (böylece sayfada kalmaz!)
+    const facIdx = market.findIndex(f => f.id === fid);
+    if (facIdx !== -1) {
+      market.splice(facIdx, 1);
+    }
+    if (_transferMarket && !Array.isArray(_transferMarket) && Array.isArray(_transferMarket.candidates)) {
+      _transferMarket.candidates = _transferMarket.candidates.filter(f => f.id !== fid);
+    }
+
     showNotification(`${fac.name} kadromuza katıldı!`, 'success');
     _persistState();
+
+    // Açık olan Transfer Pazarı modalından hocayı canlı olarak kaldır
+    removeTransferMarketCandidate(fid, market, getState());
   } else {
     showNotification(result?.message || 'İşe alma başarısız.', 'danger');
+    const sendBtn = document.getElementById('btn-send-offer');
+    if (sendBtn) {
+      sendBtn.disabled = false;
+      sendBtn.textContent = 'Transfer Et / Teklif Gönder';
+    }
   }
   refreshGameUI();
 }
@@ -1424,10 +1586,23 @@ function _onOpenPositionModal() {
 }
 
 /**
- * İlan formunu gönder: state'e ekle, bildirim ver.
- * @param {object} position — İlan objesi
+ * İlan formunu gönder: tek veya toplu olarak state'e ekle, bildirim ver.
+ * @param {object|Array} positionOrPositions — İlan objesi veya dizi
  */
-function _onSubmitOpenPosition(position) {
+function _onSubmitOpenPosition(positionOrPositions) {
+  if (Array.isArray(positionOrPositions)) {
+    const positions = positionOrPositions;
+    const result = applyDecision({ type: 'post_open_position', positions });
+    if (result && result.success) {
+      showNotification(`${positions.length} bölüme toplu kadro ilanı başarıyla yayınlandı!`, 'success');
+      _persistState();
+    } else {
+      showNotification(result?.message || 'İlanlar verilemedi.', 'danger');
+    }
+    refreshGameUI();
+    return;
+  }
+  const position = positionOrPositions;
   const result = applyDecision({ type: 'post_open_position', position });
   if (result && result.success) {
     const alanLabel = position.allFields
@@ -1449,15 +1624,26 @@ function _onSubmitOpenPosition(position) {
 function _bindApplicantButtons() {
   const panel = document.getElementById('tab-faculty');
   if (!panel) return;
-  // Remove previous listener to avoid duplicates (using once-flag approach)
+  // Remove previous listeners to avoid duplicates
   panel.removeEventListener('accept-applicant', _handleAcceptApplicant);
   panel.removeEventListener('reject-applicant', _handleRejectApplicant);
+  panel.removeEventListener('bulk-accept-applicants', _handleBulkAcceptApplicants);
+  panel.removeEventListener('bulk-reject-applicants', _handleBulkRejectApplicants);
+  panel.removeEventListener('reject-all-applicants', _handleRejectAllApplicants);
   panel.removeEventListener('accept-spontaneous', _handleAcceptSpontaneous);
   panel.removeEventListener('reject-spontaneous', _handleRejectSpontaneous);
+  panel.removeEventListener('bulk-reject-spontaneous', _handleBulkRejectSpontaneous);
+  panel.removeEventListener('reject-all-spontaneous', _handleRejectAllSpontaneous);
+
   panel.addEventListener('accept-applicant', _handleAcceptApplicant);
   panel.addEventListener('reject-applicant', _handleRejectApplicant);
+  panel.addEventListener('bulk-accept-applicants', _handleBulkAcceptApplicants);
+  panel.addEventListener('bulk-reject-applicants', _handleBulkRejectApplicants);
+  panel.addEventListener('reject-all-applicants', _handleRejectAllApplicants);
   panel.addEventListener('accept-spontaneous', _handleAcceptSpontaneous);
   panel.addEventListener('reject-spontaneous', _handleRejectSpontaneous);
+  panel.addEventListener('bulk-reject-spontaneous', _handleBulkRejectSpontaneous);
+  panel.addEventListener('reject-all-spontaneous', _handleRejectAllSpontaneous);
 
   // Feature 2: Yeni bölüm/program başvurusu (modal overlay'den gelir)
   document.removeEventListener('apply-new-dept', _handleApplyNewDept);
@@ -1485,10 +1671,10 @@ function _handleAcceptApplicant(e) {
   if (result && result.success) {
     showNotification(result.message || 'Başvurucu işe alındı!', 'success');
     _persistState();
+    refreshGameUI();
   } else {
     showNotification(result?.message || 'İşe alma başarısız.', 'danger');
   }
-  refreshGameUI();
 }
 
 function _handleRejectApplicant(e) {
@@ -1497,7 +1683,100 @@ function _handleRejectApplicant(e) {
   applyDecision({ type: 'reject_applicant', applicantId: appId });
   showNotification('Başvuru reddedildi.', 'info');
   _persistState();
-  refreshGameUI();
+
+  const card = document.getElementById(`applicant-card-${appId}`);
+  if (card) {
+    card.style.transition = 'all 0.18s ease';
+    card.style.opacity = '0';
+    card.style.transform = 'scale(0.95)';
+    card.style.pointerEvents = 'none';
+    setTimeout(() => {
+      card.remove();
+      const list = document.getElementById('applications-list');
+      const countLabel = document.getElementById('pending-applications-count');
+      const container = document.getElementById('pending-applications-container');
+      const remaining = list ? list.querySelectorAll('.applicant-card').length : 0;
+      if (countLabel) {
+        countLabel.textContent = `Bekleyen Başvurular (${remaining})`;
+      }
+      if (remaining === 0 && container) {
+        container.style.transition = 'all 0.25s ease';
+        container.style.opacity = '0';
+        setTimeout(() => container.remove(), 250);
+      } else {
+        if (typeof window._updateApplicantBulkCounts === 'function') {
+          window._updateApplicantBulkCounts();
+        }
+      }
+    }, 180);
+  } else {
+    refreshGameUI();
+  }
+}
+
+function _handleBulkAcceptApplicants(e) {
+  const applicantIds = e.detail?.applicantIds;
+  if (!Array.isArray(applicantIds) || applicantIds.length === 0) return;
+  const result = applyDecision({ type: 'bulk_accept_applicants', applicantIds });
+  if (result && result.success) {
+    showNotification(result.message, 'success');
+    _persistState();
+    refreshGameUI();
+  } else {
+    showNotification(result?.message || 'Toplu işe alma başarısız.', 'danger');
+  }
+}
+
+function _handleBulkRejectApplicants(e) {
+  const applicantIds = e.detail?.applicantIds;
+  if (!Array.isArray(applicantIds) || applicantIds.length === 0) return;
+  const result = applyDecision({ type: 'bulk_reject_applicants', applicantIds });
+  showNotification(result?.message || `${applicantIds.length} başvuru reddedildi.`, 'info');
+  _persistState();
+
+  applicantIds.forEach(id => {
+    const card = document.getElementById(`applicant-card-${id}`);
+    if (card) {
+      card.style.transition = 'all 0.18s ease';
+      card.style.opacity = '0';
+      card.style.transform = 'scale(0.95)';
+      card.style.pointerEvents = 'none';
+      setTimeout(() => card.remove(), 180);
+    }
+  });
+
+  setTimeout(() => {
+    const list = document.getElementById('applications-list');
+    const countLabel = document.getElementById('pending-applications-count');
+    const container = document.getElementById('pending-applications-container');
+    const remaining = list ? list.querySelectorAll('.applicant-card').length : 0;
+    if (countLabel) {
+      countLabel.textContent = `Bekleyen Başvurular (${remaining})`;
+    }
+    if (remaining === 0 && container) {
+      container.style.transition = 'all 0.25s ease';
+      container.style.opacity = '0';
+      setTimeout(() => container.remove(), 250);
+    } else {
+      if (typeof window._updateApplicantBulkCounts === 'function') {
+        window._updateApplicantBulkCounts();
+      }
+    }
+  }, 200);
+}
+
+function _handleRejectAllApplicants() {
+  const result = applyDecision({ type: 'reject_all_applicants' });
+  showNotification(result?.message || 'Tüm başvurular reddedildi.', 'info');
+  _persistState();
+  const container = document.getElementById('pending-applications-container');
+  if (container) {
+    container.style.transition = 'all 0.25s ease';
+    container.style.opacity = '0';
+    setTimeout(() => container.remove(), 250);
+  } else {
+    refreshGameUI();
+  }
 }
 
 function _handleAcceptSpontaneous(e) {
@@ -1507,10 +1786,10 @@ function _handleAcceptSpontaneous(e) {
   if (result && result.success) {
     showNotification(result.message || 'Spontane başvurucu işe alındı!', 'success');
     _persistState();
+    refreshGameUI();
   } else {
     showNotification(result?.message || 'İşe alma başarısız.', 'danger');
   }
-  refreshGameUI();
 }
 
 function _handleRejectSpontaneous(e) {
@@ -1519,7 +1798,79 @@ function _handleRejectSpontaneous(e) {
   applyDecision({ type: 'reject_spontaneous', applicantId: appId });
   showNotification('Spontane başvuru reddedildi.', 'info');
   _persistState();
-  refreshGameUI();
+
+  const card = document.getElementById(`spontaneous-card-${appId}`);
+  if (card) {
+    card.style.transition = 'all 0.18s ease';
+    card.style.opacity = '0';
+    card.style.transform = 'scale(0.95)';
+    card.style.pointerEvents = 'none';
+    setTimeout(() => {
+      card.remove();
+      const list = document.getElementById('spontaneous-list');
+      const countLabel = document.getElementById('spontaneous-applications-count');
+      const container = document.getElementById('spontaneous-applications-container');
+      const remaining = list ? list.querySelectorAll('.spontaneous-card').length : 0;
+      if (countLabel) {
+        countLabel.textContent = `📬 GELEN BAŞVURULAR (İlan Dışı) — ${remaining} başvuru`;
+      }
+      if (remaining === 0 && container) {
+        container.style.transition = 'all 0.25s ease';
+        container.style.opacity = '0';
+        setTimeout(() => container.remove(), 250);
+      }
+    }, 180);
+  } else {
+    refreshGameUI();
+  }
+}
+
+function _handleBulkRejectSpontaneous(e) {
+  const applicantIds = e.detail?.applicantIds;
+  if (!Array.isArray(applicantIds) || applicantIds.length === 0) return;
+  const result = applyDecision({ type: 'bulk_reject_spontaneous', applicantIds });
+  showNotification(result?.message || `${applicantIds.length} spontane başvuru reddedildi.`, 'info');
+  _persistState();
+
+  applicantIds.forEach(id => {
+    const card = document.getElementById(`spontaneous-card-${id}`);
+    if (card) {
+      card.style.transition = 'all 0.18s ease';
+      card.style.opacity = '0';
+      card.style.transform = 'scale(0.95)';
+      card.style.pointerEvents = 'none';
+      setTimeout(() => card.remove(), 180);
+    }
+  });
+
+  setTimeout(() => {
+    const list = document.getElementById('spontaneous-list');
+    const countLabel = document.getElementById('spontaneous-applications-count');
+    const container = document.getElementById('spontaneous-applications-container');
+    const remaining = list ? list.querySelectorAll('.spontaneous-card').length : 0;
+    if (countLabel) {
+      countLabel.textContent = `📬 GELEN BAŞVURULAR (İlan Dışı) — ${remaining} başvuru`;
+    }
+    if (remaining === 0 && container) {
+      container.style.transition = 'all 0.25s ease';
+      container.style.opacity = '0';
+      setTimeout(() => container.remove(), 250);
+    }
+  }, 200);
+}
+
+function _handleRejectAllSpontaneous() {
+  const result = applyDecision({ type: 'reject_all_spontaneous' });
+  showNotification(result?.message || 'Tüm spontane başvurular reddedildi.', 'info');
+  _persistState();
+  const container = document.getElementById('spontaneous-applications-container');
+  if (container) {
+    container.style.transition = 'all 0.25s ease';
+    container.style.opacity = '0';
+    setTimeout(() => container.remove(), 250);
+  } else {
+    refreshGameUI();
+  }
 }
 
 /**
@@ -1843,8 +2194,8 @@ function _onFacultyDetail(facultyId) {
       const result = applyDecision({ type: 'adjust_salary', facultyId: f.id, newSalary });
       if (result && result.success) {
         showNotification(result.message, 'success');
-        hideModal();
         refreshGameUI();
+        _onFacultyDetail(f.id);
       } else {
         showNotification(result?.message || 'Maaş güncellenemedi.', 'danger');
       }
@@ -1859,8 +2210,8 @@ function _onFacultyDetail(facultyId) {
         const result = applyDecision({ type: 'give_award', facultyId: f.id, awardType });
         if (result && result.success) {
           showNotification(result.message, 'success');
-          hideModal();
           refreshGameUI();
+          _onFacultyDetail(f.id); // Modalı kapatma, içeriği yenile
         } else {
           showNotification(result?.message || 'Ödül verilemedi.', 'danger');
         }
@@ -1875,8 +2226,8 @@ function _onFacultyDetail(facultyId) {
       const result = applyDecision({ type: 'promote_faculty', facultyId: f.id });
       if (result && result.success) {
         showNotification(result.message, 'success');
-        hideModal();
         refreshGameUI();
+        _onFacultyDetail(f.id);
       } else {
         showNotification(result?.message || 'Yükseltme yapılamadı.', 'danger');
       }
@@ -2400,6 +2751,30 @@ window._onPromoteAdminStaff = function(staffId) {
   }
 };
 
+/** Birim yöneticisi onayıyla tek birimdeki personelleri otomatik terfi et */
+window._onAutoPromoteUnitStaff = function(unitId) {
+  const result = autoPromoteAdminStaff(unitId);
+  if (result.success) {
+    showNotification(result.message, 'success');
+    _persistState();
+    refreshGameUI();
+  } else {
+    showNotification(result.message || 'Terfi yapılamadı.', 'warning');
+  }
+};
+
+/** Yöneticisi olan tüm birimlerdeki terfi bekleyen personelleri otomatik terfi et */
+window._onAutoPromoteAllEligibleAdminStaff = function() {
+  const result = autoPromoteAdminStaff(null);
+  if (result.success) {
+    showNotification(result.message, 'success');
+    _persistState();
+    refreshGameUI();
+  } else {
+    showNotification(result.message || 'Terfi yapılamadı.', 'info');
+  }
+};
+
 /** İş akdi feshi modalı */
 window._onFireAdminStaff = function(staffId) {
   const state = getState();
@@ -2471,33 +2846,57 @@ window._onAssignUnitManager = function(unitId) {
   refreshGameUI();
 };
 
+window._onAutoAssignManagers = function() {
+  const state = getState();
+  const adminUnits = state.adminUnits || {};
+  const adminStaff = state.adminStaff || [];
+  let assignedCount = 0;
+
+  Object.entries(adminUnits).forEach(([unitId, unit]) => {
+    if (unit.managerId) return;
+    const eligible = adminStaff.filter(s => s.unit === unitId && isUnitManagerTitle(unitId, s.title));
+    if (eligible.length === 0) return;
+    const best = eligible.reduce((prev, current) => (current.leadership || 0) > (prev.leadership || 0) ? current : prev);
+    const result = assignUnitManager(unitId, best.id);
+    if (result.success) assignedCount++;
+  });
+
+  if (assignedCount > 0) {
+    showNotification(`${assignedCount} birime otomatik yönetici atandı.`, 'success');
+    _persistState();
+    refreshGameUI();
+  } else {
+    showNotification('Atama yapılabilecek uygun aday bulunamadı.', 'info');
+  }
+};
+
 // ─────────────────────────────────────────────────────────────────────────────
 // v0.3: TEKNOLOJİ TRANSFER OFİSİ — Global callback'ler
 // ─────────────────────────────────────────────────────────────────────────────
 
 window._onEstablishTTO = function() {
-  const result = establishTTO(getState());
+  const result = applyDecision({ type: 'establish_tto' });
   showNotification(result.message, result.success ? 'success' : 'error');
   if (result.success) _persistState();
   refreshGameUI();
 };
 
 window._onUpgradeTTO = function() {
-  const result = upgradeTTO(getState());
+  const result = applyDecision({ type: 'upgrade_tto' });
   showNotification(result.message, result.success ? 'success' : 'error');
   if (result.success) _persistState();
   refreshGameUI();
 };
 
 window._onAcceptDeal = function(dealId) {
-  const result = acceptDeal(getState(), Number(dealId));
+  const result = applyDecision({ type: 'accept_tto_deal', dealId: Number(dealId) });
   showNotification(result.message, result.success ? 'success' : 'error');
   if (result.success) _persistState();
   refreshGameUI();
 };
 
 window._onRejectDeal = function(dealId) {
-  const result = rejectDeal(getState(), Number(dealId));
+  const result = applyDecision({ type: 'reject_tto_deal', dealId: Number(dealId) });
   showNotification(result.message, result.success ? 'success' : 'error');
   if (result.success) _persistState();
   refreshGameUI();

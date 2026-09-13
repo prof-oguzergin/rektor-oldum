@@ -142,6 +142,10 @@ body {
   flex-direction: column;
 }
 .modal-screen {
+  position: fixed;
+  inset: 0;
+  width: 100%;
+  height: 100%;
   z-index: 200;
 }
 .modal-screen.hidden {
@@ -1146,6 +1150,67 @@ body {
   pointer-events: auto;
 }
 
+/* Standart Toast (Bildirimler) */
+.toast {
+  position: relative;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  color: var(--text);
+  padding: 12px 16px;
+  border-radius: 8px;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+  font-size: 13px;
+  cursor: pointer;
+  overflow: hidden;
+  min-width: 280px;
+  animation: toastSlideIn 0.3s cubic-bezier(0.34, 1.56, 0.64, 1) both;
+  transition: opacity 0.4s ease, transform 0.4s ease;
+}
+
+.toast.fadeout {
+  opacity: 0;
+  transform: translateX(20px);
+}
+
+.toast-content {
+  position: relative;
+  z-index: 2;
+  font-weight: 600;
+}
+
+.toast-progress {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  height: 3px;
+  background: var(--text-muted);
+  width: 100%;
+  animation: toastProgress 3.5s linear forwards;
+  opacity: 0.5;
+}
+
+.toast-success { border-left: 4px solid var(--accent-green); }
+.toast-success .toast-progress { background: var(--accent-green); }
+
+.toast-error { border-left: 4px solid #e53e3e; }
+.toast-error .toast-progress { background: #e53e3e; }
+
+.toast-warning { border-left: 4px solid var(--accent-yellow); }
+.toast-warning .toast-progress { background: var(--accent-yellow); }
+
+.toast-info { border-left: 4px solid var(--accent-blue); }
+.toast-info .toast-progress { background: var(--accent-blue); }
+
+@keyframes toastSlideIn {
+  from { opacity: 0; transform: translateX(30px); }
+  to { opacity: 1; transform: translateX(0); }
+}
+
+@keyframes toastProgress {
+  from { width: 100%; }
+  to { width: 0%; }
+}
+
 /* Başarım tostu */
 .achievement-toast {
   display: flex;
@@ -1982,6 +2047,186 @@ body.tutorial-active {
 .campus-main {
   flex: 1;
   min-width: 0;
+}
+
+/* ─────────────────────────────────────────────────────────────────────────
+   YERLEŞKE BİNA GRUPLARI & AKORDEON DÜZENİ
+───────────────────────────────────────────────────────────────────────── */
+.campus-toolbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 16px;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.campus-toolbar-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.campus-group-item {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  margin-bottom: 12px;
+  overflow: hidden;
+  transition: border-color 0.2s, box-shadow 0.2s;
+}
+
+.campus-group-item:hover {
+  border-color: var(--border-light);
+}
+
+.campus-group-item.is-open {
+  border-color: rgba(99, 102, 241, 0.45);
+  box-shadow: 0 4px 18px rgba(0, 0, 0, 0.3);
+}
+
+.campus-group-header {
+  padding: 12px 16px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  cursor: pointer;
+  background: rgba(255, 255, 255, 0.02);
+  user-select: none;
+  transition: background 0.15s;
+}
+
+.campus-group-header:hover {
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.campus-group-icon {
+  font-size: 24px;
+  flex-shrink: 0;
+  width: 38px;
+  height: 38px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(255, 255, 255, 0.04);
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.campus-group-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.campus-group-title-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.campus-group-title {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--text);
+}
+
+.campus-group-summary {
+  font-size: 11px;
+  color: var(--text-muted);
+  margin-top: 2px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.campus-group-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-shrink: 0;
+}
+
+.campus-group-chevron {
+  font-size: 11px;
+  color: var(--text-muted);
+  transition: transform 0.25s ease, color 0.2s;
+  display: inline-block;
+  padding: 4px;
+}
+
+.campus-group-item.is-open .campus-group-chevron {
+  transform: rotate(180deg);
+  color: #818cf8;
+}
+
+.campus-group-content {
+  display: grid;
+  grid-template-rows: 0fr;
+  transition: grid-template-rows 0.25s ease-out;
+}
+
+.campus-group-item.is-open .campus-group-content {
+  grid-template-rows: 1fr;
+}
+
+.campus-group-inner {
+  overflow: hidden;
+  padding: 0 16px;
+  transition: padding 0.25s ease;
+}
+
+.campus-group-item.is-open .campus-group-inner {
+  padding: 14px 16px 16px 16px;
+  border-top: 1px solid rgba(255, 255, 255, 0.06);
+  background: rgba(0, 0, 0, 0.12);
+}
+
+.campus-group-empty {
+  padding: 12px 16px;
+  background: rgba(255, 255, 255, 0.02);
+  border-radius: 8px;
+  font-size: 12px;
+  color: var(--text-muted);
+  margin-bottom: 12px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.campus-group-buildings-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.campus-build-footer {
+  padding: 12px 16px;
+  border-radius: 9px;
+  background: rgba(255, 255, 255, 0.02);
+  border: 1px dashed rgba(255, 255, 255, 0.14);
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  transition: all 0.2s ease;
+}
+
+.campus-build-footer.can-build:hover {
+  background: rgba(78, 204, 163, 0.06);
+  border-color: rgba(78, 204, 163, 0.4);
+  transform: translateY(-1px);
+}
+
+.campus-build-footer-icon {
+  font-size: 24px;
+  flex-shrink: 0;
+  width: 42px;
+  height: 42px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(255, 255, 255, 0.04);
+  border-radius: 8px;
 }
 
 .campus-map-sidebar {
