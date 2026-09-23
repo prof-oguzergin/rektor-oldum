@@ -7,10 +7,13 @@
 export const CHANGELOG = [
   {
     version: '0.5.2',
-    date: '2026-09-23',
-    title: 'Genel Bakış düzeltmesi',
+    date: '2026-09-24',
+    title: 'Düzeltme paketi',
     items: [
-      { type: 'fix', text: 'İlk dönemde Genel Bakış\'ta kalite puanı ve sıralama eksik ya da eski görünüyordu; düzeltildi.' },
+      { type: 'fix', text: 'Transfer pazarından alınan hoca kendi bölümüne gidiyor. Olay penceresi dönem özetini kaybettirmiyor. Yeni bölüm, en az 3 hocası olana dek öğrenci almıyor.' },
+      { type: 'fix', text: 'Kapasite, Genel Bakış tahmini, kredi borcu ve bölüm memnuniyeti doğru gösteriliyor. Dönem özeti saygınlığın neden değiştiğini yazıyor.' },
+      { type: 'feat', text: 'Senaryo hedefi oyun ekranında görünüyor. İnşaat ve yükseltme onay istiyor.' },
+      { type: 'fix', text: 'Rehber, kontenjan penceresi, idari yönetici ataması ve yazım kusurları düzeltildi.' },
     ],
   },
   {

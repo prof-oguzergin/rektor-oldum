@@ -2,7 +2,7 @@
 
 - GitHub: https://github.com/prof-oguzergin/rektor-oldum (private)
 - Yayında: https://prof-oguzergin.github.io/rektor-oldum/
-- Durum: v0.5.1 (oyun hızı dengesi, hoca yaşam döngüsü, 23 Eyl 2026, canlıda); aktif geliştirme, oyuncu rapor akışı (Erdinç, Emir, Burak, AkaDemi, Yusuf, Fatih)
+- Durum: v0.5.1 canlıda (23 Eyl 2026); v0.5.2 düzeltme paketi yerelde master'da, gönderim onayı bekliyor; aktif geliştirme, oyuncu rapor akışı (Erdinç, Emir, Burak, AkaDemi, Yusuf, Fatih)
 - Dizin: C:\Users\Z GAMES\Yapay Zeka\university-tycoon
 
 ## Teknik
@@ -84,7 +84,14 @@ Tam liste: `js/changelog.js` (oyun içi "Yenilikler" panelinde de gösterilir, b
   - Skor tablosu: puan saygınlık ve sıraya bağlı, eski sürümde şişen skorlar yeni dengede aşılamaz; sezon ayrımı / "eski sistem" rozeti Oğuz'un kararına bırakıldı.
   - Sürüm notları kısa: en çok 4 madde, madde başına bir iki cümle (Oğuz, 23 Eyl 2026: "çok uzun yazıyorsun").
 
-- v0.5.2 (23 Eyl 2026): İlk dönem Genel Bakış düzeltmesi. `initGame` kalite puanını da hesaplar; `migrateState` eksik kalite ve tavanı doldurur, `updateRankings` çağırır (eski kayıtta 6 üniversitelik eski sıra ilk dönem sonunda birden 51'lik sıraya düşüyordu).
+- v0.5.2 (24 Eyl 2026) Düzeltme paketi. İki bağımsız oynanabilirlik incelemesinden (Claude alt ajanı + Codex; sonuç sayfası https://claude.ai/artifact/8xYosih8arWZtvS4eqcToo, ham raporlar `C:\repos\_inceleme-rektor\`) çıktı; iki alt ajan ayrı git worktree'lerinde (mekanik / arayüz, dosya sahipliği ayrık) çalıştı, dallar master'da birleşti.
+  - İlk dönem Genel Bakış: `initGame` kalite puanını hesaplar; `migrateState` eksik kalite ve tavanı doldurur, `updateRankings` çağırır.
+  - Kapasite: bölüm kapasitesi = derslik koltuğu × 4 (bir koltuk bir yıllık alım, `applyQuotas` kabulü); atanmamış binalar binası olmayan bölümlerin ortak alanı; `dept.studentCapacity` ve `stats.capacity` her dönem yazılır, cezalar ve Yerleşke Özeti aynı ölçüyü kullanır. Kontenjan penceresindeki "Yeni Alım İçin Yer" de koltuk × 4 üzerinden.
+  - Saygınlık geri bildirimi: olay seçimi saygınlığı anında yazmaz, `university._olaySayginlik` kanalında birikir (dönem başına en çok ±0,4); `kaliciSayginlikEtkisi(d)` seçenek kartında ve bildirimde kalıcı etkiyi verir; dönem özetinde `prestigeBreakdown {onceki, sonraki, kalite, olay}`; iletilerde ham puan yok ("saygınlığa katkı"). Başarımlar saygınlık güncellemesinden sonra denetlenir.
+  - Yaşam döngüsü: ayrılıştan sonra ders ataması yeniden yapılır, projeler bölümdeki başka hocaya devredilir ya da sonlanır.
+  - Transfer pazarı: aday `department` = açık bölüm kimliği, saygınlık `university.prestige`'ten; işe alım adayın bölümüne. Yeni bölüm "Min." hoca sayısına ulaşmadan öğrenci almaz. İdari yöneticiler başta atanır, elle atama `elleAtandi` ile korunur.
+  - Arayüz: senaryo hedef göstergesi, Genel Bakış tahmini `calculateIncome/Expenses`, kredi borcu kartı, bölüm memnuniyeti `byDepartment`'tan, dönem özetinde "Devam" + Esc, olay penceresinde ✕ yok, inşaat onayı, sekme değişince başa kaydırma, sayı ekleri (2'ye, 6'ya), rehber hedefleri durumdan.
+  - Bilinen: araştırma puanının proje ve h-indeks bileşenleri gerçek oyunda dolmuyor (kalite puanında 45/100 ulaşılamaz); iyi yönetimde devlet ilk 10'a ~21 yılda. Düzeltmesi dengeyi değiştirir, ayrı sürümde ölçerek.
 
 ## Aktif Oyuncu Raporcuları
 Erdinç (en yoğun), AkaDemi, Emir, Burak Gökalp, Yusuf Sertkaya, R-Fatih (Issue #7, #9), X, serhattural

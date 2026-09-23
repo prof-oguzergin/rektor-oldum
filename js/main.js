@@ -9,7 +9,7 @@ console.log('[main] main.js modülü yükleniyor...');
 // ─────────────────────────────────────────────────────────────────────────────
 
 import { initGame, nextTurn, getState, setState, applyDecision, assignCourses, applyQuotas, assignDeptHead, reassignFacultyToDept, generateAdminCandidates, hireAdminStaff, upgradeAdminUnit, promoteAdminStaff, fireAdminStaff, updateAdminStaffSalary, assignUnitManager, RANDOM_EVENTS, ACHIEVEMENTS, getAchievementStats, organizeAlumniEvent, applyRandomEventChoice, ACCREDITATION_BODIES, applyForAccreditation, checkAccreditationRequirements, establishTTO, upgradeTTO, acceptDeal, rejectDeal, foundClub, upgradeClub, dissolveClub, CLUB_TYPES, CLUB_CATEGORIES, SPORTS, foundTeam, upgradeTeam, dissolveTeam, setCourseDifficulty, getUnitTitles, getUnitTitleSalary, isUnitManagerTitle, enableFreeMode } from './game.js?v=0.5.2';
-import { ADMIN_TITLES, SCENARIOS } from './data.js?v=0.5.1';
+import { ADMIN_TITLES, SCENARIOS } from './data.js?v=0.5.2';
 
 import {
   showScreen,
@@ -63,10 +63,10 @@ import { CHANGELOG, hasUnseenChanges, setLastSeenVersion } from './changelog.js?
 
 import { saveGame, loadGame, autoSave, getSaveSlots, deleteSave, exportSave, importSave, sanitizeForSave } from './save.js?v=0.4.63';
 import { calculateScore, scoreBreakdown, submitScore, getTopScores, initFirebase, isLeaderboardUnavailable, saveLocalScore, getLocalScores } from './leaderboard.js?v=0.4.45';
-import { showTutorialIfNeeded, replayTutorial } from './tutorial.js?v=0.4.55';
+import { showTutorialIfNeeded, replayTutorial } from './tutorial.js?v=0.5.2';
 import { initAudio, playSound, toggleMute, isMuted, startMusic, stopMusic, setMusicVolume, setSFXVolume, getAudioSettings } from './audio.js?v=0.4.24';
 
-import { generateTransferMarket, renderFacultyAvatar, renderFacultyPortrait, calculateOverallRating, getFacultyRatingTrend } from './faculty.js?v=0.5.1';
+import { generateTransferMarket, renderFacultyAvatar, renderFacultyPortrait, calculateOverallRating, getFacultyRatingTrend } from './faculty.js?v=0.5.2';
 import { resolveDecision } from './events.js?v=0.4.24';
 
 // Uluslararası sıralama modülleri

@@ -265,12 +265,12 @@ export function processSports(state, results) {
       if (results?.events) {
         results.events.push({
           type: 'sports_championship',
-          message: `🏆 ${team.name} takımı şampiyon oldu! (+3 saygınlık)`,
+          message: `🏆 ${team.name} takımı şampiyon oldu! (saygınlığa katkı)`,
         });
       } else if (Array.isArray(results)) {
         results.push({
           type: 'sports_championship',
-          message: `🏆 ${team.name} takımı şampiyon oldu! (+3 saygınlık)`,
+          message: `🏆 ${team.name} takımı şampiyon oldu! (saygınlığa katkı)`,
         });
       }
     }

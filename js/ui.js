@@ -4,9 +4,9 @@
  * Vanilla JS, framework yok.
  */
 
-import { DEPARTMENTS, DEPARTMENT_CURRICULA, UNIVERSITY_TYPES, UNIVERSITY_MODELS, USD_TO_TL, DIFFICULTY_SETTINGS, BUILDINGS, SEMESTER_MONTHS, FACULTIES, DEPT_TO_FACULTY, SALARY_SCALES, ADMIN_UNITS, ADMIN_TITLES, ADMIN_UNIT_BUILDINGS, ACCREDITATION_BODIES, SCENARIOS, BANKS } from './data.js?v=0.5.1';
-import { DEPARTMENT_FIELDS, getSalaryRange, renderFacultyAvatar, renderFacultyPortrait, calculateOverallRating, getFacultyRatingTrend } from './faculty.js?v=0.5.1';
-import { AVAILABLE_NEW_DEPARTMENTS, getCourseEffectiveDifficulty, getUnitTitles, getUnitTitleSalary, isUnitManagerTitle, calculateCampusUsageSummary } from './game.js?v=0.5.2';
+import { DEPARTMENTS, DEPARTMENT_CURRICULA, UNIVERSITY_TYPES, UNIVERSITY_MODELS, USD_TO_TL, DIFFICULTY_SETTINGS, BUILDINGS, SEMESTER_MONTHS, FACULTIES, DEPT_TO_FACULTY, SALARY_SCALES, ADMIN_UNITS, ADMIN_TITLES, ADMIN_UNIT_BUILDINGS, ACCREDITATION_BODIES, SCENARIOS, BANKS } from './data.js?v=0.5.2';
+import { DEPARTMENT_FIELDS, getSalaryRange, renderFacultyAvatar, renderFacultyPortrait, calculateOverallRating, getFacultyRatingTrend } from './faculty.js?v=0.5.2';
+import { AVAILABLE_NEW_DEPARTMENTS, getCourseEffectiveDifficulty, getUnitTitles, getUnitTitleSalary, isUnitManagerTitle, calculateCampusUsageSummary, kaliciSayginlikEtkisi } from './game.js?v=0.5.2';
 import { calculateIncome, calculateExpenses, calculateLoanPayment } from './economy.js?v=0.4.24';
 import { renderCampusMap, handleCampusClick, handleCampusHover, clearHover } from './campus-renderer.js?v=0.5.1';
 
@@ -3407,13 +3407,17 @@ export function renderQuotaModal(state, onConfirm, secenek = {}) {
   const totalFaculty       = (state.faculty || []).length;
   const maxStudentsByFaculty = totalFaculty * 30;
 
+  // v0.5.2: bir koltuk bir yıllık alımı taşır (applyQuotas), dört sınıfın toplam
+  // yeri koltuk × 4'tür; üst sınıflar (2-4) bununla kıyaslanır (game.js bölüm kapasitesiyle aynı ölçü)
+  const dortSinifKoltuk = totalClassroomCap * 4;
+
   // Toplam efektif kapasite (minimum olarak sınıf ve hoca kapasitesini al)
   const effectiveCapacity  = Math.max(
     50, // minimum bir şey göster
-    totalClassroomCap > 0 && maxStudentsByFaculty > 0
-      ? Math.min(totalClassroomCap, maxStudentsByFaculty)
-      : totalClassroomCap > 0
-        ? totalClassroomCap
+    dortSinifKoltuk > 0 && maxStudentsByFaculty > 0
+      ? Math.min(dortSinifKoltuk, maxStudentsByFaculty)
+      : dortSinifKoltuk > 0
+        ? dortSinifKoltuk
         : maxStudentsByFaculty
   );
 
@@ -3496,8 +3500,8 @@ export function renderQuotaModal(state, onConfirm, secenek = {}) {
     <div style="background:var(--bg-secondary);border-radius:8px;padding:10px 14px;margin-bottom:16px;font-size:12px;display:grid;grid-template-columns:repeat(3,1fr);gap:10px;">
       <div>
         <div style="color:var(--text-muted);margin-bottom:2px;">Sınıf Kapasitesi</div>
-        <div style="font-weight:700;font-size:14px;">${totalClassroomCap > 0 ? formatNumber(totalClassroomCap) : '—'}</div>
-        <div style="font-size:10px;color:var(--text-faint);">tamamlanan binalar</div>
+        <div style="font-weight:700;font-size:14px;">${dortSinifKoltuk > 0 ? formatNumber(dortSinifKoltuk) : '—'}</div>
+        <div style="font-size:10px;color:var(--text-faint);">4 sınıf, tamamlanan binalar</div>
       </div>
       <div>
         <div style="color:var(--text-muted);margin-bottom:2px;">Hoca Kapasitesi</div>
@@ -3756,7 +3760,7 @@ function _formatBuildingEffects(effects) {
     facultyHappiness:       (v) => `+${s(v)} hoca memnuniyeti`,
     studentDemandBonus:     (v) => `+%${Math.round(v * 100)} öğrenci talebi`,
     revenuePerBed:          (v) => `+₺${v.toLocaleString('tr-TR')}/dönem yurt geliri`,
-    prestige:               (v) => `+${s(v)} saygınlık`,
+    prestige:               ()  => 'saygınlığa katkı',
     internationalization:   (v) => `+${s(v)} uluslararasılaşma`,
     internationalVisibility:(v) => `+${s(v)} uluslararası görünürlük`,
     eventRevenuePerTurn:    (v) => `+₺${v.toLocaleString('tr-TR')}/dönem etkinlik geliri`,
@@ -8879,9 +8883,11 @@ export function renderRandomEventModal(event, onChoice) {
            Kasa ${c.budgetDelta > 0 ? '+' : ''}${formatMoney(c.budgetDelta)}
          </span>`
       : '';
-    const prestigeText = c.prestigeDelta
-      ? `<span style="color:${c.prestigeDelta > 0 ? 'var(--success)' : 'var(--danger)'};">
-           Saygınlık ${isaretliYaz(c.prestigeDelta)}
+    // v0.5.2: seçeneğin ham puanı değil, dönem sonunda saygınlığa yansıyacak kalıcı etkisi
+    const kaliciPay = c.prestigeDelta ? kaliciSayginlikEtkisi(c) : 0;
+    const prestigeText = kaliciPay
+      ? `<span style="color:${kaliciPay > 0 ? 'var(--success)' : 'var(--danger)'};">
+           Saygınlık ${isaretliYaz(kaliciPay)} (dönem sonunda)
          </span>`
       : '';
     const satText = c.satisfactionDelta
@@ -9232,7 +9238,7 @@ export function renderClubsPanel(state) {
           <div class="club-card-body">
             <div class="club-bonuses">
               <span class="club-bonus-item">😊 +${satB} memnuniyet</span>
-              <span class="club-bonus-item">⭐ +${presB} saygınlık</span>
+              ${presB > 0 ? '<span class="club-bonus-item">⭐ saygınlığa katkı</span>' : ''}
               <span class="club-bonus-item">💸 ${formatMoney(type.semesterCost || 0)}/dönem</span>
             </div>
           </div>

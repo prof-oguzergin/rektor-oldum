@@ -34,10 +34,10 @@ import {
   BANKS,
   SAYGINLIK_OLAY_ETKI,
   SAYGINLIK_OLAY_SINIR,
-} from './data.js?v=0.5.1';
+} from './data.js?v=0.5.2';
 
 import { calculateEconomy, applyBudget, calculateLoanPayment, processLoanPayments } from './economy.js?v=0.4.24';
-import { generateInitialFaculty, updateAllFacultyHappiness, generateApplicants, generateFaculty, getSalaryRange, calculateOverallRating, getFacultyRatingTrend } from './faculty.js?v=0.5.1';
+import { generateInitialFaculty, updateAllFacultyHappiness, generateApplicants, generateFaculty, getSalaryRange, calculateOverallRating, getFacultyRatingTrend } from './faculty.js?v=0.5.2';
 import {
   generateInitialStudents,
   getTotalEnrolled,
@@ -54,7 +54,7 @@ import {
   updateCohorts,
   processGraduation,
   processAdmissions,
-} from './students.js?v=0.4.24';
+} from './students.js?v=0.5.2';
 import { calculatePrestige, calculateQualityScore, kurumsalTavan, updateRivals, updateRankings } from './ranking.js?v=0.5.1';
 import { calculateIntlPillars, calculateIntlTotalScore, findIntlRank } from './intl_ranking.js?v=0.4.39';
 import { THE_2024 } from './intl_rankings_the2024.js?v=0.4.39';
@@ -72,7 +72,7 @@ import {
   secimSayginlikEtkisi,
   RANDOM_EVENTS,
   ACHIEVEMENTS,
-} from './alumni_events_achievements.js?v=0.4.24';
+} from './alumni_events_achievements.js?v=0.5.2';
 
 export { RANDOM_EVENTS, ACHIEVEMENTS, getAchievementStats, organizeAlumniEvent, applyRandomEventChoice, ACCREDITATION_BODIES };
 
@@ -82,7 +82,7 @@ export { establishTTO, upgradeTTO, acceptDeal, rejectDeal, TTO_CONFIG };
 import { initClubsState, foundClub, upgradeClub, dissolveClub, processClubs, CLUB_TYPES, CLUB_CATEGORIES } from './clubs.js?v=0.4.24';
 export { foundClub, upgradeClub, dissolveClub, CLUB_TYPES, CLUB_CATEGORIES };
 
-import { SPORTS, initSportsState, foundTeam, upgradeTeam, dissolveTeam, processSports } from './sports.js?v=0.4.24';
+import { SPORTS, initSportsState, foundTeam, upgradeTeam, dissolveTeam, processSports } from './sports.js?v=0.5.2';
 export { SPORTS, foundTeam, upgradeTeam, dissolveTeam };
 
 import { initCampusState, ensureCampusLayout, assignBuildingPosition, BUILDING_FOOTPRINTS } from './campus-layout.js?v=0.5.0';
