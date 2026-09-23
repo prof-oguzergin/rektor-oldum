@@ -32,6 +32,8 @@ import {
   ACCREDITATION_BODIES,
   SCENARIOS,
   BANKS,
+  SAYGINLIK_OLAY_ETKI,
+  SAYGINLIK_OLAY_SINIR,
 } from './data.js?v=0.5.1';
 
 import { calculateEconomy, applyBudget, calculateLoanPayment, processLoanPayments } from './economy.js?v=0.4.24';
@@ -66,6 +68,8 @@ import {
   applyRandomEventChoice,
   checkAchievements,
   getAchievementStats,
+  hamSayginlikEkle,
+  secimSayginlikEtkisi,
   RANDOM_EVENTS,
   ACHIEVEMENTS,
 } from './alumni_events_achievements.js?v=0.4.24';
@@ -108,6 +112,46 @@ function safeNum(val) {
   const n = Number(val);
   return (isFinite(n) && !isNaN(n)) ? n : 0;
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// v0.5.2: Sayıdan sonra gelen Türkçe ek. Ek, sayının okunuşunun son sözcüğüne göre
+// seçilir: 1'e 2'ye 3'e 4'e 5'e 6'ya 7'ye 8'e 9'a 10'a 20'ye 40'a 100'e 65.000'e.
+// ─────────────────────────────────────────────────────────────────────────────
+
+const _BIRLER = ['', 'bir', 'iki', 'üç', 'dört', 'beş', 'altı', 'yedi', 'sekiz', 'dokuz'];
+const _ONLAR  = ['', 'on', 'yirmi', 'otuz', 'kırk', 'elli', 'altmış', 'yetmiş', 'seksen', 'doksan'];
+
+/** Sayının Türkçe okunuşundaki son sözcük (ek uyumu için). */
+function _sayiSonSozcugu(sayi) {
+  const n = Math.abs(Math.trunc(Number(sayi) || 0));
+  if (n === 0) return 'sıfır';
+  if (n % 10) return _BIRLER[n % 10];
+  if (n % 100) return _ONLAR[(n % 100) / 10];
+  if (n % 1000) return 'yüz';
+  if (n % 1_000_000) return 'bin';
+  if (n % 1_000_000_000) return 'milyon';
+  return 'milyar';
+}
+
+/** Sayıya gelecek yönelme eki, kesme işaretiyle: 2 -> "'ye", 6 -> "'ya", 9 -> "'a", 5 -> "'e". */
+function _yonelmeEki(sayi) {
+  const sozcuk = _sayiSonSozcugu(sayi);
+  const unluler = sozcuk.match(/[aeıioöuü]/g) || ['e'];
+  const kalin = 'aıou'.includes(unluler[unluler.length - 1]);
+  const unluyleBiter = /[aeıioöuü]$/.test(sozcuk);
+  return `'${unluyleBiter ? 'y' : ''}${kalin ? 'a' : 'e'}`;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// v0.5.2: DERSLİK KAPASİTESİ ÖLÇÜSÜ
+// Bir derslik koltuğu bir yıllık alım (bir sınıf) kapasitesi sayılır; kontenjan
+// doğrulaması (applyQuotas) da yıllık alımı koltuk sayısıyla sınırlar. Dört
+// sınıflık bölüm kapasitesi bu yüzden koltuk × 4'tür. Bölüm kapasitesi, Yerleşke
+// Özeti ve bina kullanımı aynı ölçüyü kullanır (bkz. _updateDeptCapacities).
+// ─────────────────────────────────────────────────────────────────────────────
+
+const SINIF_SAYISI  = 4;    // lisans programı dört sınıf
+const YEDEK_KOLTUK  = 40;   // hiçbir dersliğe erişemeyen bölüm için tek derslik
 
 // ─────────────────────────────────────────────────────────────────────────────
 // YARDİMCI: Bina kapasitesini belirli düzeyde hesapla
@@ -178,7 +222,8 @@ function calculateBuildingUsage(building, state) {
     const classroomSize = classroomSizeByLevel
       ? (classroomSizeByLevel[buildingLevel] ?? classroomSizeByLevel[1] ?? 40)
       : (catalog?.classroomSize ?? 40);
-    usedClassrooms     += classroomSize > 0 ? Math.ceil(studentCount / classroomSize) : 0;
+    // v0.5.2: bir derslik dört sınıfın öğrencisine yeter (bkz. SINIF_SAYISI)
+    usedClassrooms     += classroomSize > 0 ? Math.ceil(studentCount / (classroomSize * SINIF_SAYISI)) : 0;
 
     // Ofis ataması: Boş ofis varken herkes tek ofis alır.
     // Ofis yetersizse Dr.Öğr.Üyesi 2/ofis, ArGö 3/ofis olarak sıkıştırılır.
@@ -284,7 +329,7 @@ export function calculateCampusUsageSummary(state) {
     const studentCount = dd
       ? ((dd.year1?.count || 0) + (dd.year2?.count || 0) + (dd.year3?.count || 0) + (dd.year4?.count || 0))
       : 0;
-    usedClassrooms += avgClassroomSize > 0 ? Math.ceil(studentCount / avgClassroomSize) : 0;
+    usedClassrooms += avgClassroomSize > 0 ? Math.ceil(studentCount / (avgClassroomSize * SINIF_SAYISI)) : 0;
     if (dept.category === 'muhendislik' || dept.category === 'fen') {
       usedLabs += Math.ceil(studentCount / 60);
     }
@@ -600,6 +645,10 @@ function syncAdminUnitStats(adminUnits, adminStaff, buildings) {
   if (buildings && buildings.length > 0) {
     _applyAdminBuildingBonuses(adminUnits, buildings);
   }
+
+  // v0.5.2: yönetici etkisi burada uygulanır. Eskiden dönem içinde eklenip hemen ardından
+  // bu fonksiyonla siliniyordu; "yönetici atanmamış (performans cezası)" yalnız yazıda kalıyordu.
+  _applyManagerBonus(adminUnits, adminStaff);
 }
 
 /**
@@ -837,6 +886,9 @@ function _calculateAdminTurnover(adminStaff) {
 
 /**
  * Birim yöneticisi atama: her birime Müdür/Müdür Yrd. olan en yüksek liderlikli personeli ata.
+ * v0.5.2: oyuncunun elle yaptığı atama (unit.elleAtandi, assignUnitManager) korunur; elle
+ * atanan yönetici ayrılır ya da yönetici unvanında kalmazsa otomatik atamaya dönülür.
+ * Oyuncu yöneticiyi elle kaldırdıysa birim, yeni bir elle atamaya dek yöneticisiz kalır.
  */
 function _assignUnitManagers(adminUnits, adminStaff) {
   // Önce tüm birimlerin manager'ını temizle
@@ -847,6 +899,16 @@ function _assignUnitManagers(adminUnits, adminStaff) {
   }
 
   for (const [unitId, unit] of Object.entries(adminUnits)) {
+    if (unit.elleAtandi) {
+      if (!unit.managerId) continue;   // oyuncu yöneticiyi kaldırdı
+      const elle = adminStaff.find(s => s.id === unit.managerId);
+      if (elle && isUnitManagerTitle(unitId, elle.title)) {
+        unit.managerName       = elle.name;
+        unit.managerLeadership = safeNum(elle.leadership);
+        continue;
+      }
+      unit.elleAtandi = false;         // elle atanan yönetici ayrıldı: otomatik atamaya dön
+    }
     const eligible = adminStaff.filter(
       s => s.unit === unitId && isUnitManagerTitle(unitId, s.title)
     );
@@ -868,8 +930,16 @@ function _assignUnitManagers(adminUnits, adminStaff) {
 /**
  * Yönetici liderliğine göre birim satisfaction bonusu ekler.
  */
-function _applyManagerBonus(adminUnits) {
+function _applyManagerBonus(adminUnits, adminStaff = null) {
   for (const unit of Object.values(adminUnits)) {
+    // Ayrılmış yönetici sayılmaz (yenisini _assignUnitManagers atar)
+    if (unit.managerId && Array.isArray(adminStaff)
+        && !adminStaff.some(s => s.id === unit.managerId)) {
+      unit.managerId = null;
+      unit.managerName = null;
+      unit.managerLeadership = 0;
+      unit.elleAtandi = false;
+    }
     let bonus = 0;
     if (unit.managerId) {
       // İyi yönetici (liderlik > 60): bonus, kötü yönetici (< 40): ceza
@@ -905,8 +975,9 @@ export function promoteAdminStaff(staffId) {
   staff.happiness              = Math.min(100, safeNum(staff.happiness) + 15);
   // Liderlik terfi ile artar
   staff.leadership = Math.min(100, safeNum(staff.leadership) + randInt(3, 7));
-  syncAdminUnitStats(_state.adminUnits, _state.adminStaff, _state.buildings);
+  // v0.5.2: önce yönetici ataması, sonra birim performansı (yönetici etkisi sync içinde)
   _assignUnitManagers(_state.adminUnits, _state.adminStaff);
+  syncAdminUnitStats(_state.adminUnits, _state.adminStaff, _state.buildings);
   return { success: true, message: `${staff.name} terfi ettirildi: ${nextTitle}` };
 }
 
@@ -921,8 +992,8 @@ export function fireAdminStaff(staffId) {
   const [staff] = _state.adminStaff.splice(idx, 1);
   const severance = safeNum(staff.salary) * 2;
   _state.university.budget = safeNum(_state.university.budget) - severance;
-  syncAdminUnitStats(_state.adminUnits, _state.adminStaff, _state.buildings);
   _assignUnitManagers(_state.adminUnits, _state.adminStaff);
+  syncAdminUnitStats(_state.adminUnits, _state.adminStaff, _state.buildings);
   return { success: true, message: `${staff.name} iş akdi feshedildi.`, severance, staffName: staff.name };
 }
 
@@ -948,6 +1019,8 @@ export function assignUnitManager(unitId, staffId) {
   if (!unit) return { success: false, message: 'Birim bulunamadı.' };
   if (!staffId) {
     unit.managerId = null; unit.managerName = null; unit.managerLeadership = 0;
+    unit.elleAtandi = true;   // v0.5.2: oyuncunun kararı; otomatik atama bunu ezmez
+    syncAdminUnitStats(_state.adminUnits, _state.adminStaff || [], _state.buildings);
     return { success: true };
   }
   const staff = (_state.adminStaff || []).find(s => s.id === staffId);
@@ -960,6 +1033,10 @@ export function assignUnitManager(unitId, staffId) {
   unit.managerId         = staff.id;
   unit.managerName       = staff.name;
   unit.managerLeadership = safeNum(staff.leadership);
+  // v0.5.2: elle atama korunur (_assignUnitManagers dönem sonunda ezmez); birim
+  // performansı yeni yöneticiyle hemen güncellenir
+  unit.elleAtandi = true;
+  syncAdminUnitStats(_state.adminUnits, _state.adminStaff || [], _state.buildings);
   return { success: true };
 }
 
@@ -1033,10 +1110,10 @@ export function hireAdminStaff(candidate, chosenTitle) {
     salaryExpectation: undefined,
   };
   _state.adminStaff.push(staffMember);
-  // Birim istatistiklerini güncelle
-  syncAdminUnitStats(_state.adminUnits, _state.adminStaff, _state.buildings);
   // Yeni alınan personel yönetici seviyesindeyse birime otomatik yönetici ata
   _assignUnitManagers(_state.adminUnits, _state.adminStaff);
+  // Birim istatistiklerini güncelle (v0.5.2: yönetici etkisi dahil, bu yüzden atamadan sonra)
+  syncAdminUnitStats(_state.adminUnits, _state.adminStaff, _state.buildings);
 }
 
 // İdari birim yükselt
@@ -1083,7 +1160,7 @@ function buildDepartmentState(deptId) {
     revenueEfficiency:   template.revenueEfficiency,
 
     // Öğrenci
-    studentCapacity:     100,           // varsayılan başlangıç kontenjanı
+    studentCapacity:     0,             // v0.5.2: dört sınıf toplamı, _updateDeptCapacities derslik koltuğundan hesaplar
     enrolledStudents:    0,             // dönem başında doldurulacak
     baseStudentDemand:   template.baseStudentDemand,
     waitlistCount:       0,
@@ -1099,6 +1176,7 @@ function buildDepartmentState(deptId) {
     facultyRetentionDifficulty: template.facultyRetentionDifficulty,
     assignedFacultyIds:  [],           // hoca id referansları
     headId:              null,         // bölüm başkanı hoca id'si
+    minFaculty:          _bolumEnAzHoca(template.id),  // v0.5.2: bu sayıya ulaşmadan öğrenci alınmaz
 
     // Kalite göstergeleri
     educationQuality:    50,           // 0-100
@@ -1614,6 +1692,9 @@ export function initGame(playerName, universityName, universityType, difficulty,
   const initStudentCount = _state.students?.totalEnrolled || uniTemplate.startStudents;
   _state.adminUnits = buildAdminUnitStates(initStudentCount);
   _state.adminStaff = generateInitialAdminStaff(initStudentCount);
+  // v0.5.2: uygun (üst iki unvandaki) personeli olan birime oyun başında yönetici atanır;
+  // eskiden atama yalnız işe alımda ya da ilk dönem sonunda yapılıyordu
+  _assignUnitManagers(_state.adminUnits, _state.adminStaff);
   syncAdminUnitStats(_state.adminUnits, _state.adminStaff, _state.buildings);
 
   // Bölüm başkanı atama: her bölüme en yüksek yönetim statına sahip Prof/Doç ata
@@ -1757,6 +1838,131 @@ function _calcDeptClassroomCapacity(state, deptId) {
   return seats;
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// v0.5.2: BÖLÜM KAPASİTESİ (dört sınıfın toplamı)
+// Eskiden her bölümün kapasitesi 100'dü ve dört sınıfın toplamıyla (ör. 362)
+// kıyaslanıyordu; her bölüm ilk dönemden "Kapasite aşıldı" görünüyor, not ve
+// başarısızlık cezası alıyordu. Şimdi:
+//  - Bir binanın koltukları (derslik × derslik büyüklüğü) o binaya atanmış açık
+//    bölümlerin; hiçbir bölüme atanmamış binalar (başlangıçtaki Fakülte Binası
+//    gibi) kendine bina atanmamış bölümlerin ortak alanıdır.
+//  - Bina yetiyorsa koltuklar öğrenci sayısı oranında paylaşılır (hepsi aynı
+//    doluluktadır). Yetmiyorsa önce küçük bölümlerin ihtiyacı tam karşılanır,
+//    kalan büyükler arasında eşit bölünür; böylece taşmaya yol açan bölüm görünür.
+//  - Bölüm kapasitesi = SINIF_SAYISI × payına düşen koltuk. Hiçbir dersliğe
+//    erişemeyen bölüm tek derslik (YEDEK_KOLTUK) sayılır.
+// Yazılan alanlar: dept.studentCapacity, dept.stats.capacity, dept.kapasiteKaynagi
+// ('bina' | 'ortak' | 'yedek'). Başarısızlık ve not cezaları bu değeri kullanır.
+// ─────────────────────────────────────────────────────────────────────────────
+
+/** Bir binanın derslik koltuğu (derslik sayısı × düzeye göre derslik büyüklüğü). */
+function _binaKoltugu(b) {
+  const derslik = b?.currentCapacity?.classrooms || 0;
+  if (derslik <= 0) return 0;
+  const def   = BUILDINGS[b.type];
+  const byLvl = def?.classroomSizeByLevel;
+  const boy   = byLvl ? (byLvl[b.level || 1] ?? byLvl[1] ?? def?.classroomSize ?? 40)
+                      : (def?.classroomSize ?? 40);
+  return derslik * boy;
+}
+
+/**
+ * Bir kaynağı taleplere böler. Yetiyorsa talep oranında (fazlası da paylaşılır),
+ * yetmiyorsa küçük talepler tam karşılanır, kalan büyükler arasında eşit bölünür.
+ * @param {number} kaynak
+ * @param {Map<string, number>} talepler
+ * @returns {Map<string, number>}
+ */
+function _adilPaylastir(kaynak, talepler) {
+  const sonuc = new Map();
+  const idler = [...talepler.keys()];
+  if (idler.length === 0) return sonuc;
+  const toplam = idler.reduce((s, id) => s + Math.max(0, talepler.get(id) || 0), 0);
+  if (toplam <= 0) {
+    idler.forEach(id => sonuc.set(id, kaynak / idler.length));
+  } else if (toplam <= kaynak) {
+    idler.forEach(id => sonuc.set(id, kaynak * Math.max(0, talepler.get(id) || 0) / toplam));
+  } else {
+    const sirali = idler.slice().sort((a, b) => (talepler.get(a) || 0) - (talepler.get(b) || 0));
+    let kalan = kaynak;
+    sirali.forEach((id, i) => {
+      const ver = Math.min(Math.max(0, talepler.get(id) || 0), kalan / (sirali.length - i));
+      sonuc.set(id, ver);
+      kalan -= ver;
+    });
+  }
+  return sonuc;
+}
+
+/** Açık bölümlerin dört sınıflık kapasitesini derslik koltuklarından hesaplar ve yazar. */
+function _updateDeptCapacities(state) {
+  const acik = (state?.departments || []).filter(d => d && d.id && d.isOpen !== false);
+  if (acik.length === 0) return;
+  const byDept = state.students?.byDepartment || {};
+  const talep = new Map(acik.map(d => {
+    const bd = byDept[d.id] || {};
+    return [d.id, (bd.year1?.count || 0) + (bd.year2?.count || 0) + (bd.year3?.count || 0) + (bd.year4?.count || 0)];
+  }));
+
+  const atanmisBinalar = [];   // { koltuk, kullanan: [deptId] }
+  let ortakKoltuk = 0;
+  for (const b of state.buildings || []) {
+    if (!b?.isCompleted) continue;
+    const koltuk = _binaKoltugu(b);
+    if (koltuk <= 0) continue;
+    const kullanan = [...new Set((b.assignedDepartments || []).filter(id => talep.has(id)))];
+    if (kullanan.length === 0) ortakKoltuk += koltuk;
+    else atanmisBinalar.push({ koltuk, kullanan });
+  }
+
+  // Birden çok binaya atanmış bölümün talebi binalar arasında koltuk oranında bölünür
+  const bolumKoltugu = new Map();
+  for (const { koltuk, kullanan } of atanmisBinalar) {
+    for (const id of kullanan) bolumKoltugu.set(id, (bolumKoltugu.get(id) || 0) + koltuk);
+  }
+  const pay = new Map(acik.map(d => [d.id, 0]));
+  for (const { koltuk, kullanan } of atanmisBinalar) {
+    const binaTalebi = new Map(kullanan.map(id => [id, talep.get(id) * koltuk / bolumKoltugu.get(id)]));
+    for (const [id, v] of _adilPaylastir(koltuk * SINIF_SAYISI, binaTalebi)) pay.set(id, pay.get(id) + v);
+  }
+  // Ortak (hiçbir bölüme atanmamış) derslikler, kendine bina atanmamış bölümlerindir
+  const binasiz = acik.filter(d => !bolumKoltugu.has(d.id)).map(d => d.id);
+  if (ortakKoltuk > 0 && binasiz.length > 0) {
+    const ortakTalep = new Map(binasiz.map(id => [id, talep.get(id)]));
+    for (const [id, v] of _adilPaylastir(ortakKoltuk * SINIF_SAYISI, ortakTalep)) pay.set(id, pay.get(id) + v);
+  }
+
+  for (const d of acik) {
+    let kapasite = pay.get(d.id) || 0;
+    let kaynak = bolumKoltugu.has(d.id) ? 'bina' : 'ortak';
+    if (kapasite < 1) {
+      kapasite = YEDEK_KOLTUK * SINIF_SAYISI;
+      if (!bolumKoltugu.has(d.id) && !(ortakKoltuk > 0)) kaynak = 'yedek';
+    }
+    d.studentCapacity = Math.max(1, Math.round(kapasite));
+    d.kapasiteKaynagi = kaynak;
+    if (d.stats) d.stats.capacity = d.studentCapacity;
+  }
+}
+
+/** Bölümün öğrenci alabilmesi için gereken en az öğretim üyesi (YÖK; tıpta 5, eczacılık ve diş hekimliğinde 4). */
+function _bolumEnAzHoca(deptId) {
+  const t = AVAILABLE_NEW_DEPARTMENTS.find(d => d.id === deptId);
+  return Number.isFinite(t?.minFaculty) ? t.minFaculty : 3;
+}
+
+/** Kurucu kadrosu eksik (en az öğretim üyesi sayısına ulaşmamış) açık bölümler. */
+function _kadrosuEksikBolumler(state) {
+  return (state.departments || [])
+    .filter(d => d && d.isOpen !== false)
+    .map(d => {
+      const gerekli = Number.isFinite(d.minFaculty) ? d.minFaculty : _bolumEnAzHoca(d.id);
+      const mevcut  = (state.faculty || []).filter(f => (f.department || f.departmentId) === d.id).length;
+      return { dept: d, gerekli, mevcut };
+    })
+    .filter(x => x.mevcut < x.gerekli);
+}
+
 /**
  * Tek bir alan değerini güvenli tam sayıya çevirir, [0, max] aralığına klampler.
  * NaN, negatif, ondalık, string -> hepsi tutarlı.
@@ -1832,13 +2038,7 @@ export function applyQuotas(quotas) {
  */
 export function assignCourses(state) {
   // Tüm hocaların ders yükünü sıfırla
-  state.faculty.forEach(f => {
-    f.currentLoad = f.currentLoad || {};
-    f.currentLoad.courses = 0;
-    f.currentLoad.assignedCourses = [];
-    f.currentLoad.adminRole  = f.currentLoad.adminRole  || null;
-    f.currentLoad.gradStudents = f.currentLoad.gradStudents || 0;
-  });
+  state.faculty.forEach(_dersYukunuSifirla);
 
   const summary = {
     totalCourses: 0,
@@ -1848,13 +2048,34 @@ export function assignCourses(state) {
     partTimeHires: 0,
     departmentResults: {},
   };
-
-  let totalAssigned = 0;
-  let totalExpertiseMatch = 0;
+  const sayac = { atanan: 0, tamEslesme: 0 };
 
   state.departments.forEach(dept => {
     if (!dept.isOpen) return;
+    _bolumDersleriniAta(state, dept, summary, sayac);
+  });
 
+  summary.expertiseMatchRate = sayac.atanan > 0
+    ? Math.round((sayac.tamEslesme / sayac.atanan) * 100)
+    : 0;
+
+  return summary;
+}
+
+/** Hocanın dönemlik ders yükünü sıfırlar (idari görev ve lisansüstü öğrenci sayısı korunur). */
+function _dersYukunuSifirla(f) {
+  f.currentLoad = f.currentLoad || {};
+  f.currentLoad.courses = 0;
+  f.currentLoad.assignedCourses = [];
+  f.currentLoad.adminRole  = f.currentLoad.adminRole  || null;
+  f.currentLoad.gradStudents = f.currentLoad.gradStudents || 0;
+}
+
+/**
+ * Bir bölümün müfredatını bölüm hocalarına atar (assignCourses'ın bölüm adımı).
+ * v0.5.2: emeklilik ya da vefat sonrası yalnız etkilenen bölüm için de çağrılır.
+ */
+function _bolumDersleriniAta(state, dept, summary, sayac) {
     const curriculum = DEPARTMENT_CURRICULA[dept.id] || [];
     const deptFaculty = state.faculty.filter(f => (f.department || f.departmentId) === dept.id);
 
@@ -1929,8 +2150,8 @@ export function assignCourses(state) {
           matchQuality,
         });
         summary.coveredCourses++;
-        totalAssigned++;
-        if (matchQuality === 2) totalExpertiseMatch++;
+        sayac.atanan++;
+        if (matchQuality === 2) sayac.tamEslesme++;
       } else {
         // Hoca yok — dışarıdan (part-time) öğretim görevlisi gerekli
         deptResult.uncovered.push(course);
@@ -1970,13 +2191,36 @@ export function assignCourses(state) {
     }
 
     summary.departmentResults[dept.id] = deptResult;
-  });
+}
 
-  summary.expertiseMatchRate = totalAssigned > 0
-    ? Math.round((totalExpertiseMatch / totalAssigned) * 100)
-    : 0;
-
-  return summary;
+/**
+ * v0.5.2: Emeklilik ya da vefat sonrası yalnız etkilenen bölümlerin derslerini yeniden atar.
+ * Eskiden ayrılan hoca dönem sonuna dek ders listesinde görünüyordu. Eğitim kalitesi
+ * yeniden hesaplandığı için bölüm başkanı etkisi calculateDepartmentStats'taki gibi eklenir.
+ * @param {object} state
+ * @param {Iterable<string>} bolumIdleri
+ */
+function _derslerYenidenAta(state, bolumIdleri) {
+  const ozet = { totalCourses: 0, coveredCourses: 0, uncoveredCourses: [], expertiseMatchRate: 0, partTimeHires: 0, departmentResults: {} };
+  const sayac = { atanan: 0, tamEslesme: 0 };
+  for (const id of new Set(bolumIdleri)) {
+    const dept = (state.departments || []).find(d => d.id === id && d.isOpen);
+    if (!dept) continue;
+    state.faculty.filter(f => (f.department || f.departmentId) === id).forEach(_dersYukunuSifirla);
+    _bolumDersleriniAta(state, dept, ozet, sayac);
+    const bas = dept.headId ? state.faculty.find(f => f.id === dept.headId) : null;
+    const mgmt = bas?.stats?.management ?? 50;
+    const baskanEtkisi = !dept.headId ? -5 : !bas ? 0 : mgmt >= 75 ? 5 : mgmt >= 50 ? 0 : -5;
+    // Eğitim kalitesi yalnız en az bir ders atandıysa yeniden hesaplanır (bkz. _bolumDersleriniAta)
+    if ((dept.courseAssignments || []).length > 0) {
+      dept.educationQuality = Math.max(0, Math.min(100, (dept.educationQuality || 50) + baskanEtkisi));
+    }
+    if (dept.stats) {
+      dept.stats.headId = dept.headId || null;
+      dept.stats.headMgmtBonus = baskanEtkisi;
+    }
+  }
+  return ozet;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -1990,6 +2234,9 @@ export function assignCourses(state) {
  * @param {object} state — Oyun durumu (doğrudan güncellenir)
  */
 export function calculateDepartmentStats(state) {
+  // v0.5.2: kapasite derslik koltuğundan (dört sınıf toplamı); başarısızlık cezası bunu kullanır
+  _updateDeptCapacities(state);
+
   state.departments.forEach(dept => {
     if (!dept.isOpen) return;
 
@@ -2019,7 +2266,7 @@ export function calculateDepartmentStats(state) {
 
     let totalDropouts = totalEnrolled * 0.02;  // yaklaşık bırakma tahmini
 
-    const capacity = dept.studentCapacity || 100;
+    const capacity = dept.studentCapacity > 0 ? dept.studentCapacity : YEDEK_KOLTUK * SINIF_SAYISI;
 
     // ── Bölüm hocaları ────────────────────────────────────────────────────────
     const deptFaculty = state.faculty.filter(f => (f.department || f.departmentId) === dept.id);
@@ -2306,7 +2553,7 @@ const _PROJECT_NAME_TEMPLATES = {
 // Alan bazlı nesne havuzu ({obj} yerine konulacak)
 const _PROJECT_OBJECTS = {
   'Yazılım Mühendisliği':    ['Sağlık Sistemi', 'E-Devlet', 'Finans', 'Eğitim', 'Lojistik'],
-  'Ağ Sistemleri':           ['Araç İçi', 'Endüstriyel', 'Kampüs', 'Uydu', 'Sualtı'],
+  'Ağ Sistemleri':           ['Araç İçi', 'Endüstriyel', 'Yerleşke', 'Uydu', 'Sualtı'],
   'Veri Tabanları':          ['Sağlık', 'E-Ticaret', 'Coğrafi', 'Zaman Serisi', 'Akıllı Şehir'],
   'Görüntü İşleme':          ['Medikal', 'Trafik', 'Tarımsal', 'Sanayi', 'Güvenlik'],
   'Makine Öğrenmesi':        ['Sağlık', 'Finans', 'İklim', 'Tarım', 'Enerji'],
@@ -2601,7 +2848,6 @@ function _advanceActiveProjects(state, results) {
           results.events.push({
             type: 'patent_generated',
             description: `🏅 "${proj.projectName}" projesinden patent alındı! Yıllık +${formatMoneyShort(royalty)} telif geliri.`,
-            prestigeBonus: 1,
           });
         }
 
@@ -2612,15 +2858,14 @@ function _advanceActiveProjects(state, results) {
 
         results.events.push({
           type: 'project_completed',
-          description: `${proj.callIcon || '📋'} ${proj.projectName} projesi başarıyla tamamlandı! +${proj.prestigeReward || 0} saygınlık, ${formatMoneyShort(proj.requestedFunding || 0)} kazanıldı.${proj.generatedPatent ? ' 🏅 Patent alındı!' : ''}`,
-          prestigeBonus: proj.prestigeReward || 0,
+          description: `${proj.callIcon || '📋'} ${proj.projectName} projesi başarıyla tamamlandı: ${formatMoneyShort(proj.requestedFunding || 0)} kazanıldı${(proj.prestigeReward || 0) > 0 ? ', saygınlığa katkı' : ''}.${proj.generatedPatent ? ' 🏅 Patent alındı!' : ''}`,
+          hamSayginlik: proj.prestigeReward || 0,
         });
       } else {
         proj.status = 'failed';
         results.events.push({
           type: 'project_failed',
           description: `${proj.callIcon || '📋'} ${proj.projectName} projesi sonuçlanamadı.`,
-          prestigeBonus: 0,
         });
       }
       toRemove.push(proj.id);
@@ -2643,7 +2888,7 @@ function _advanceActiveProjects(state, results) {
 /** Para kısaltma (etkinlik mesajları için) */
 function formatMoneyShort(amount) {
   if (!amount) return '—';
-  if (amount >= 1_000_000) return `${(amount / 1_000_000).toFixed(1)}M ₺`;
+  if (amount >= 1_000_000) return `${(amount / 1_000_000).toFixed(1).replace('.', ',')}M ₺`;   // v0.5.2: Türkçe ondalık virgül
   if (amount >= 1_000) return `${Math.round(amount / 1_000)}K ₺`;
   return `${amount} ₺`;
 }
@@ -2683,8 +2928,8 @@ function generateSemesterEvents(state) {
     const bonus2 = scaledPrestige(2);
     events.push({
       type: 'research_breakthrough',
-      description: `${titleStr} ${top.name} önemli bir araştırma yayınladı. (+${bonus2} saygınlık)`,
-      prestigeBonus: bonus2,
+      description: `${titleStr} ${top.name} önemli bir araştırma yayınladı (saygınlığa katkı).`,
+      hamSayginlik: bonus2,
     });
     state.university.prestige = Math.min(MAX_PRESTIGE, prestige + bonus2);
   }
@@ -2694,8 +2939,8 @@ function generateSemesterEvents(state) {
     const bonus3 = scaledPrestige(3);
     events.push({
       type: 'student_achievement',
-      description: `Öğrencileriniz ulusal yarışmada derece aldı. (+${bonus3} saygınlık)`,
-      prestigeBonus: bonus3,
+      description: 'Öğrencileriniz ulusal yarışmada derece aldı (saygınlığa katkı).',
+      hamSayginlik: bonus3,
     });
     state.university.prestige = Math.min(MAX_PRESTIGE, (state.university.prestige || prestige) + bonus3);
   }
@@ -2706,8 +2951,8 @@ function generateSemesterEvents(state) {
     const bonus1 = scaledPrestige(1);
     events.push({
       type: 'tubitak_scholarship',
-      description: `${count} öğrenciniz TÜBİTAK bursu kazandı. (+${bonus1} saygınlık)`,
-      prestigeBonus: bonus1,
+      description: `${count} öğrenciniz TÜBİTAK bursu kazandı (saygınlığa katkı).`,
+      hamSayginlik: bonus1,
     });
     state.university.prestige = Math.min(MAX_PRESTIGE, (state.university.prestige || prestige) + bonus1);
   }
@@ -2720,8 +2965,8 @@ function generateSemesterEvents(state) {
       const bonus4 = scaledPrestige(2);
       events.push({
         type: 'accreditation',
-        description: `${randDept.shortName || randDept.name} bölümü akreditasyon başvurusunda ilerledi. (+${bonus4} saygınlık)`,
-        prestigeBonus: bonus4,
+        description: `${randDept.shortName || randDept.name} bölümü akreditasyon başvurusunda ilerledi (saygınlığa katkı).`,
+        hamSayginlik: bonus4,
       });
       state.university.prestige = Math.min(MAX_PRESTIGE, (state.university.prestige || prestige) + bonus4);
     }
@@ -2732,8 +2977,8 @@ function generateSemesterEvents(state) {
     const penalty = scaledPrestige(2);
     events.push({
       type: 'negative_press',
-      description: `Öğrenci memnuniyetsizliği basına yansıdı. (-${penalty} saygınlık)`,
-      prestigeBonus: -penalty,
+      description: 'Öğrenci memnuniyetsizliği basına yansıdı (saygınlığa zarar).',
+      hamSayginlik: -penalty,
     });
     state.university.prestige = Math.max(0, (state.university.prestige || prestige) - penalty);
   }
@@ -2758,8 +3003,8 @@ function generateSemesterEvents(state) {
     const bonus7 = scaledPrestige(1);
     events.push({
       type: 'patent',
-      description: `Araştırma merkezi yeni bir patent başvurusu yaptı. (+${bonus7} saygınlık)`,
-      prestigeBonus: bonus7,
+      description: 'Araştırma merkezi yeni bir patent başvurusu yaptı (saygınlığa katkı).',
+      hamSayginlik: bonus7,
     });
     state.university.prestige = Math.min(MAX_PRESTIGE, (state.university.prestige || prestige) + bonus7);
   }
@@ -2784,8 +3029,8 @@ function generateSemesterEvents(state) {
     const amount = Math.floor(Math.random() * 5 + 1);
     events.push({
       type: 'donation',
-      description: `Hayırsever mezundan ${amount}M ₺ bağış alındı. (+1 saygınlık)`,
-      prestigeBonus: 1,
+      description: `Hayırsever mezundan ${amount}M ₺ bağış alındı (saygınlığa katkı).`,
+      hamSayginlik: 1,
     });
     state.university.prestige = Math.min(MAX_PRESTIGE, (state.university.prestige || prestige) + 1);
     state.university.budget = (state.university.budget || 0) + amount * 1_000_000;
@@ -2795,8 +3040,8 @@ function generateSemesterEvents(state) {
   if (Math.random() < 0.06 && prestige > 50) {
     events.push({
       type: 'international_cooperation',
-      description: 'Yabancı üniversiteyle ortak araştırma anlaşması imzalandı. (+2 saygınlık)',
-      prestigeBonus: 2,
+      description: 'Yabancı üniversiteyle ortak araştırma anlaşması imzalandı (saygınlığa katkı).',
+      hamSayginlik: 2,
     });
     state.university.prestige = Math.min(MAX_PRESTIGE, (state.university.prestige || prestige) + 2);
   }
@@ -2873,6 +3118,8 @@ function runSimulation() {
 
   // ── 3. ÖĞRENCİ SİMÜLASYONU ────────────────────────────────────────────────
   // 3a. GPA, memnuniyet ve bırakma güncelle
+  // v0.5.2: sınıf kalabalığı cezası güncel bina atamasına göre (bölüm kapasitesi)
+  _updateDeptCapacities(_state);
   const isSpring      = _state.meta.semester === 'bahar';
   const updateSummary = updateStudentYears(_state, isSpring);
   results.cohortUpdate = updateSummary;
@@ -2919,6 +3166,8 @@ function runSimulation() {
     // Akreditasyon YKS bonusunu her bölüme geçici alan olarak ekle
     for (const dept of _state.departments) {
       dept._accreditationYKSBonus = getAccreditationYKSBonus(dept);
+      // v0.5.2: kurucu kadro şartı (processNewEnrollment dept.minFaculty'ye bakar)
+      if (!Number.isFinite(dept.minFaculty)) dept.minFaculty = _bolumEnAzHoca(dept.id);
     }
     admissionsResult = processNewEnrollment(_state);
   }
@@ -2976,8 +3225,7 @@ function runSimulation() {
     // 2. Birim yöneticileri ata
     _assignUnitManagers(_state.adminUnits, _state.adminStaff);
 
-    // 3. Yönetici bonusunu uygula
-    _applyManagerBonus(_state.adminUnits);
+    // 3. Yönetici bonusu (v0.5.2: syncAdminUnitStats içinde uygulanır, 5. adımda)
 
     // 4. Devir-daim: ayrılan personel
     const departures = _calculateAdminTurnover(_state.adminStaff);
@@ -2992,7 +3240,8 @@ function runSimulation() {
       if (dIdx !== -1) _state.adminStaff.splice(dIdx, 1);
     }
 
-    // 5. Birim istatistiklerini güncelle
+    // 5. Birim istatistiklerini güncelle (v0.5.2: ayrılan yöneticinin yerine uygun personel atanır)
+    if (departures.length > 0) _assignUnitManagers(_state.adminUnits, _state.adminStaff);
     syncAdminUnitStats(_state.adminUnits, _state.adminStaff, _state.buildings);
   }
 
@@ -3072,14 +3321,14 @@ function runSimulation() {
     if (Math.random() < compChance) {
       const presBonus = Math.max(1, Math.round((Math.max(academic, creativity, leadership) - 60) / 8));
       _state.university.prestige = Math.min(MAX_PRESTIGE, (_state.university.prestige || 0) + presBonus);
-      const eventDesc = `Yıldız öğrenci ${star.name} ulusal yarışma kazandı! Saygınlık +${presBonus}`;
+      const eventDesc = `Yıldız öğrenci ${star.name} ulusal yarışma kazandı (saygınlığa katkı).`;
       results.events.push({
         type: 'star_student_competition',
         studentId: star.id,
         description: eventDesc,
-        prestigeBonus: presBonus,
+        hamSayginlik: presBonus,
       });
-      star.events.push({ type: 'competition_win', description: `Bu dönem yarışma kazandı! +${presBonus} saygınlık`, turn: _state.meta.turn });
+      star.events.push({ type: 'competition_win', description: 'Bu dönem ulusal yarışma kazandı.', turn: _state.meta.turn });
     }
 
     // ── Yayın işbirliği: yüksek akademik + araştırma hocası varsa ──
@@ -3096,7 +3345,6 @@ function runSimulation() {
           type: 'star_student_publication',
           studentId: star.id,
           description: eventDesc,
-          prestigeBonus: 0,
         });
         star.events.push({ type: 'publication', description: `Bu dönem ${researchHoca.name || 'hoca'} ile yayın yaptı`, turn: _state.meta.turn });
       }
@@ -3116,8 +3364,8 @@ function runSimulation() {
       alumni._prestigeApplied = true;
       results.events.push({
         type: 'star_student_graduated',
-        description: `Mezun ${alumni.name || 'yıldız öğrenci'} kariyer başarısıyla üniversiteye saygınlık kattı! +${presBonus} saygınlık`,
-        prestigeBonus: presBonus,
+        description: `Mezun ${alumni.name || 'yıldız öğrenci'} kariyer başarısıyla üniversitenin saygınlığına katkı sağladı.`,
+        hamSayginlik: presBonus,
       });
     }
   });
@@ -3320,9 +3568,7 @@ function runSimulation() {
     results.pendingRandomEvents = rolledEvents;
   }
 
-  // ── v0.2 Feature: BAŞARIMLAR ───────────────────────────────────────────────
-  const newAchievements = checkAchievements(_state);
-  results.newAchievements = newAchievements;
+  // (v0.5.2: başarım denetimi nextTurn içinde saygınlık güncellemesinden sonra yapılır)
 
   return results;
 }
@@ -3506,7 +3752,7 @@ function _processYokApplications(state, results) {
               tuitionMultiplier:   template.category === 'saglik' ? 1.8 : template.category === 'muhendislik' ? 1.3 : 1.0,
               annualOperatingCost: 3_000_000,
               revenueEfficiency:   0.7,
-              studentCapacity:     40,
+              studentCapacity:     0,   // v0.5.2: _updateDeptCapacities hesaplar
               enrolledStudents:    0,
               baseStudentDemand:   0.6,
               waitlistCount:       0,
@@ -3518,6 +3764,7 @@ function _processYokApplications(state, results) {
               facultyRetentionDifficulty: 'medium',
               assignedFacultyIds:  [],
               headId:              null,
+              minFaculty:          template.minFaculty || 3,
               educationQuality:    40,
               studentSatisfaction: 50,
               labScore:            template.category === 'muhendislik' ? 30 : 100,
@@ -3717,8 +3964,17 @@ export function nextTurn() {
   // v0.5.1: saygınlık, simülasyonun bütün doğrudan eklemelerinden (olay, ödül,
   // mezun, akreditasyon) sonra tek seferde güncellenir; oyuncu ekranda bir dönem
   // sıçrayıp ertesi dönem geri inen değer görmez. Ardından son sıralama.
-  simResults.prestigeDelta = _updatePrestige(_state, Math.min(3, simResults.starFacultyPrestige || 0));
+  {
+    const sayginlik = _updatePrestige(_state, Math.min(3, simResults.starFacultyPrestige || 0));
+    simResults.prestigeDelta     = sayginlik.delta;
+    simResults.prestigeBreakdown = sayginlik.kirilim;
+  }
   updateRankings(_state);
+
+  // v0.5.2: başarımlar saygınlık ve son sıralama belli olduktan sonra denetlenir.
+  // Eskiden simülasyonun ortasında, dönem içi ham eklemelerle şişmiş saygınlığa
+  // bakılıyordu (saygınlık 40 iken "Saygınlık 50" başarımı açılıyordu).
+  simResults.newAchievements = checkAchievements(_state);
 
   // Bütçe geçmişine ekle
   _state.university.budgetHistory.push({
@@ -3760,6 +4016,28 @@ export function nextTurn() {
       simResults.events.push(...yasamOlaylari);
     }
   }
+
+  // v0.5.2: kurucu kadro. En az öğretim üyesi sayısına (çoğu bölümde 3) ulaşmamış bölüm
+  // yeni öğrenci almaz (students.js processNewEnrollment); oyuncu her dönem açıkça uyarılır.
+  {
+    const engellenen = new Set((simResults.admissions?.engellenenBolumler || []).map(x => x.departmentId));
+    const uyarilar = _kadrosuEksikBolumler(_state).map(({ dept, gerekli, mevcut }) => ({
+      type:  'warning',
+      icon:  '⚠️',
+      title: 'Kurucu Kadro Eksik',
+      deptId: dept.id,
+      description: engellenen.has(dept.id)
+        ? `${dept.name} bölümü en az ${gerekli} öğretim üyesi olmadığı için bu yıl öğrenci almadı (şu an ${mevcut}).`
+        : `${dept.name} bölümü en az ${gerekli} öğretim üyesi olana dek öğrenci alamıyor (şu an ${mevcut}).`,
+    }));
+    if (uyarilar.length > 0) {
+      if (!simResults.events) simResults.events = [];
+      simResults.events.unshift(...uyarilar);   // özette listenin başında görünsün
+    }
+  }
+
+  // v0.5.2: bölüm kapasitesi dönem sonundaki bina ve öğrenci durumuna göre
+  _updateDeptCapacities(_state);
 
   // Yanıtsız ilan başvurularını temizle (2 dönem geçmişse otomatik çekilir)
   {
@@ -3994,7 +4272,7 @@ export function checkAccreditationRequirements(state, dept, body) {
     checks.push({
       key: 'minPublicationsPerFaculty',
       label: 'Yayın / öğretim üyesi',
-      current: avgPubPerFaculty.toFixed(1),
+      current: avgPubPerFaculty.toFixed(1).replace('.', ','),
       required: req.minPublicationsPerFaculty,
       met: avgPubPerFaculty >= req.minPublicationsPerFaculty,
     });
@@ -4094,7 +4372,8 @@ function _processAccreditations(state, results) {
             );
             results.events.push({
               type: 'accreditation_granted',
-              description: `🏅 ${dept.name} bölümü ${body.name} akreditasyonu aldı! (+${body.prestigeBonus} saygınlık)`,
+              description: `🏅 ${dept.name} bölümü ${body.name} akreditasyonu aldı (saygınlığa katkı).`,
+              hamSayginlik: body.prestigeBonus,
             });
           } else {
             acc.status = 'rejected';
@@ -4113,7 +4392,8 @@ function _processAccreditations(state, results) {
         state.university.prestige = Math.max(0, (state.university.prestige || 0) - penalty);
         results.events.push({
           type: 'accreditation_expired',
-          description: `⏰ ${dept.name} bölümünün ${body.name} akreditasyonu süresi doldu! (-${penalty} saygınlık)`,
+          description: `⏰ ${dept.name} bölümünün ${body.name} akreditasyonu süresi doldu (saygınlığa zarar).`,
+          hamSayginlik: -penalty,
         });
       }
 
@@ -4184,8 +4464,8 @@ export function getAccreditationPrestigeBonus(dept) {
 const KURULUS_YASI     = { devlet: 25, vakif: 8, coop: 5, us_private: 8 };
 const SAYGINLIK_HIZ    = 0.05;   // kalite puanına dönemlik yaklaşma oranı
 const SAYGINLIK_ADIM   = 1.0;    // kalite kaynaklı dönemlik en büyük değişim
-const OLAY_ETKI        = 0.12;   // doğrudan eklemelerin kalıcı kalan payı
-const OLAY_SINIR       = 0.4;    // olay kaynaklı dönemlik en büyük değişim
+const OLAY_ETKI        = SAYGINLIK_OLAY_ETKI;    // doğrudan eklemelerin kalıcı kalan payı (0,12)
+const OLAY_SINIR       = SAYGINLIK_OLAY_SINIR;   // kanal başına dönemlik en büyük değişim (0,4)
 
 function _kurumsalYas(state) {
   return (state.university.foundedYearsAgo ?? 15) + Math.max(0, (state.meta?.year || 1) - 1);
@@ -4198,17 +4478,31 @@ function _prestijTavani(state) {
   return tavan;
 }
 
+/**
+ * Dönem sonu saygınlık güncellemesi. İki olay kanalı vardır:
+ *  - Dönem içi gelişmeler (olay, ödül, mezun, yıldız öğrenci, akreditasyon, mezun
+ *    buluşması; simülasyonun doğrudan eklemeleri ile university._hamSayginlik): ham
+ *    toplamın %12'si kalır, en çok ±0,4.
+ *  - Rastgele olay seçimleri (university._olaySayginlik): kalıcı payı seçim anında
+ *    hesaplanıp oyuncuya gösterilir (applyRandomEventChoice), dönem başına en çok ±0,4.
+ * @returns {{ delta: number, kirilim: { onceki, sonraki, kalite, olay, hedef, tavan } }}
+ */
 function _updatePrestige(state, ekBonus = 0) {
   const u = state.university;
   const simdi = Number.isFinite(u.prestige) ? u.prestige : 0;
   const taban = Number.isFinite(u._prestigeBase) ? u._prestigeBase : simdi;
-  const olay  = (simdi - taban) + (ekBonus || 0);           // son güncellemeden bu yana eklenenler
+  const bekleyenHam = Number.isFinite(u._hamSayginlik) ? u._hamSayginlik : 0;
+  const olay  = (simdi - taban) + (ekBonus || 0) + bekleyenHam;   // son güncellemeden bu yana eklenenler
+  const secim = Number.isFinite(u._olaySayginlik)
+    ? Math.max(-OLAY_SINIR, Math.min(OLAY_SINIR, u._olaySayginlik)) : 0;
+  u._hamSayginlik  = 0;
+  u._olaySayginlik = 0;
   const kalite = calculateQualityScore(state);
   const tavan  = _prestijTavani(state);
   const hedef  = Math.min(kalite, tavan);
 
   const kayma    = Math.max(-SAYGINLIK_ADIM, Math.min(SAYGINLIK_ADIM, (hedef - taban) * SAYGINLIK_HIZ));
-  const olayEtki = Math.max(-OLAY_SINIR, Math.min(OLAY_SINIR, olay * OLAY_ETKI));
+  const olayEtki = Math.max(-OLAY_SINIR, Math.min(OLAY_SINIR, olay * OLAY_ETKI)) + secim;
   const d = kayma + olayEtki;
   // Olasılıklı yuvarlama: saygınlık tam sayı kalır, beklenen değer korunur
   const tam = Math.floor(d) + (Math.random() < d - Math.floor(d) ? 1 : 0);
@@ -4221,7 +4515,33 @@ function _updatePrestige(state, ekBonus = 0) {
   u._prestigeBase  = yeni;
   u.qualityScore   = Math.round(kalite);
   u.prestigeCeiling = Math.round(tavan);
-  return yeni - taban;
+  return {
+    delta: yeni - taban,
+    // v0.5.2 (S2): dönem özeti için döküm; kalite ve olay beklenen (kesirli) katkılardır,
+    // saygınlık tam sayı olduğundan gerçekleşen değişim olasılıklı yuvarlanır
+    kirilim: {
+      onceki:  taban,
+      sonraki: yeni,
+      kalite:  Math.round(kayma * 100) / 100,
+      olay:    Math.round(olayEtki * 100) / 100,
+      hedef:   Math.round(hedef * 10) / 10,
+      tavan:   Math.round(tavan),
+    },
+  };
+}
+
+/**
+ * v0.5.2 (S3): Rastgele olay seçeneğinin şimdi seçilirse dönem sonunda saygınlığa
+ * yansıyacak kalıcı etkisi. applyDecision({ type: 'apply_random_event' }) sonucundaki
+ * effects.prestigeDelta ile aynı hesaptır: ham değerin %12'si, bu dönem yapılmış
+ * seçimlerle birlikte en çok ±0,4. Oyun durumunu değiştirmez.
+ * @param {number|object} d  seçeneğin ham saygınlık değeri (RANDOM_EVENTS choice.prestigeDelta,
+ *                           ör. 3) ya da seçenek nesnesi
+ * @returns {number} kesirli kalıcı değişim, iki basamağa yuvarlı (ör. 0.36, 0.4, -0.24, 0)
+ */
+export function kaliciSayginlikEtkisi(d) {
+  const ham = (d && typeof d === 'object') ? (d.prestigeDelta ?? 0) : d;
+  return secimSayginlikEtkisi(_state, ham);
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -4321,8 +4641,8 @@ function _processFacultyLifecycle(state, yeniYil) {
         icon: '🎓',
         title: 'Emeklilik',
         description: haddi
-          ? `${kim}${yer ? ` (${yer})` : ''} ${f.age} yaşını doldurduğu için yaş haddinden emekli oldu. Derslerine yeni hoca atanmalı.`
-          : `${kim}${yer ? ` (${yer})` : ''} ${f.age} yaşında emekliliğini istedi ve ayrıldı. Derslerine yeni hoca atanmalı.`,
+          ? `${kim}${yer ? ` (${yer})` : ''} ${f.age} yaşını doldurduğu için yaş haddinden emekli oldu.`
+          : `${kim}${yer ? ` (${yer})` : ''} ${f.age} yaşında emekliliğini istedi ve ayrıldı.`,
       });
     }
   }
@@ -4343,6 +4663,101 @@ function _processFacultyLifecycle(state, yeniYil) {
           : `${d.shortName || d.name} bölüm başkanlığı boşaldı; bölümde başkan olabilecek profesör ya da doçent yok.`,
       });
     }
+  }
+
+  // v0.5.2: ayrılanın dersleri ve projeleri hemen el değiştirir. Eskiden ders ataması
+  // dönem başında yapıldığı için ayrılan hoca bir dönem boyunca ders listesinde ve
+  // proje yürütücüsü olarak kalıyordu.
+  const ayrilanHocalar = ayrilanlar.map(({ f }) => f);
+  const etkilenenBolumler = [...new Set(ayrilanHocalar.map(f => f.department || f.departmentId).filter(Boolean))];
+  _derslerYenidenAta(state, etkilenenBolumler);
+  for (const id of etkilenenBolumler) {
+    const d = (state.departments || []).find(x => x.id === id && x.isOpen);
+    if (!d) continue;
+    const hocasiz = (d.uncoveredCourses || []).length;
+    const ayrilan = ayrilanHocalar.filter(f => (f.department || f.departmentId) === id).length > 1
+      ? 'ayrılan hocaların' : 'ayrılan hocanın';
+    olaylar.push({
+      type: hocasiz > 0 ? 'warning' : 'info',
+      icon: '📚',
+      title: 'Ders Ataması',
+      description: hocasiz > 0
+        ? `${d.shortName || d.name}: ${ayrilan} dersleri bölümdeki hocalara yeniden dağıtıldı; ${hocasiz} ders hocasız kaldı, bölüme hoca alınmalı.`
+        : `${d.shortName || d.name}: ${ayrilan} dersleri bölümdeki öteki hocalara dağıtıldı.`,
+    });
+  }
+  olaylar.push(..._projeleriDevret(state, ayrilanHocalar));
+  return olaylar;
+}
+
+/**
+ * v0.5.2: Ayrılan hocaların yürüttüğü projeleri bölümdeki başka bir öğretim üyesine
+ * devreder (önce araştırma puanı en yüksek Dr. Öğr. Üyesi ve üstü); bölümde kimse
+ * yoksa projeyi sonlandırır. Ayrılanların bekleyen proje ve BAP başvuruları geri
+ * çekilir. Dönem özeti olaylarını döner.
+ * @param {object} state
+ * @param {object[]} ayrilanHocalar
+ */
+function _projeleriDevret(state, ayrilanHocalar) {
+  const olaylar = [];
+  const r = state.research;
+  if (!r || ayrilanHocalar.length === 0) return olaylar;
+  const ayrilanIdler = new Set(ayrilanHocalar.map(f => f.id));
+
+  const kalan = [];
+  for (const p of r.activeResearchProjects || []) {
+    const piId = p.piId ?? p.facultyId;
+    if (!ayrilanIdler.has(piId)) { kalan.push(p); continue; }
+    const eski  = ayrilanHocalar.find(f => f.id === piId);
+    const bolum = p.facultyDept || eski?.department || eski?.departmentId;
+    const bolumHocalari = (state.faculty || []).filter(f => (f.department || f.departmentId) === bolum);
+    const drUstu = bolumHocalari.filter(f => f.title !== 'argö');
+    const yeni = (drUstu.length > 0 ? drUstu : bolumHocalari)
+      .slice().sort((a, b) => (b.stats?.research ?? 0) - (a.stats?.research ?? 0))[0];
+    const projeAdi = p.projectName || 'Araştırma';
+    if (yeni) {
+      const ad = `${UNVAN_KISA[yeni.title] || ''} ${yeni.name}`.trim();
+      p.piId = yeni.id;
+      p.piName = ad;
+      p.facultyId = yeni.id;
+      p.facultyName = ad;
+      p.facultyTitle = yeni.title;
+      kalan.push(p);
+      olaylar.push({
+        type: 'info',
+        icon: '🔁',
+        title: 'Proje Devri',
+        description: `"${projeAdi}" projesinin yürütücülüğünü ${ad} üstlendi.`,
+      });
+    } else {
+      p.status = 'terminated';
+      p.terminatedTurn = state.meta?.turn ?? null;
+      if (!Array.isArray(r.completedProjects)) r.completedProjects = [];
+      r.completedProjects.push(p);
+      olaylar.push({
+        type: 'warning',
+        icon: '⛔',
+        title: 'Proje Sonlandı',
+        description: `"${projeAdi}" projesi yürütücüsü ayrıldığı için sonlandırıldı; bölümde projeyi sürdürecek öğretim üyesi yok.`,
+      });
+    }
+  }
+  r.activeResearchProjects = kalan;
+
+  let geriCekilen = 0;
+  for (const alan of ['pendingProjectApplications', 'bapApplications']) {
+    if (!Array.isArray(r[alan])) continue;
+    const once = r[alan].length;
+    r[alan] = r[alan].filter(a => !ayrilanIdler.has(a.facultyId));
+    geriCekilen += once - r[alan].length;
+  }
+  if (geriCekilen > 0) {
+    olaylar.push({
+      type: 'info',
+      icon: '📋',
+      title: 'Başvurular Geri Çekildi',
+      description: `Ayrılan öğretim üyelerinin ${geriCekilen} proje başvurusu geri çekildi.`,
+    });
   }
   return olaylar;
 }
@@ -4412,7 +4827,7 @@ export function checkWinLose() {
           gameOver: false,
           gameWon:  true,
           reason:   'scenario_prestige',
-          message:  `Senaryo tamamlandı! Üniversitenizin saygınlığı ${_state.university.prestige}'e ulaştı. Hedef: ${scenarioWin.target}`,
+          message:  `Senaryo tamamlandı! Üniversitenizin saygınlığı ${_state.university.prestige}${_yonelmeEki(_state.university.prestige)} ulaştı. Hedef: ${scenarioWin.target}`,
         };
       }
 
@@ -4471,7 +4886,7 @@ export function checkWinLose() {
           gameOver: false,
           gameWon:  true,
           reason:   'prestige_max',
-          message:  `Tebrikler! Üniversitenizin saygınlık puanı ${_state.university.prestige}'e ulaştı.`,
+          message:  `Tebrikler! Üniversitenizin saygınlık puanı ${_state.university.prestige}${_yonelmeEki(_state.university.prestige)} ulaştı.`,
         };
       }
 
@@ -4521,7 +4936,7 @@ export function enableFreeMode() {
 function _describeScenarioGoal(sw) {
   if (!sw) return 'senaryo hedefi';
   if (sw.type === 'prestige')       return `Saygınlık ${sw.target}`;
-  if (sw.type === 'ranking')        return `Dünya sıralaması ilk ${sw.target}`;
+  if (sw.type === 'ranking')        return `Türkiye sıralamasında ilk ${sw.target}`;
   if (sw.type === 'budget_positive') return `${sw.consecutiveTurns} dönem üst üste pozitif bütçe`;
   return 'senaryo hedefi';
 }
@@ -4643,6 +5058,8 @@ export function getTurnSummary(simResults = {}) {
     academic: {
       prestige:           isNaN(_state.university.prestige) ? 0 : _state.university.prestige,
       prestigeDelta:      isNaN(simResults.prestigeDelta) ? 0 : (simResults.prestigeDelta ?? 0),
+      // v0.5.2 (S2): { onceki, sonraki, kalite, olay } (+ hedef, tavan); kalite ve olay kesirli
+      prestigeBreakdown:  simResults.prestigeBreakdown || null,
       newRanking:         _state.university.ranking,
       rankingDelta:       isNaN(simResults.rankingDelta) ? 0 : (simResults.rankingDelta ?? 0),
       publications:       _state.research.publications,
@@ -4672,6 +5089,8 @@ export function getTurnSummary(simResults = {}) {
     debt:            _state.university.debt,
     budgetDelta:     net,
     prestige:        _state.university.prestige,
+    prestigeDelta:   isNaN(simResults.prestigeDelta) ? 0 : (simResults.prestigeDelta ?? 0),
+    prestigeBreakdown: simResults.prestigeBreakdown || null,
     ranking:         _state.university.ranking,
     totalStudents:   _state.students.totalEnrolled,
     facultyCount:    _state.faculty.length,
@@ -4815,6 +5234,31 @@ function migrateState(state) {
     }
   }
 
+  // v0.5.2 mekanik göçü: bölüm kapasitesi (eski kayıtlarda hep 100), kurucu kadro şartı,
+  // saygınlık biriktirme alanları (birim yöneticileri migrateState sonunda)
+  try {
+    for (const dept of (state.departments || [])) {
+      if (dept && !Number.isFinite(dept.minFaculty)) dept.minFaculty = _bolumEnAzHoca(dept.id);
+    }
+    // Bölüm değiştiren hocada departmentId eski bölümde kalıyordu (reassignFacultyToDept)
+    for (const f of (state.faculty || [])) {
+      if (f && f.department && f.departmentId && f.departmentId !== f.department) f.departmentId = f.department;
+    }
+    if (state.students?.byDepartment) _updateDeptCapacities(state);
+    // Yeni biriktirme alanları yoksa sıfırdır. v0.5.1 kaydında olay seçimi saygınlığı anında
+    // yazmıştı; taban ile fark dönem sonunda dönem içi gelişme olarak sayılır.
+    if (state.university) {
+      if (!Number.isFinite(state.university._olaySayginlik)) state.university._olaySayginlik = 0;
+      if (!Number.isFinite(state.university._hamSayginlik))  state.university._hamSayginlik  = 0;
+      // v0.5.1 öncesi kayıtta taban yoktu; ilk dönemin bütün ham eklemeleri kalıcı oluyordu
+      if (!Number.isFinite(state.university._prestigeBase) && Number.isFinite(state.university.prestige)) {
+        state.university._prestigeBase = state.university.prestige;
+      }
+    }
+  } catch (e) {
+    console.warn('[migrate] v0.5.2 mekanik göçü tamamlanamadı:', e);
+  }
+
   // v0.4 Feature: Banka kredileri sistemi
   if (!state.university.loans) state.university.loans = [];
   if (state.university.totalDebt === undefined || state.university.totalDebt === null) {
@@ -4920,6 +5364,17 @@ function migrateState(state) {
       const oldTitle = s.title;
       s.title = newTitleNames[oldIdx];
       console.log(`[game] migrateState: ${s.name} (${s.unit}) unvanı güncellendi: ${oldTitle} → ${s.title}`);
+    }
+  }
+
+  // v0.5.2: birim yöneticileri (unvan göçünden sonra); uygun personeli olan birime atanır
+  if (state.adminUnits && !Array.isArray(state.adminUnits) && Array.isArray(state.adminStaff)
+      && Object.keys(state.adminUnits).length > 0) {
+    try {
+      _assignUnitManagers(state.adminUnits, state.adminStaff);
+      syncAdminUnitStats(state.adminUnits, state.adminStaff, state.buildings || []);
+    } catch (e) {
+      console.warn('[migrate] v0.5.2 birim yöneticisi ataması yapılamadı:', e);
     }
   }
 }
@@ -5187,12 +5642,16 @@ export function applyDecision(decision) {
       const avgIncomingStat = Object.values(incomingStats).reduce((a, b) => a + b, 0) / Object.values(incomingStats).length;
       const isStarFaculty = avgIncomingStat >= 80;
 
+      // v0.5.2: transfer adayının öteki alanları (cinsiyet, portre yaşı, atıf, deneyim,
+      // eğitim, avatar...) korunur; eskiden düşüyordu ve işe alınan hocanın portresi çıkmıyordu.
+      const { askingSalary: _istenen, transferFee: _bedel, ...adayAlanlari } = facultyData;
       const newFaculty = {
+        ...adayAlanlari,
         id:            facultyData.id || `faculty_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
         name:          facultyData.name          || 'İsimsiz Hoca',
         title:         facultyData.title         || 'dr_ogr_uyesi',
-        department:    facultyData.departmentId  || facultyData.department,
-        departmentId:  facultyData.departmentId  || facultyData.department,
+        department:    dept.id,
+        departmentId:  dept.id,
         field:         facultyData.field         || null,
         archetype:     facultyData.archetype     || null,
         age:           facultyData.age           || null,
@@ -5212,6 +5671,7 @@ export function applyDecision(decision) {
       };
 
       _state.faculty.push(newFaculty);
+      if (!Array.isArray(dept.assignedFacultyIds)) dept.assignedFacultyIds = [];
       dept.assignedFacultyIds.push(newFaculty.id);
 
       return {
@@ -5306,7 +5766,7 @@ export function applyDecision(decision) {
         _state.university.tuitionPerSemester = amount;
         return {
           success:     true,
-          message:     `Harç ₺${amount.toLocaleString('tr-TR')}'ye güncellendi. Yüksek artış öğrenci memnuniyetini ${satisfactionPenalty} puan düşürdü.`,
+          message:     `Harç ₺${amount.toLocaleString('tr-TR')}${_yonelmeEki(amount)} güncellendi. Yüksek artış öğrenci memnuniyetini ${satisfactionPenalty} puan düşürdü.`,
           satisfactionPenalty: -satisfactionPenalty,
         };
       }
@@ -5314,7 +5774,7 @@ export function applyDecision(decision) {
       _state.university.tuitionPerSemester = amount;
       return {
         success: true,
-        message: `Harç ₺${amount.toLocaleString('tr-TR')}'ye güncellendi.`,
+        message: `Harç ₺${amount.toLocaleString('tr-TR')}${_yonelmeEki(amount)} güncellendi.`,
       };
     }
 
@@ -5436,7 +5896,7 @@ export function applyDecision(decision) {
 
       return {
         success:     true,
-        message:     `${building.name} Düzey ${building.level + 1}'e yükseltme başladı. ${totalTurns} dönem sürer.`,
+        message:     `${building.name} Düzey ${building.level + 1}${_yonelmeEki(building.level + 1)} yükseltme başladı. ${totalTurns} dönem sürer.`,
         upgradeCost,
       };
     }
@@ -5471,6 +5931,8 @@ export function applyDecision(decision) {
         building.usedCapacity.classrooms = usage.usedClassrooms;
         building.usedCapacity.offices    = usage.usedOffices;
         building.usedCapacity.labs       = usage.usedLabs;
+        // v0.5.2: bölüm kapasiteleri yeni atamaya göre hemen güncellensin
+        _updateDeptCapacities(_state);
       }
 
       return {
@@ -5501,6 +5963,7 @@ export function applyDecision(decision) {
         building.usedCapacity.classrooms = usageAfterRemove.usedClassrooms;
         building.usedCapacity.offices    = usageAfterRemove.usedOffices;
         building.usedCapacity.labs       = usageAfterRemove.usedLabs;
+        _updateDeptCapacities(_state);   // v0.5.2
       }
 
       return { success: true, message: 'Bölüm ataması kaldırıldı.' };
@@ -5526,7 +5989,7 @@ export function applyDecision(decision) {
       if (Math.abs(total - 1.0) > 0.01) {
         return {
           success: false,
-          message: `Bütçe dağılımı toplamı 1.0 (%%100) olmalı. Mevcut toplam: ${total.toFixed(2)}`,
+          message: `Bütçe dağılımı toplamı %100 olmalı. Mevcut toplam: %${Math.round(total * 100)}`,
         };
       }
 
@@ -6094,7 +6557,8 @@ export function applyDecision(decision) {
       fac.happiness = Math.min(100, (fac.happiness || 60) + awardDef.morale);
 
       if (awardDef.prestige > 0) {
-        _state.university.prestige = Math.min(100, (_state.university.prestige || 0) + awardDef.prestige);
+        // v0.5.2: saygınlık anında yazılmaz; katkı dönem sonunda öteki gelişmelerle birlikte yansır
+        hamSayginlikEkle(_state, awardDef.prestige);
       }
 
       // Aktif ödülleri kaydet (3 dönem sürer)
@@ -6115,10 +6579,11 @@ export function applyDecision(decision) {
 
       return {
         success:     true,
-        message:     `${fac.name} "${awardDef.label}" ödülüne layık görüldü. Moral +${awardDef.morale}`,
+        message:     `${fac.name} "${awardDef.label}" ödülüne layık görüldü. Moral +${awardDef.morale}`
+                     + (awardDef.prestige > 0 ? '; saygınlığa katkısı dönem sonunda yansır.' : ''),
         cost:        awardDef.cost,
         moraleBonus: awardDef.morale,
-        prestigeBonus: awardDef.prestige,
+        hamSayginlik: awardDef.prestige,   // v0.5.2: ham katkı; kalıcı payı dönem sonunda belli olur
       };
     }
 
@@ -6435,7 +6900,7 @@ export function applyDecision(decision) {
 
       return {
         success: true,
-        message: `${bank.name}'dan ₺${amount.toLocaleString('tr-TR')} kredi alındı. ` +
+        message: `${bank.name}: ₺${amount.toLocaleString('tr-TR')} kredi alındı. ` +
                  `Dönem taksiti: ₺${semesterPayment.toLocaleString('tr-TR')} × ${termSemesters} dönem.`,
         semesterPayment,
       };
@@ -6687,8 +7152,9 @@ export function reassignFacultyToDept(facultyId, newDeptId) {
     }
   }
 
-  // Yeni bölüme ata
+  // Yeni bölüme ata (v0.5.2: departmentId de; bazı hesaplar önce ona bakıyor, eski bölümde sayılıyordu)
   hoca.department = newDeptId;
+  if (hoca.departmentId != null) hoca.departmentId = newDeptId;
   if (!targetDept.assignedFacultyIds) targetDept.assignedFacultyIds = [];
   if (!targetDept.assignedFacultyIds.includes(facultyId)) {
     targetDept.assignedFacultyIds.push(facultyId);
