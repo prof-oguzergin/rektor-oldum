@@ -2,7 +2,7 @@
 
 - GitHub: https://github.com/prof-oguzergin/rektor-oldum (private)
 - Yayında: https://prof-oguzergin.github.io/rektor-oldum/
-- Durum: v0.5.1 canlıda (23 Eyl 2026); v0.5.2 düzeltme paketi yerelde master'da, gönderim onayı bekliyor; aktif geliştirme, oyuncu rapor akışı (Erdinç, Emir, Burak, AkaDemi, Yusuf, Fatih)
+- Durum: v0.5.2 düzeltme paketi (24 Eyl 2026, canlıda); aktif geliştirme, oyuncu rapor akışı (Erdinç, Emir, Burak, AkaDemi, Yusuf, Fatih)
 - Dizin: C:\Users\Z GAMES\Yapay Zeka\university-tycoon
 
 ## Teknik
@@ -91,7 +91,8 @@ Tam liste: `js/changelog.js` (oyun içi "Yenilikler" panelinde de gösterilir, b
   - Yaşam döngüsü: ayrılıştan sonra ders ataması yeniden yapılır, projeler bölümdeki başka hocaya devredilir ya da sonlanır.
   - Transfer pazarı: aday `department` = açık bölüm kimliği, saygınlık `university.prestige`'ten; işe alım adayın bölümüne. Yeni bölüm "Min." hoca sayısına ulaşmadan öğrenci almaz. İdari yöneticiler başta atanır, elle atama `elleAtandi` ile korunur.
   - Arayüz: senaryo hedef göstergesi, Genel Bakış tahmini `calculateIncome/Expenses`, kredi borcu kartı, bölüm memnuniyeti `byDepartment`'tan, dönem özetinde "Devam" + Esc, olay penceresinde ✕ yok, inşaat onayı, sekme değişince başa kaydırma, sayı ekleri (2'ye, 6'ya), rehber hedefleri durumdan.
-  - Bilinen: araştırma puanının proje ve h-indeks bileşenleri gerçek oyunda dolmuyor (kalite puanında 45/100 ulaşılamaz); iyi yönetimde devlet ilk 10'a ~21 yılda. Düzeltmesi dengeyi değiştirir, ayrı sürümde ölçerek.
+  - Köklü Devlet hedefi "15 yılda ilk 15" oldu (Oğuz onayı, 24 Eyl): gerçekçi iyi yönetim vekili 15. yılda 13.-14. sırada, ilk 10'a en erken 17,5 yılda. `migrateState` hedefi 30 ya da 10 olan köklü kayıtları 15'e çeker.
+  - Bilinen: araştırma puanının proje ve h-indeks bileşenleri gerçek oyunda dolmuyor (kalite puanında 45/100 ulaşılamaz); iyi yönetimde devlet ilk 10'a 25-30 yılda. Düzeltmesi dengeyi değiştirir, ayrı sürümde ölçerek; sonra köklü hedefi yeniden ilk 10 olabilir. Ölçüm betikleri `C:\repos\_v052\birlesik\hiz_olc.py`, `hiz_iyi.py`.
 
 ## Aktif Oyuncu Raporcuları
 Erdinç (en yoğun), AkaDemi, Emir, Burak Gökalp, Yusuf Sertkaya, R-Fatih (Issue #7, #9), X, serhattural

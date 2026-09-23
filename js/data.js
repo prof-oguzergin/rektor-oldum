@@ -2669,7 +2669,7 @@ export const SCENARIOS = {
     name: 'Köklü Devlet Üniversitesi',
     icon: '🏛️',
     subtitle: 'Miras ve bürokratik zorluklar',
-    description: '50 yıllık geçmişi olan devlet üniversitesinin düşüşünü durdurup 15 yılda Türkiye\'nin ilk 10 üniversitesi arasına sokun. Eski binalar ve bürokratik engeller sizi bekliyor.',
+    description: '50 yıllık geçmişi olan devlet üniversitesinin düşüşünü durdurup 15 yılda Türkiye\'nin ilk 15 üniversitesi arasına sokun. Eski binalar ve bürokratik engeller sizi bekliyor.',
     difficulty: 'normal',
     universityType: 'devlet',
     startBudgetOverride: null,      // UNIVERSITY_TYPES.devlet default
@@ -2682,7 +2682,7 @@ export const SCENARIOS = {
       agingInfrastructure: true,    // Binalar %60 durumda başlar
       bureaucracyPenalty: 0.15,     // İşlem gecikmesi +%15
     },
-    winCondition: { type: 'ranking', target: 10, maxTurns: 30 },
+    winCondition: { type: 'ranking', target: 15, maxTurns: 30 },   // v0.5.2: iyi yönetim 15. yılda 13.-14. sırada
     flavorText: '"Geleneği korurken geleceği inşa et."',
   },
 

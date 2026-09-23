@@ -5211,7 +5211,8 @@ function migrateState(state) {
   }
   {
     const wc = state.meta?.scenarioWinCondition;
-    if (wc && state.meta.scenarioId === 'koklu_devlet' && wc.type === 'ranking' && wc.target === 30) {
+    // v0.5.1'de 30 → 10, v0.5.2'de 10 → 15 (ölçülen iyi yönetim hızına göre)
+    if (wc && state.meta.scenarioId === 'koklu_devlet' && wc.type === 'ranking' && (wc.target === 30 || wc.target === 10)) {
       state.meta.scenarioWinCondition = { ...SCENARIOS.koklu_devlet.winCondition };
     }
     if (wc && state.meta.scenarioId === 'yeni_kurulan' && wc.type === 'prestige') {
