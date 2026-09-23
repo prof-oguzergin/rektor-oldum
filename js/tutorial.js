@@ -25,34 +25,34 @@ Her dönem sonunda <strong>"Sonraki Dönem"</strong> butonuna basarak ilerleyece
   },
   {
     id: 'kadro',
-    title: '👨‍🏫 Kadro — Hoca Yönetimi',
+    title: '👨‍🏫 Kadro: Hoca Yönetimi',
     content: `<strong>Kadro</strong> sekmesinde hocalarınızı görürsünüz. Transfer pazarından yeni hoca alabilir, kadro ilanı verebilir, maaş ayarlayabilirsiniz.<br><br>
 İyi hocalar = iyi araştırma + iyi eğitim.`,
     highlightSelector: '.sidebar-tab[data-tab="faculty"]',
   },
   {
     id: 'ogrenciler',
-    title: '🎓 Öğrenciler — Kontenjan Belirleme',
-    content: `Her güz döneminde yeni öğrenci alırsınız. <strong>Kontenjan Belirleme</strong> butonuyla burslu/ücretli kontenjanları ayarlayın.<br><br>
+    title: '🎓 Öğrenciler: Kontenjan Belirleme',
+    content: `Yeni öğrenciler Güz'de gelir; kontenjanları <strong>Bahar döneminde</strong> Öğrenciler sekmesinden belirlersiniz. Bahar'da <strong>Sonraki Dönem</strong>'e basınca da kontenjan penceresi açılır.<br><br>
 İyi öğrenci çekmek için saygınlık gerekir.`,
     highlightSelector: '.sidebar-tab[data-tab="students"]',
   },
   {
     id: 'yerleske',
-    title: '🏛️ Yerleşke — Bina İnşaatı',
+    title: '🏛️ Yerleşke: Bina İnşaatı',
     content: `<strong>Yerleşke</strong> sekmesinde bina yapabilir, düzey yükseltebilir, bölüm atayabilirsiniz.<br><br>
 Derslik ve ofis kapasitesi öğrenci/hoca sayınızı sınırlar.`,
     highlightSelector: '.sidebar-tab[data-tab="campus"]',
   },
   {
     id: 'arastirma',
-    title: '🔬 Araştırma — Projeler ve Yayınlar',
+    title: '🔬 Araştırma: Projeler ve Yayınlar',
     content: `Hocalarınız otomatik olarak projelere başvurur. <strong>Araştırma</strong> sekmesinden BAP çağrısı açabilir, aktif projeleri takip edebilirsiniz.`,
     highlightSelector: '.sidebar-tab[data-tab="research"]',
   },
   {
     id: 'butce',
-    title: '💰 Bütçe — Mali Yönetim',
+    title: '💰 Bütçe: Mali Yönetim',
     content: `Geliriniz harç, araştırma fonları ve bağışlardan gelir.<br>
 Gideriniz maaşlar, bakım ve burslardan oluşur.<br><br>
 <strong>Dengeyi koruyun!</strong> Sürekli açık verirseniz YÖK denetimi başlar.`,
@@ -79,18 +79,58 @@ Gideriniz maaşlar, bakım ve burslardan oluşur.<br><br>
   {
     id: 'hedefler',
     title: '🏆 İlk Hedefiniz',
-    content: `İlk 10 dönemde şunları hedefleyin:<br><br>
+    // v0.5.2: hedefler rehberin gösterildiği andaki durumdan üretilir
+    // (sabit "saygınlık 30, 40. sıra" hedefleri oyun başında zaten aşılmış oluyordu)
+    content: (durum) => `İlk 10 dönemde şunları hedefleyin:<br><br>
 <ul style="margin:8px 0 0 16px;line-height:1.8">
-  <li>1 yeni bina yapın</li>
-  <li>5 yeni hoca alın</li>
-  <li>Saygınlığı 30\'a çıkarın</li>
-  <li>Sıralamada 40. sıraya yükselin</li>
-</ul><br>
+  ${_ilkHedefler(durum).map(m => `<li>${m}</li>`).join('')}
+</ul>${_senaryoSatiri(durum)}<br>
 Haydi başlayalım! 🚀`,
     highlightSelector: null,
     isLast: true,
   },
 ];
+
+/** Son adımın hedefleri: şimdiki saygınlık +5, Türkiye sırası −3 (durum yoksa sayısız). */
+function _ilkHedefler(durum) {
+  const uni = durum?.university;
+  const maddeler = ['1 yeni bina yapın', '5 yeni hoca alın'];
+
+  const p = Number(uni?.prestige);
+  if (Number.isFinite(p)) {
+    const simdi = Math.round(p);
+    const hedef = Math.min(100, simdi + 5);
+    maddeler.push(hedef > simdi
+      ? `Saygınlığı ${simdi} puandan ${hedef} puana çıkarın`
+      : 'Saygınlığı 100 puanda tutun');
+  } else {
+    maddeler.push('Saygınlığınızı artırın');
+  }
+
+  const sira = Number(uni?.ranking);
+  if (Number.isFinite(sira) && sira > 0) {
+    const hedefSira = Math.max(1, sira - 3);
+    maddeler.push(hedefSira < sira
+      ? `Türkiye sıralamasında ${sira}. sıradan ${hedefSira}. sıraya yükselin`
+      : 'Türkiye sıralamasında 1. sırayı koruyun');
+  } else {
+    maddeler.push('Türkiye sıralamasında yükselin');
+  }
+  return maddeler;
+}
+
+/** Senaryo oynanıyorsa asıl hedefi hatırlatan satır. */
+function _senaryoSatiri(durum) {
+  const wc = durum?.meta?.scenarioWinCondition;
+  if (!wc || durum?._internal?.freeMode) return '';
+  const sure = wc.maxTurns ? `${Math.round(wc.maxTurns / 2)} yılda ` : '';
+  const hedef = wc.type === 'ranking' ? `${sure}Türkiye sıralamasında ilk ${wc.target} içine girmek`
+    : wc.type === 'prestige' ? `${sure}saygınlığı ${wc.target} puana çıkarmak`
+    : wc.type === 'budget_positive' ? `kasayı ${wc.consecutiveTurns || 10} dönem üst üste artıda tutmak`
+    : null;
+  if (!hedef) return '';
+  return `<br>Senaryonun asıl hedefi: <strong>${hedef}</strong>. Üst çubuktaki 🎯 satırı kalan süreyi gösterir.<br>`;
+}
 
 // ─────────────────────────────────────────────────────────────────────────────
 // DURUM
@@ -101,6 +141,8 @@ let _currentStep = 0;
 let _overlayEl   = null;
 let _modalEl     = null;
 let _highlightedEls = [];
+/** Oyun durumunu veren işlev (main.js getState); son adımın hedefleri buradan üretilir */
+let _durumAl     = null;
 
 // ─────────────────────────────────────────────────────────────────────────────
 // YARDIMCILAR
@@ -187,7 +229,7 @@ function _showStep(index) {
         <button class="tutorial-skip-btn" id="tutorial-skip">Atla</button>
       </div>
       <h3 class="tutorial-title">${step.title}</h3>
-      <div class="tutorial-content">${step.content}</div>
+      <div class="tutorial-content">${_adimIcerigi(step)}</div>
     </div>
     <div class="tutorial-footer">
       <button class="tutorial-next-btn btn btn-primary" id="tutorial-next">${nextLabel}</button>
@@ -220,6 +262,14 @@ function _showStep(index) {
   }
 }
 
+/** Adım içeriği: metin ya da o anki oyun durumundan metin üreten işlev. */
+function _adimIcerigi(step) {
+  if (typeof step.content !== 'function') return step.content;
+  let durum = null;
+  try { durum = _durumAl ? _durumAl() : null; } catch (e) { durum = null; }
+  return step.content(durum);
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // TUTORIAL TAMAMLA
 // ─────────────────────────────────────────────────────────────────────────────
@@ -238,8 +288,10 @@ function _finishTutorial() {
 /**
  * İlk oyun başlangıcında çağrılır.
  * Daha önce tamamlanmışsa göstermez.
+ * @param {Function} [durumAl]: oyun durumunu veren işlev (son adımın hedefleri için)
  */
-export function showTutorialIfNeeded() {
+export function showTutorialIfNeeded(durumAl = null) {
+  if (typeof durumAl === 'function') _durumAl = durumAl;
   if (localStorage.getItem(TUTORIAL_DONE_KEY)) return;
   _createOverlay();
   // Overlay görünür olmadan önce DOM'un render edilmesini bekle
@@ -253,8 +305,10 @@ export function showTutorialIfNeeded() {
 /**
  * Rehberi sıfırlar ve baştan gösterir.
  * "❓ Rehber" butonu için.
+ * @param {Function} [durumAl]: oyun durumunu veren işlev (son adımın hedefleri için)
  */
-export function replayTutorial() {
+export function replayTutorial(durumAl = null) {
+  if (typeof durumAl === 'function') _durumAl = durumAl;
   localStorage.removeItem(TUTORIAL_DONE_KEY);
   _destroyOverlay();
   _createOverlay();

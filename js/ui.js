@@ -6,7 +6,7 @@
 
 import { DEPARTMENTS, DEPARTMENT_CURRICULA, UNIVERSITY_TYPES, UNIVERSITY_MODELS, USD_TO_TL, DIFFICULTY_SETTINGS, BUILDINGS, SEMESTER_MONTHS, FACULTIES, DEPT_TO_FACULTY, SALARY_SCALES, ADMIN_UNITS, ADMIN_TITLES, ADMIN_UNIT_BUILDINGS, ACCREDITATION_BODIES, SCENARIOS, BANKS } from './data.js?v=0.5.1';
 import { DEPARTMENT_FIELDS, getSalaryRange, renderFacultyAvatar, renderFacultyPortrait, calculateOverallRating, getFacultyRatingTrend } from './faculty.js?v=0.5.1';
-import { AVAILABLE_NEW_DEPARTMENTS, getCourseEffectiveDifficulty, getUnitTitles, getUnitTitleSalary, calculateCampusUsageSummary } from './game.js?v=0.5.2';
+import { AVAILABLE_NEW_DEPARTMENTS, getCourseEffectiveDifficulty, getUnitTitles, getUnitTitleSalary, isUnitManagerTitle, calculateCampusUsageSummary } from './game.js?v=0.5.2';
 import { calculateIncome, calculateExpenses, calculateLoanPayment } from './economy.js?v=0.4.24';
 import { renderCampusMap, handleCampusClick, handleCampusHover, clearHover } from './campus-renderer.js?v=0.5.1';
 
@@ -71,7 +71,8 @@ export function formatMoney(amount) {
   if (abs >= 1_000_000) {
     return `${sign}${(abs / 1_000_000).toFixed(1).replace('.', ',')}M ₺`;
   }
-  return `${sign}${abs.toLocaleString('tr-TR')} ₺`;
+  // Kuruş gösterilmez (kredi anaparası gibi kesirli tutarlar "23.978.696,42 ₺" çıkıyordu)
+  return `${sign}${Math.round(abs).toLocaleString('tr-TR')} ₺`;
 }
 
 /**
@@ -80,7 +81,7 @@ export function formatMoney(amount) {
 export function formatMoneyFull(amount) {
   if (amount === null || amount === undefined) return '—';
   const sign = amount < 0 ? '-' : '';
-  return `${sign}${Math.abs(amount).toLocaleString('tr-TR')} ₺`;
+  return `${sign}${Math.round(Math.abs(amount)).toLocaleString('tr-TR')} ₺`;
 }
 
 /**
@@ -103,6 +104,76 @@ export function formatPercent(ratio, decimals = 0) {
  */
 export function formatGPA(gpa) {
   return typeof gpa === 'number' ? gpa.toFixed(2) : '—';
+}
+
+/**
+ * Ondalık sayıyı Türkçe yazar: 0.4 → "0,4", 12 → "12", 52.6000001 → "52,6".
+ * @param {number} deger
+ * @param {number} [basamak=1]: en çok kaç ondalık basamak
+ */
+export function ondalikYaz(deger, basamak = 1) {
+  const n = Number(deger);
+  if (!Number.isFinite(n)) return '—';
+  const yuvarlak = Math.round(n * 10 ** basamak) / 10 ** basamak;
+  return (Object.is(yuvarlak, -0) ? 0 : yuvarlak).toLocaleString('tr-TR', { maximumFractionDigits: basamak });
+}
+
+/** Puanı tam sayıya yuvarlar; sayı değilse yedeği döner (52.60000000000002 → 53). */
+export function tamPuan(deger, yedek = '—') {
+  const n = Number(deger);
+  return (deger === null || deger === undefined || deger === '' || !Number.isFinite(n)) ? yedek : Math.round(n);
+}
+
+/** İşaretli ondalık: +0,4 / -1,2 / 0 (değişim göstermek için). */
+export function isaretliYaz(deger, basamak = 1) {
+  const n = Number(deger);
+  if (!Number.isFinite(n)) return '—';
+  const metin = ondalikYaz(n, basamak);
+  return (Math.round(n * 10 ** basamak) > 0 ? '+' : '') + metin;
+}
+
+// Sayıların okunuşundaki son sözcük: ünlü uyumu ve ek biçimi buna göre seçilir.
+// [son ünlü, ünlüyle mi bitiyor, sert ünsüzle mi bitiyor]
+const _SAYI_SON_SOZCUK = {
+  birler:   { 1: ['i', 0, 0], 2: ['i', 1, 0], 3: ['ü', 0, 1], 4: ['ö', 0, 1], 5: ['e', 0, 1],
+              6: ['ı', 1, 0], 7: ['i', 1, 0], 8: ['i', 0, 0], 9: ['u', 0, 0] },
+  onlar:    { 1: ['o', 0, 0], 2: ['i', 1, 0], 3: ['u', 0, 0], 4: ['ı', 0, 1], 5: ['i', 1, 0],
+              6: ['ı', 0, 1], 7: ['i', 0, 1], 8: ['e', 0, 0], 9: ['a', 0, 0] },
+  yuz:      ['ü', 0, 0], bin: ['i', 0, 0], milyon: ['o', 0, 0], milyar: ['a', 0, 0], sifir: ['ı', 0, 0],
+};
+
+function _sayiSonSozcuk(n) {
+  n = Math.abs(Math.trunc(n));
+  if (n === 0) return _SAYI_SON_SOZCUK.sifir;
+  if (n % 10) return _SAYI_SON_SOZCUK.birler[n % 10];
+  if (n % 100) return _SAYI_SON_SOZCUK.onlar[(n % 100) / 10];
+  if (n % 1000) return _SAYI_SON_SOZCUK.yuz;
+  if (n % 1_000_000) return _SAYI_SON_SOZCUK.bin;
+  if (n % 1_000_000_000) return _SAYI_SON_SOZCUK.milyon;
+  return _SAYI_SON_SOZCUK.milyar;
+}
+
+/**
+ * Sayıya kesme işaretiyle doğru eki ekler: sayiEkle(2) → "2'ye", sayiEkle(6) → "6'ya",
+ * sayiEkle(3, 'de') → "3'te", sayiEkle(10, 'in') → "10'un".
+ * @param {number} sayi
+ * @param {'e'|'de'|'den'|'in'|'i'} [tur='e']: yönelme, bulunma, ayrılma, tamlayan, belirtme
+ * @param {string} [gosterim]: sayının ekrandaki yazılışı (verilmezse sayının kendisi)
+ */
+export function sayiEkle(sayi, tur = 'e', gosterim = null) {
+  const [unlu, unluyleBiter, sertBiter] = _sayiSonSozcuk(Number(sayi) || 0);
+  const kalin  = 'aıou'.includes(unlu);
+  const iki    = kalin ? 'a' : 'e';
+  const dort   = { a: 'ı', ı: 'ı', o: 'u', u: 'u', e: 'i', i: 'i', ö: 'ü', ü: 'ü' }[unlu];
+  const d      = sertBiter ? 't' : 'd';
+  const ekler  = {
+    e:   (unluyleBiter ? 'y' : '') + iki,
+    de:  d + iki,
+    den: d + iki + 'n',
+    in:  (unluyleBiter ? 'n' : '') + dort,
+    i:   (unluyleBiter ? 'y' : '') + dort,
+  };
+  return `${gosterim ?? sayi}'${ekler[tur] ?? ekler.e}`;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -178,11 +249,15 @@ export function showScreen(screenId) {
   }
 }
 
+/** Kilitli pencere (ör. rastgele olay): ✕, Esc ve arka plan tıklaması kapatmaz, oyuncu seçim yapmalı. */
+let _pencereKilitli = false;
+
 /**
  * Modal overlay göster / gizle.
  * @param {string} title    — Modal başlığı
  * @param {string} bodyHtml — İçerik HTML
- * @param {object} [opts]   — Seçenekler: { wide: true } geniş modal için
+ * @param {object} [opts]   Seçenekler: { wide: true } geniş modal için,
+ *                            { kilitli: true } oyuncu kapatamasın (yalnız içerikteki seçimle kapanır)
  */
 export function showModal(title, bodyHtml, opts = {}) {
   const overlay  = el('modal-overlay');
@@ -191,6 +266,13 @@ export function showModal(title, bodyHtml, opts = {}) {
   const modalEl  = el('general-modal');
   if (!overlay || !titleEl || !bodyEl) return;
 
+  // Kilitli pencere (rastgele olay) açıkken başka pencere üstüne yazamaz (ör. Ctrl+S kayıt penceresi);
+  // yazsaydı olayın seçimi hiç yapılmaz, dönem özeti açılmazdı. Seçim önce hideModal ile kilidi açar.
+  if (_pencereKilitli && !opts.kilitli && !overlay.classList.contains('hidden')) {
+    showNotification('Önce açık olaydaki seçimi yapın.', 'info');
+    return;
+  }
+
   titleEl.textContent = title;
   bodyEl.innerHTML    = bodyHtml;
 
@@ -198,6 +280,10 @@ export function showModal(title, bodyHtml, opts = {}) {
   if (modalEl) {
     modalEl.classList.toggle('modal-wide', !!opts.wide);
   }
+
+  _pencereKilitli = !!opts.kilitli;
+  const kapatBtn = el('btn-close-modal');
+  if (kapatBtn) kapatBtn.style.display = _pencereKilitli ? 'none' : '';
 
   overlay.classList.remove('hidden');
   overlay.classList.add('active');
@@ -219,8 +305,42 @@ export function hideModal() {
     overlay.classList.add('hidden');
     overlay.classList.remove('active');
   }
+  _pencereKilitli = false;
+  const kapatBtn = el('btn-close-modal');
+  if (kapatBtn) kapatBtn.style.display = '';
   // Body scroll lock kaldir
   document.body.style.overflow = '';
+}
+
+/**
+ * Oyuncunun kapatma isteği (✕, Esc, arka plana tıklama). Kilitli pencerede yok sayılır.
+ * @returns {boolean} pencere kapandıysa true
+ */
+export function dismissModal() {
+  if (_pencereKilitli) return false;
+  const overlay = el('modal-overlay');
+  const acikti = !!overlay && !overlay.classList.contains('hidden');
+  hideModal();
+  return acikti;
+}
+
+/**
+ * Oyun penceresinde onay adımı: "Onayla" / "Vazgeç".
+ * @param {string}   baslik
+ * @param {string}   icerikHtml
+ * @param {Function} onOnay       Onayla'ya basınca (pencere kapandıktan sonra) çağrılır
+ * @param {object}   [secenek]    { onayMetni, vazgecMetni, onVazgec, tehlikeli }
+ */
+export function showConfirmModal(baslik, icerikHtml, onOnay, secenek = {}) {
+  const { onayMetni = 'Onayla', vazgecMetni = 'Vazgeç', onVazgec = null, tehlikeli = false } = secenek;
+  showModal(baslik, `
+    <div class="onay-icerik">${icerikHtml}</div>
+    <div class="onay-dugmeler">
+      <button class="btn btn-secondary" id="btn-onay-vazgec" type="button">${vazgecMetni}</button>
+      <button class="btn ${tehlikeli ? 'btn-danger' : 'btn-primary'}" id="btn-onay-tamam" type="button">${onayMetni}</button>
+    </div>`);
+  on(el('btn-onay-vazgec'), 'click', () => { hideModal(); if (onVazgec) onVazgec(); });
+  on(el('btn-onay-tamam'), 'click', () => { hideModal(); if (onOnay) onOnay(); });
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -243,13 +363,31 @@ const _CHANGELOG_TYPE_META = {
  * @param {Function} onSubmitScore — Leaderboard skor gönderme callback'i
  */
 export function showGameWonModal(state, winReason, calculateScore, scoreBreakdown, onSubmitScore) {
-  const scenarioId = state?.meta?.scenario || null;
+  // Senaryo kimliği meta.scenarioId'de (eski kayıtlarda meta.scenario olabilir)
+  const scenarioId = state?.meta?.scenarioId || state?.meta?.scenario || null;
 
-  // Senaryo bazlı özel mesajlar
+  // Senaryo iletileri hedefin kendisinden üretilir (data.js SCENARIOS), hedef değişirse ileti de değişir
+  const hedefIletisi = (id) => {
+    const wc = SCENARIOS[id]?.winCondition;
+    if (!wc) return null;
+    const sure = wc.maxTurns ? `${Math.round(wc.maxTurns / 2)} yılda ` : '';
+    if (wc.type === 'ranking') {
+      const sira = state?.university?.ranking;
+      return `Sıralama hedefini tutturdunuz! ${sure}Türkiye'de ilk ${sayiEkle(wc.target)} girme hedefine ulaştınız`
+        + (sira ? `; üniversiteniz şimdi ${sira}. sırada.` : '.');
+    }
+    if (wc.type === 'prestige') {
+      return `Saygınlık hedefine ulaştınız! ${sure}saygınlığı ${wc.target} puana çıkarma hedefini tutturdunuz.`;
+    }
+    if (wc.type === 'budget_positive') {
+      return `Üniversiteyi mali krizden çıkardınız! Kasayı ${wc.consecutiveTurns || 10} dönem üst üste artıda tuttunuz.`;
+    }
+    return null;
+  };
   const scenarioMessages = {
-    vakif_kurtarma: 'Üniversiteyi mali krizden çıkardınız! Bütçeyi 10 dönem boyunca pozitif tuttunuz.',
-    yeni_kurulan:   'Üniversitenizin saygınlık hedefine ulaştınız! 60 puanı geçtiniz.',
-    koklu_devlet:   'Sıralama hedefini tutturdunuz! İlk 30\'a girdiniz.',
+    vakif_kurtarma: hedefIletisi('vakif_kurtarma'),
+    yeni_kurulan:   hedefIletisi('yeni_kurulan'),
+    koklu_devlet:   hedefIletisi('koklu_devlet'),
   };
 
   // Kazanma nedeni mesajı
@@ -295,7 +433,7 @@ export function showGameWonModal(state, winReason, calculateScore, scoreBreakdow
       </div>
       <div style="display:flex;gap:10px;justify-content:center;flex-wrap:wrap;">
         <button id="won-leaderboard-btn" class="btn btn-primary btn-sm">
-          🏆 Leaderboard'a Gönder
+          🏆 Skorumu Gönder
         </button>
         <button id="won-freemode-btn" class="btn btn-success btn-sm">
           ⏩ Serbest Devam Et
@@ -1016,6 +1154,80 @@ export function updateTopBar(state) {
   } else if (freeBadge) {
     freeBadge.style.display = 'none';
   }
+
+  // v0.5.2: senaryo hedefi göstergesi. Masaüstünde dönem satırının altında, telefonda
+  // kaynak haplarının altında ayrı satır (CSS hangisinin görüneceğini seçer).
+  const hedef = _senaryoHedefi(state);
+  const hedefYaz = (id, sinif, yerlestir) => {
+    let kutu = el(id);
+    if (!kutu) {
+      kutu = document.createElement('div');
+      kutu.id = id;
+      kutu.className = `hedef-cubugu ${sinif}`;
+      yerlestir(kutu);
+    }
+    kutu.hidden = !hedef;
+    if (!hedef) return;
+    kutu.innerHTML = `<span class="hedef-cubugu-ikon" aria-hidden="true">🎯</span><span class="hedef-cubugu-metin">${hedef.metin}</span>`;
+    kutu.title = hedef.aciklama;
+    kutu.classList.toggle('tuttu', hedef.tuttu);
+    kutu.classList.toggle('kritik', !hedef.tuttu && hedef.kritik);
+  };
+  hedefYaz('hedef-cubugu', 'hedef-cubugu--masa', k => el('term-display')?.after(k));
+  hedefYaz('hedef-cubugu-tel', 'hedef-cubugu--tel', k => qs('#screen-game .top-bar')?.appendChild(k));
+}
+
+/**
+ * Senaryo hedefinin kısa adı: "Türkiye ilk 10", "saygınlık 60", "kasa 10 dönem üst üste artıda".
+ * Sıralama hedefi Türkiye sırasıdır (university.ranking), dünya sırası değil.
+ */
+export function senaryoHedefTanimi(wc) {
+  if (!wc) return 'senaryo hedefi';
+  if (wc.type === 'ranking') return `Türkiye ilk ${wc.target}`;
+  if (wc.type === 'prestige') return `saygınlık ${wc.target}`;
+  if (wc.type === 'budget_positive') return `kasa ${wc.consecutiveTurns || 10} dönem üst üste artıda`;
+  return 'senaryo hedefi';
+}
+
+/**
+ * v0.5.2: senaryo hedefinin kısa metni: "Hedef: Türkiye ilk 10 · 21 dönem kaldı · şu an 24."
+ * Hedef yoksa (serbest oyun, serbest mod, süresi dolmuş ya da bitmiş oyun) null döner.
+ * Kalan dönem: hedef her dönem sonunda denetlenir, son denetim maxTurns. dönemin sonunda.
+ */
+function _senaryoHedefi(state) {
+  const wc = state?.meta?.scenarioWinCondition;
+  if (!wc || state._internal?.freeMode || state.meta?.isSandbox || state.meta?.scenarioTimedOut) return null;
+  if (state.gameOver || state.gameWon || state._internal?.gameOver || state._internal?.gameWon) return null;
+
+  const tur   = state.meta?.turn ?? 1;
+  const kalan = wc.maxTurns ? Math.max(0, wc.maxTurns - tur + 1) : null;
+  const kalanMetni = kalan == null ? null : kalan <= 1 ? 'son dönem' : `${kalan} dönem kaldı`;
+  const sureMetni  = wc.maxTurns ? `${wc.maxTurns}. dönemin sonuna kadar ` : '';
+
+  let hedef, simdi, aciklama, tuttu = false;
+  if (wc.type === 'ranking') {
+    const sira = state.university?.ranking;
+    hedef    = `Türkiye ilk ${wc.target}`;
+    simdi    = sira ? `şu an ${sira}.` : null;
+    tuttu    = sira != null && sira <= wc.target;
+    aciklama = `Senaryo hedefi: ${sureMetni}Türkiye sıralamasında ilk ${sayiEkle(wc.target)} girin. Sıra her dönem sonunda denetlenir.`;
+  } else if (wc.type === 'prestige') {
+    const p  = Math.round(state.university?.prestige ?? 0);
+    hedef    = `Saygınlık ${wc.target}`;
+    simdi    = `şu an ${p}`;
+    tuttu    = p >= wc.target;
+    aciklama = `Senaryo hedefi: ${sureMetni}saygınlığı ${wc.target} puana çıkarın.`;
+  } else if (wc.type === 'budget_positive') {
+    const n     = wc.consecutiveTurns || 10;
+    const sayac = state.meta?.scenarioPositiveTurns || 0;
+    hedef    = `Kasa ${n} dönem üst üste artıda`;
+    simdi    = `şu an ${sayac}/${n} dönem`;
+    aciklama = `Senaryo hedefi: kasayı ${n} dönem üst üste artıda tutun. Kasa bir dönem eksiye düşerse sayaç sıfırlanır.`;
+  } else {
+    return null;
+  }
+  const metin = [`Hedef: <b>${hedef}</b>`, kalanMetni, simdi].filter(Boolean).join(' · ');
+  return { metin, aciklama, tuttu, kritik: kalan != null && kalan <= 4 };
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -1038,7 +1250,18 @@ export function initTabNavigation(onTabChange) {
     if (panel) panel.classList.add('active');
 
     if (onTabChange) onTabChange(tabId);
+
+    // Yeni sekme baştan görünsün: masaüstünde içerik kabı, telefonda ekran ya da sayfa kayar
+    _sekmeyiBasaAl();
   });
+}
+
+/** İçerik kabını, oyun ekranını ve pencereyi en üste kaydırır. */
+function _sekmeyiBasaAl() {
+  for (const kap of [qs('#screen-game .main-content'), el('screen-game'), document.scrollingElement]) {
+    if (kap && kap.scrollTop) kap.scrollTop = 0;
+  }
+  if (window.scrollY) window.scrollTo(0, 0);
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -1056,10 +1279,10 @@ export function renderDashboard(state) {
   const uni  = state.university;
   const meta = state.meta;
 
-  // Dönem gelir/gider tahmini (basit)
-  const semesterRevenue = _estimateRevenue(state);
-  const semesterCost    = _estimateCosts(state);
-  const netBalance      = semesterRevenue - semesterCost;
+  // Dönem gelir/gider tahmini: Bütçe sekmesi ve dönem sonu hesabıyla aynı kaynak
+  // (economy.js calculateIncome / calculateExpenses)
+  const tahmin     = _donemTahmini(state);
+  const netBalance = tahmin.net;
 
   // Uyarılar
   const warnings = _getWarnings(state);
@@ -1105,10 +1328,8 @@ export function renderDashboard(state) {
         </div>
         <div class="gb-forecast">
           <div class="gb-forecast-title"><i class="ikon ikon--butce"></i>Bu Dönem Tahmini</div>
-          <div class="gb-forecast-row"><span>Harç geliri</span><b class="positive">${formatMoney(semesterRevenue * 0.7)}</b></div>
-          <div class="gb-forecast-row"><span>Diğer gelirler</span><b class="positive">${formatMoney(semesterRevenue * 0.3)}</b></div>
-          <div class="gb-forecast-row"><span>Hoca maaşları</span><b class="negative">-${formatMoney(semesterCost * 0.5)}</b></div>
-          <div class="gb-forecast-row"><span>Diğer giderler</span><b class="negative">-${formatMoney(semesterCost * 0.5)}</b></div>
+          ${tahmin.gelirler.map(k => `<div class="gb-forecast-row"><span>${k.ad}</span><b class="positive">${formatMoney(k.tutar)}</b></div>`).join('')}
+          ${tahmin.giderler.map(k => `<div class="gb-forecast-row"><span>${k.ad}</span><b class="negative">-${formatMoney(k.tutar)}</b></div>`).join('')}
           <div class="gb-forecast-row gb-forecast-net"><span>Net</span><b class="${netBalance >= 0 ? 'positive' : 'negative'}">${netBalance >= 0 ? '+' : ''}${formatMoney(netBalance)}</b></div>
         </div>
         ${warnings.length > 0 ? `
@@ -1432,7 +1653,7 @@ export function renderDepartmentsPanel(state) {
               <!-- Zorluk -->
               <div style="padding:12px 16px;border-right:1px solid var(--border);text-align:center;">
                 <div style="font-size:16px;font-weight:700;color:var(--text-primary);">${diffStars(diffRating)}</div>
-                <div style="font-size:10px;color:var(--text-muted);margin-top:2px;">Zorluk (${diffRating.toFixed(1)}/5)</div>
+                <div style="font-size:10px;color:var(--text-muted);margin-top:2px;">Zorluk (${ondalikYaz(diffRating, 1)}/5)</div>
               </div>
               <!-- Başarısızlık -->
               <div style="padding:12px 16px;border-right:1px solid var(--border);text-align:center;">
@@ -1578,15 +1799,15 @@ export function renderFacultyPanel(state, onTransferMarket, onFacultyDetail, onO
     <div style="background:var(--bg-secondary);border-radius:8px;padding:12px 16px;margin-bottom:12px;
                 display:grid;grid-template-columns:repeat(3,1fr);gap:12px;">
       <div>
-        <div style="font-size:10px;color:var(--text-muted);text-transform:uppercase;letter-spacing:.05em;margin-bottom:4px;">Aylik Maas Gideri</div>
+        <div style="font-size:10px;color:var(--text-muted);text-transform:uppercase;letter-spacing:.05em;margin-bottom:4px;">Aylık Maaş Gideri</div>
         <div style="font-size:15px;font-weight:700;color:var(--accent-red,#e53e3e);">${formatMoney(totalMonthlySalary)}</div>
       </div>
       <div>
-        <div style="font-size:10px;color:var(--text-muted);text-transform:uppercase;letter-spacing:.05em;margin-bottom:4px;">Ortalama Maas</div>
+        <div style="font-size:10px;color:var(--text-muted);text-transform:uppercase;letter-spacing:.05em;margin-bottom:4px;">Ortalama Maaş</div>
         <div style="font-size:15px;font-weight:700;">${formatMoney(avgSalary)}/ay</div>
       </div>
       <div>
-        <div style="font-size:10px;color:var(--text-muted);text-transform:uppercase;letter-spacing:.05em;margin-bottom:4px;">En Yuksek / Dusuk</div>
+        <div style="font-size:10px;color:var(--text-muted);text-transform:uppercase;letter-spacing:.05em;margin-bottom:4px;">En Yüksek / Düşük</div>
         <div style="font-size:11px;">
           <span style="color:#38a169;">${highestPaid?.name?.split(' ')[0] || '—'}: ${formatMoney(highestPaid?.salary)}/ay</span><br>
           <span style="color:var(--text-muted);">${lowestPaid?.name?.split(' ')[0] || '—'}: ${formatMoney(lowestPaid?.salary)}/ay</span>
@@ -2285,7 +2506,7 @@ export function renderFacultyCard(f, depts = []) {
   const titleMap  = { argö: 'ArGö', dr_ogr_uyesi: 'Dr.Öğr.Üyesi', docent: 'Doçent', profesor: 'Prof.' };
   const titleKey  = f.title || 'dr_ogr_uyesi';
   const titleDisp = titleMap[titleKey] || f.title;
-  const happiness = f.happiness ?? 60;
+  const happiness = Math.round(f.happiness ?? 60);
   const happClass = happiness >= 70 ? 'high' : happiness >= 45 ? 'mid' : 'low';
 
   // Genel puan ve eğilim
@@ -2346,8 +2567,8 @@ export function renderFacultyCard(f, depts = []) {
           const isUncertain = (sd.key === 'research' || sd.key === 'teaching') &&
                               revealed[sd.key] && !revealed[sd.key].exact;
           const displayVal = isUncertain
-            ? `${revealed[sd.key].min}-${revealed[sd.key].max}`
-            : val;
+            ? `${Math.round(revealed[sd.key].min)}-${Math.round(revealed[sd.key].max)}`
+            : Math.round(val);
           return createStatBar(sd.label, val, 100, _statColor(val), isUncertain, displayVal);
         }).join('')}
       </div>
@@ -2473,6 +2694,40 @@ function renderDeptAccreditation(dept, state) {
     </div>`;
 }
 
+/**
+ * Bölüm memnuniyeti: year1..year4 sınıflarının memnuniyetinin öğrenci sayısıyla
+ * ağırlıklı ortalaması. Hiç sınıf verisi yoksa null.
+ * @param {object} byDept: state.students.byDepartment[deptId]
+ */
+function _bolumMemnuniyeti(byDept) {
+  if (!byDept) return null;
+  let toplam = 0, agirlik = 0;
+  for (const yk of ['year1', 'year2', 'year3', 'year4']) {
+    const sinif = byDept[yk];
+    const sayi  = Number(sinif?.count) || 0;
+    const memn  = Number(sinif?.satisfaction);
+    if (sayi > 0 && Number.isFinite(memn)) { toplam += memn * sayi; agirlik += sayi; }
+  }
+  return agirlik > 0 ? toplam / agirlik : null;
+}
+
+/**
+ * Bölüm başlığındaki akreditasyon rozeti, gerçek akreditasyon kaydından (dept.accreditation).
+ * Eski accreditationStatus alanı hiç güncellenmiyor ("pending" kalıyordu), kullanılmaz.
+ */
+function _akreditasyonRozeti(dept) {
+  const kayitlar = Object.entries(dept.accreditation || {});
+  const alinan = kayitlar.filter(([, a]) => a?.status === 'granted')
+    .map(([id]) => ACCREDITATION_BODIES[id]?.name || id);
+  if (alinan.length > 0) {
+    return `<span class="badge badge-success" style="margin-left:6px;" title="Akredite: ${alinan.join(', ')}">Akredite: ${alinan.join(', ')}</span>`;
+  }
+  if (kayitlar.some(([, a]) => a?.status === 'applied' || a?.status === 'under_review')) {
+    return `<span class="badge badge-warning" style="margin-left:6px;">Akreditasyon değerlendirmede</span>`;
+  }
+  return '';
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // 2b. BÖLÜMLER PANELİ (Fakülte yapısı + Bölüm başkanı + Kadro tablosu)
 // ─────────────────────────────────────────────────────────────────────────────
@@ -2522,7 +2777,7 @@ export function renderBolumlerPanel(state, onAssignHead, onReassignFaculty) {
   function deptCard(dept) {
     const deptFaculty = faculty.filter(f => f.department === dept.id);
     const head        = dept.headId ? faculty.find(f => f.id === dept.headId) : null;
-    const headName    = head ? `${head.name} (Yönetim: ${head.stats?.management ?? '—'}/100)` : 'Atanmamış ⚠️';
+    const headName    = head ? `${head.name} (Yönetim: ${tamPuan(head.stats?.management)}/100)` : 'Atanmamış ⚠️';
     const headClass   = head ? '' : 'text-warn';
 
     const profCount   = deptFaculty.filter(f => f.title === 'profesor').length;
@@ -2555,9 +2810,10 @@ export function renderBolumlerPanel(state, onAssignHead, onReassignFaculty) {
     const yks = byDept?.year1?.avgYKS || byDept?.avgYKS || 0;
     const avgYKS = yks > 0 ? formatNumber(yks) : '—';
 
-    // Memnuniyet: dept-level simulasyonda güncellenmiyor (default 50 takılı),
-    // overallSatisfaction gerçek hesap → öncelik ona verilir
-    const rawSatisfaction = state.students?.overallSatisfaction ?? dept.studentSatisfaction ?? 50;
+    // Memnuniyet (v0.5.2): bölümün sınıflarındaki memnuniyetin öğrenci sayısıyla ağırlıklı
+    // ortalaması. Sınıf verisi yoksa eskisi gibi üniversite geneli.
+    const bolumMemnuniyeti = _bolumMemnuniyeti(byDept);
+    const rawSatisfaction = bolumMemnuniyeti ?? state.students?.overallSatisfaction ?? dept.studentSatisfaction ?? 50;
     const satisfaction = Math.round(rawSatisfaction);
     const satColor = satisfaction >= 70 ? 'var(--accent-green)' : satisfaction >= 45 ? 'var(--accent-yellow,#f5a623)' : 'var(--accent-red,#e53e3e)';
 
@@ -2565,7 +2821,7 @@ export function renderBolumlerPanel(state, onAssignHead, onReassignFaculty) {
     const headCandidates = deptFaculty.filter(f => ['profesor', 'docent'].includes(f.title));
     const headSelectOptions = headCandidates.map(f =>
       `<option value="${f.id}" ${f.id === dept.headId ? 'selected' : ''}>
-        ${titleLabels[f.title] || f.title} ${f.name} (Yönetim: ${f.stats?.management ?? '—'})
+        ${titleLabels[f.title] || f.title} ${f.name} (Yönetim: ${tamPuan(f.stats?.management)})
       </option>`
     ).join('');
 
@@ -2584,9 +2840,9 @@ export function renderBolumlerPanel(state, onAssignHead, onReassignFaculty) {
       return `<tr>
         <td>${f.name}</td>
         <td><span class="badge badge-${f.title}">${titleLabels[f.title] || f.title}</span></td>
-        <td class="text-right">${f.stats?.research ?? '—'}</td>
-        <td class="text-right">${f.stats?.teaching ?? '—'}</td>
-        <td class="text-right">${f.stats?.management ?? '—'}</td>
+        <td class="text-right">${tamPuan(f.stats?.research)}</td>
+        <td class="text-right">${tamPuan(f.stats?.teaching)}</td>
+        <td class="text-right">${tamPuan(f.stats?.management)}</td>
         <td class="text-right">${load} ders</td>
         <td class="text-center" style="font-weight:700;color:${fRatingColor};">${fRating} <span style="color:${fTrend.color};font-size:11px;">${fTrend.arrow}</span></td>
         <td class="text-center">${role}</td>
@@ -2604,7 +2860,7 @@ export function renderBolumlerPanel(state, onAssignHead, onReassignFaculty) {
           <div>
             <span style="font-size:18px;line-height:0;">${bolumIkonu(dept.id, 26, dept.icon || '🏛️')}</span>
             <strong style="font-size:15px;">${dept.name}</strong>
-            <span class="badge badge-default" style="margin-left:6px;">${dept.accreditationStatus || 'pending'}</span>
+            ${_akreditasyonRozeti(dept)}
           </div>
           <!-- Feature 3: Bölüm ort. puan -->
           <div style="text-align:center;padding:4px 10px;border-radius:8px;background:rgba(56,161,105,0.08);border:1px solid rgba(56,161,105,0.2);">
@@ -2644,7 +2900,7 @@ export function renderBolumlerPanel(state, onAssignHead, onReassignFaculty) {
           </div>
           <div>
             <span class="text-muted">Memnuniyet:</span><br>
-            <span style="color:${satColor};font-weight:600;">${satisfaction}/100</span>
+            <span style="color:${satColor};font-weight:600;" title="${bolumMemnuniyeti != null ? 'Bölümdeki öğrencilerin memnuniyeti (sınıf mevcuduyla ağırlıklı ortalama)' : 'Bölüm verisi yok: üniversite geneli'}">${satisfaction}/100</span>${bolumMemnuniyeti == null ? ' <span class="text-muted" style="font-size:11px;">(üniversite geneli)</span>' : ''}
           </div>
         </div>
 
@@ -2935,7 +3191,7 @@ export function renderStudentsPanel(state, onOpenQuotaScreen) {
           <div class="card">
             <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:8px;">
               ${Object.values(breakdown).map(factor => {
-                const s = factor.score;
+                const s = tamPuan(factor.score, 0);
                 const color = satColor(s);
                 return `
                   <div style="padding:8px;background:var(--bg-secondary);border-radius:8px;border:1px solid var(--border);">
@@ -3010,6 +3266,7 @@ export function renderStudentCard(s, depts = []) {
     lider:         '👑 Lider',
     polymath:      '🌐 Polimatik',
     sessiz_deha:   '🔬 Sessiz Deha',
+    charismatik:   '✨ Karizmatik',
   };
 
   // Mezuniyet sonrası kariyer potansiyeli tahmini
@@ -3096,7 +3353,10 @@ export function renderStudentCard(s, depts = []) {
  * @param {object}   state        — Oyun durumu
  * @param {Function} onConfirm    — Onaylama callback: onConfirm(quotas)
  */
-export function renderQuotaModal(state, onConfirm) {
+export function renderQuotaModal(state, onConfirm, secenek = {}) {
+  // Sonraki Dönem'in Bahar'da açtığı zorunlu adımda onay dönemi de işler;
+  // Öğrenciler sekmesinden açılınca yalnız kaydeder.
+  const donemiBaslatir = !!secenek.donemiBaslatir;
   const depts    = state.departments.filter(d => d.isOpen);
   const quotas   = state.students?.quotas || {};
   const byDept   = state.students?.byDepartment || {};
@@ -3212,10 +3472,10 @@ export function renderQuotaModal(state, onConfirm) {
   const col3Label = isDevlet ? 'Kontenjan (Tam)' : isUSPrivate ? 'Full Pay (Sınırlı)' : 'Ücretli';
 
   const infoBlock = isDevlet
-    ? `<strong>Bütçe tahsisi:</strong> YÖK &nbsp;|&nbsp; <strong>Harç:</strong> Ücretsiz (katkı payı: ${formatMoney(UNIVERSITY_MODELS.devlet.revenueStreams.ogrenciKatkiPayi?.perStudent ?? 2_000)}/dönem) &nbsp;|&nbsp; <strong>Saygınlık:</strong> ${prestige}`
+    ? `<strong>Bütçe tahsisi:</strong> YÖK &nbsp;|&nbsp; <strong>Harç:</strong> Ücretsiz (katkı payı: ${formatMoney(UNIVERSITY_MODELS.devlet.revenueStreams.ogrenciKatkiPayi?.perStudent ?? 2_000)}/dönem) &nbsp;|&nbsp; <strong>Saygınlık:</strong> ${Math.round(prestige)}`
     : isUSPrivate
-      ? `<strong>Harç:</strong> ${formatMoney(baseTuition)}/dönem &nbsp;|&nbsp; <strong>Ortalama Aid:</strong> %${Math.round((state.university?.financialAidRate ?? 0.45) * 100)} &nbsp;|&nbsp; <strong>Saygınlık:</strong> ${prestige}`
-      : `<strong>Baz harç:</strong> ${formatMoney(baseTuition)}/dönem &nbsp;|&nbsp; <strong>Saygınlık:</strong> ${prestige} &nbsp;|&nbsp; <strong>Tip:</strong> Vakıf`;
+      ? `<strong>Harç:</strong> ${formatMoney(baseTuition)}/dönem &nbsp;|&nbsp; <strong>Ortalama Aid:</strong> %${Math.round((state.university?.financialAidRate ?? 0.45) * 100)} &nbsp;|&nbsp; <strong>Saygınlık:</strong> ${Math.round(prestige)}`
+      : `<strong>Baz harç:</strong> ${formatMoney(baseTuition)}/dönem &nbsp;|&nbsp; <strong>Saygınlık:</strong> ${Math.round(prestige)} &nbsp;|&nbsp; <strong>Tip:</strong> Vakıf`;
 
   // Kapasite uyarı rengi
   const capColor = remainingCapacity < 20 ? 'var(--accent-red,#e53e3e)' : remainingCapacity < 60 ? '#f5a623' : 'var(--accent-green)';
@@ -3224,7 +3484,8 @@ export function renderQuotaModal(state, onConfirm) {
     <div style="font-size:13px;color:var(--text-muted);margin-bottom:16px;">
       ${year+1}-${year+2} eğitim yılı için bölüm bazlı kontenjanları belirleyin.
       Bahar dönemi sonunda sınıf ilerlemesinin ardından bu kontenjanlar kadar yeni 1. sınıf öğrencisi alınacaktır.
-      ${isDevlet ? '<br><span style="color:#4ade80;font-size:12px;">Devlet modelinde tüm öğrenciler ücretsiz okur — gelir YÖK tahsisinden gelir.</span>' : ''}
+      ${isDevlet ? '<br><span style="color:#4ade80;font-size:12px;">Devlet modelinde tüm öğrenciler ücretsiz okur; gelir YÖK tahsisinden gelir.</span>' : ''}
+      ${donemiBaslatir ? '<br><span style="font-size:12px;color:var(--text-primary);">Kaydettiğinizde Bahar dönemi işlenir ve bir sonraki döneme geçilir.</span>' : ''}
     </div>
 
     <div style="background:var(--bg-secondary);border-radius:8px;padding:10px 14px;margin-bottom:12px;font-size:12px;">
@@ -3370,8 +3631,8 @@ export function renderQuotaModal(state, onConfirm) {
     </div>
 
     <div style="display:flex;gap:10px;justify-content:flex-end;margin-top:16px;">
-      <button class="btn btn-secondary" id="btn-quota-cancel">İptal</button>
-      <button class="btn btn-primary" id="btn-quota-confirm">Onayla ve Dönemi Başlat</button>
+      <button class="btn btn-secondary" id="btn-quota-cancel">${donemiBaslatir ? 'Vazgeç' : 'İptal'}</button>
+      <button class="btn btn-primary" id="btn-quota-confirm">${donemiBaslatir ? 'Kaydet ve Dönemi Başlat' : 'Kaydet'}</button>
     </div>
   `;
 
@@ -3482,30 +3743,32 @@ const BUILDING_CATALOG = Object.values(BUILDINGS).map(b => ({
 
 /** Bina etki nesnesini Türkçe kısa etiketlere çevirir */
 function _formatBuildingEffects(effects) {
+  // Ondalıklar Türkçe virgülle (0.3 → 0,3)
+  const s = (v) => ondalikYaz(v, 2);
   const labelMap = {
-    educationQuality:       (v) => `+${v} eğitim kalitesi`,
-    studentSatisfaction:    (v) => `+${v} öğrenci memnuniyeti`,
-    researchOutput:         (v) => `+${v} araştırma çıktısı`,
+    educationQuality:       (v) => `+${s(v)} eğitim kalitesi`,
+    studentSatisfaction:    (v) => `+${s(v)} öğrenci memnuniyeti`,
+    researchOutput:         (v) => `+${s(v)} araştırma çıktısı`,
     researchBoost:          (v) => `+%${Math.round(v * 100)} araştırma bonusu`,
-    labScore:               (v) => `+${v} lab puanı`,
-    publicationRate:        (v) => `+${v} yayın/hoca/yıl`,
-    studentGPA:             (v) => `+${v} öğrenci GPA`,
-    facultyHappiness:       (v) => `+${v} hoca memnuniyeti`,
+    labScore:               (v) => `+${s(v)} lab puanı`,
+    publicationRate:        (v) => `+${s(v)} yayın/hoca/yıl`,
+    studentGPA:             (v) => `+${s(v)} öğrenci GPA`,
+    facultyHappiness:       (v) => `+${s(v)} hoca memnuniyeti`,
     studentDemandBonus:     (v) => `+%${Math.round(v * 100)} öğrenci talebi`,
     revenuePerBed:          (v) => `+₺${v.toLocaleString('tr-TR')}/dönem yurt geliri`,
-    prestige:               (v) => `+${v} saygınlık`,
-    internationalization:   (v) => `+${v} uluslararasılaşma`,
-    internationalVisibility:(v) => `+${v} uluslararası görünürlük`,
+    prestige:               (v) => `+${s(v)} saygınlık`,
+    internationalization:   (v) => `+${s(v)} uluslararasılaşma`,
+    internationalVisibility:(v) => `+${s(v)} uluslararası görünürlük`,
     eventRevenuePerTurn:    (v) => `+₺${v.toLocaleString('tr-TR')}/dönem etkinlik geliri`,
     tubitakSuccessRate:     (v) => `+%${Math.round(v * 100)} TÜBİTAK başarı şansı`,
-    industryTieBonus:       (v) => `+${v} sektör bağı`,
-    coopPartnerQuality:     (v) => `+${v} co-op kalitesi`,
+    industryTieBonus:       (v) => `+${s(v)} sektör bağı`,
+    coopPartnerQuality:     (v) => `+${s(v)} co-op kalitesi`,
     annualRentalRevenue:    (v) => `+₺${v.toLocaleString('tr-TR')}/yıl kira geliri`,
-    alumniBonus:            (v) => `+${v} mezun bonusu`,
-    coopStressReduction:    (v) => `−${v} co-op stresi`,
-    classroomCapacity:      (v) => `+${v} derslik kapasitesi`,
-    officeCapacity:         (v) => `+${v} ofis kapasitesi`,
-    dormCapacity:           (v) => `+${v} yatak`,
+    alumniBonus:            (v) => `+${s(v)} mezun bonusu`,
+    coopStressReduction:    (v) => `−${s(v)} co-op stresi`,
+    classroomCapacity:      (v) => `+${s(v)} derslik kapasitesi`,
+    officeCapacity:         (v) => `+${s(v)} ofis kapasitesi`,
+    dormCapacity:           (v) => `+${s(v)} yatak`,
     interdisciplinaryBonus: ()  => 'Disiplinlerarası bonus',
     spinoffRevenue:         ()  => 'Spin-off geliri',
   };
@@ -3606,6 +3869,105 @@ function _binaGorseli(tur, duzey, boyut = 64, insaatYuzde = null) {
     : `${tur}_${Math.max(1, Math.floor(duzey || 1))}`;
   return `<img class="bina-gorsel" src="assets/buildings/${anahtar}.webp?v=0.5.0" alt=""
     width="${boyut}" height="${boyut}" loading="lazy" onerror="this.style.visibility='hidden'">`;
+}
+
+/** v0.5.2: bina kapasitesinin kısa Türkçe dökümü ("10 derslik (40 kişilik) · 30 ofis"). */
+function _kapasiteParcalari(kap, derslikBoyu) {
+  const k = kap || {};
+  const sayi = (v) => (Number(v) || 0).toLocaleString('tr-TR');
+  const parcalar = [];
+  if (k.classrooms) parcalar.push(`${sayi(k.classrooms)} derslik${derslikBoyu ? ` (${derslikBoyu} kişilik)` : ''}`);
+  if (k.offices) parcalar.push(`${sayi(k.offices)} ofis`);
+  if (k.labs) parcalar.push(`${sayi(k.labs)} laboratuvar`);
+  if (k.beds) parcalar.push(`${sayi(k.beds)} yatak`);
+  if (k.simultaneous) parcalar.push(`aynı anda ${sayi(k.simultaneous)} kişi`);
+  if (k.daily) parcalar.push(`günde ${sayi(k.daily)} kişi`);
+  if (k.dailyMeals) parcalar.push(`günde ${sayi(k.dailyMeals)} öğün`);
+  if (k.dailyUsers) parcalar.push(`günde ${sayi(k.dailyUsers)} kullanıcı`);
+  if (k.dailyPatients) parcalar.push(`günde ${sayi(k.dailyPatients)} hasta`);
+  return parcalar;
+}
+
+/** Düzeydeki kapasite: temel + düzey başına artış × (düzey − 1). */
+function _duzeyKapasitesi(tanim, duzey) {
+  const temel = tanim?.capacity || {};
+  const artis = tanim?.capacityPerLevel || {};
+  const sonuc = {};
+  for (const k of Object.keys(temel)) sonuc[k] = (temel[k] || 0) + (artis[k] || 0) * (duzey - 1);
+  return sonuc;
+}
+
+function _derslikBoyu(tanim, duzey) {
+  const tablo = tanim?.classroomSizeByLevel;
+  return tablo ? (tablo[duzey] ?? tablo[1] ?? tanim?.classroomSize ?? 40) : (tanim?.classroomSize ?? null);
+}
+
+function _onaySatirlari(satirlar) {
+  return `<div class="onay-liste">${satirlar.filter(Boolean).map(([ad, deger]) =>
+    `<div class="onay-satir"><span>${ad}</span><b>${deger}</b></div>`).join('')}</div>`;
+}
+
+/** Yeni bina inşaatı onay penceresinin içeriği: maliyet, süre, alan, bakım, kazanç. */
+function _insaatOnayIcerigi(katalog, kasa) {
+  const tanim   = BUILDINGS[katalog.type] || {};
+  const kazanc  = [
+    ..._kapasiteParcalari(_duzeyKapasitesi(tanim, 1), _derslikBoyu(tanim, 1)),
+    ..._formatBuildingEffects({ ...katalog.qualityEffects, ...katalog.effects }),
+  ];
+  if (katalog.benefitText) kazanc.push(katalog.benefitText);
+  const bakim = katalog.baseArea && katalog.maintenanceCostPerM2
+    ? formatMoney(katalog.baseArea * katalog.maintenanceCostPerM2) : null;
+  return `
+    <div class="onay-bina">
+      ${_binaGorseli(katalog.type, 1, 72)}
+      <div><div class="onay-bina-ad">${katalog.name}</div><div class="onay-bina-aciklama">${katalog.desc || ''}</div></div>
+    </div>
+    ${_onaySatirlari([
+      ['Maliyet', `${formatMoney(katalog.cost)} (şimdi kasadan düşer)`],
+      ['Süre', `${katalog.constructionTime} dönem`],
+      ['Alan', `${(katalog.baseArea || 0).toLocaleString('tr-TR')} m²`],
+      bakim ? ['Dönemlik bakım', `~${bakim} (bina bitince)`] : null,
+      ['İnşaattan sonra kasa', formatMoney(kasa - katalog.cost)],
+    ])}
+    ${kazanc.length ? `<div class="onay-kazanc"><div class="onay-kazanc-baslik">Ne kazandırır</div>
+      <ul>${kazanc.map(k => `<li>${k}</li>`).join('')}</ul></div>` : ''}`;
+}
+
+/** Düzey yükseltme onay penceresinin içeriği; bina yükseltilemiyorsa null. */
+function _yukseltmeOnayIcerigi(bina, kasa) {
+  const tanim = BUILDINGS[bina.type];
+  if (!tanim) return null;
+  const duzey  = bina.level || 1;
+  const sonraki = duzey + 1;
+  const enCok  = tanim.maxLevel ?? 3;
+  if (sonraki > enCok) return null;
+  // Maliyet ve süre game.js upgrade_building ile aynı formül
+  const maliyet = Math.round((tanim.baseCost ?? tanim.constructionCost ?? 0) * Math.pow(tanim.upgradeCostMultiplier ?? 1.5, duzey));
+  const sure    = tanim.constructionTurns ?? tanim.constructionTime ?? 2;
+  const simdi   = _kapasiteParcalari(bina.currentCapacity || _duzeyKapasitesi(tanim, duzey), _derslikBoyu(tanim, duzey));
+  const sonra   = _kapasiteParcalari(_duzeyKapasitesi(tanim, sonraki), _derslikBoyu(tanim, sonraki));
+  const ad      = bina.name || tanim.name;
+  return {
+    maliyet,
+    baslik: `${ad}: Düzey ${sayiEkle(sonraki)} Yükseltme`,
+    html: `
+      <div class="onay-bina">
+        ${_binaGorseli(bina.type, Math.min(sonraki, enCok), 72)}
+        <div><div class="onay-bina-ad">${ad}</div><div class="onay-bina-aciklama">Düzey ${duzey} → ${sonraki} (en çok ${enCok})</div></div>
+      </div>
+      ${_onaySatirlari([
+        ['Maliyet', `${formatMoney(maliyet)} (şimdi kasadan düşer)`],
+        ['Süre', `${sure} dönem; bu sürede bina mevcut kapasitesiyle çalışır`],
+        ['Yükseltmeden sonra kasa', formatMoney(kasa - maliyet)],
+      ])}
+      ${sonra.length ? `<div class="onay-kazanc"><div class="onay-kazanc-baslik">Ne kazandırır</div>
+        <ul>
+          <li>Şimdi: ${simdi.join(' · ') || 'kapasite yok'}</li>
+          <li>Düzey ${sonraki}: <b>${sonra.join(' · ')}</b></li>
+          ${bina.type === 'lab' ? `<li>Bağlı bölümlere laboratuvar puanı: +${25 * duzey} → <b>+${25 * sonraki}</b></li>` : ''}
+        </ul></div>` : `<div class="onay-kazanc"><div class="onay-kazanc-baslik">Ne kazandırır</div>
+        <ul><li>Bu binanın düzeye bağlı bir kapasitesi yok${tanim.benefitText ? ` (${tanim.benefitText})` : ''}.</li></ul></div>`}`,
+  };
 }
 
 export function renderCampusPanel(state, onBuildStart, onDecision) {
@@ -3760,7 +4122,7 @@ export function renderCampusPanel(state, onBuildStart, onDecision) {
                   <div style="font-size:11px;color:#cbd5e1;">• ${cap.classrooms} adet × ${clsSize} kişilik = ${studentCapacity.toLocaleString('tr-TR')} öğrenci kapasitesi</div>
                   <div style="font-size:11px;color:#cbd5e1;">• Kullanılan: ${used.classrooms ?? 0} derslik · Boş: ${Math.max(0, cap.classrooms - (used.classrooms ?? 0))}</div>
                   ${nextLevel <= maxLvl && nextLvlCap.classrooms
-                    ? `<div style="font-size:10px;color:#64748b;margin-top:1px;">Düzey ${nextLevel}'e Yükselt: ${nextLvlCap.classrooms} derslik × ${nextLvlClsSize} kişilik = ${nextStudentCap.toLocaleString('tr-TR')} öğrenci kapasitesi${nextLvlClsSize > clsSize ? ` (derslik büyütüldü: ${clsSize}→${nextLvlClsSize} kişi)` : ''}</div>`
+                    ? `<div style="font-size:10px;color:#64748b;margin-top:1px;">Düzey ${sayiEkle(nextLevel)} Yükselt: ${nextLvlCap.classrooms} derslik × ${nextLvlClsSize} kişilik = ${nextStudentCap.toLocaleString('tr-TR')} öğrenci kapasitesi${nextLvlClsSize > clsSize ? ` (derslik büyütüldü: ${clsSize}→${nextLvlClsSize} kişi)` : ''}</div>`
                     : ''}
                 </div>` : ''}
               ${cap.offices ? `
@@ -3768,7 +4130,7 @@ export function renderCampusPanel(state, onBuildStart, onDecision) {
                   <div style="font-size:11px;font-weight:600;color:#94a3b8;margin-bottom:3px;">🏢 OFİSLER</div>
                   <div style="font-size:11px;color:#cbd5e1;">• ${cap.offices} adet ofis · Kullanılan: ${used.offices ?? 0} · Boş: ${Math.max(0, cap.offices - (used.offices ?? 0))}</div>
                   <div style="font-size:10px;color:#64748b;margin-top:1px;">Boş ofis varken herkes tek ofis alır. Yetersizse: Dr.Öğr.Üyesi 2/ofis, ArGö 3/ofis</div>
-                  ${nextLevel <= maxLvl && nextLvlCap.offices ? `<div style="font-size:10px;color:#64748b;margin-top:1px;">Düzey ${nextLevel}'de: ${nextLvlCap.offices} ofis</div>` : ''}
+                  ${nextLevel <= maxLvl && nextLvlCap.offices ? `<div style="font-size:10px;color:#64748b;margin-top:1px;">Düzey ${sayiEkle(nextLevel, 'de')}: ${nextLvlCap.offices} ofis</div>` : ''}
                 </div>` : ''}
               ${cap.labs != null ? `
                 <div style="margin-bottom:6px;">
@@ -3798,13 +4160,13 @@ export function renderCampusPanel(state, onBuildStart, onDecision) {
                 <div style="font-size:11px;color:#cbd5e1;">• Günlük kapasite: ~${dailyCap.toLocaleString('tr-TR')} öğrenci</div>
                 <div style="font-size:11px;color:#cbd5e1;">• Mevcut öğrenci: ${totalStudents.toLocaleString('tr-TR')}</div>
                 <div style="font-size:11px;margin-top:3px;">Yeterlilik: <span style="color:${sfxColor};">${sfxIcon} %${pct} — ${sfxText}</span></div>
-                ${nextLevel <= maxLvl ? `<div style="font-size:10px;color:#64748b;margin-top:3px;">Düzey ${nextLevel}'de: ${nextSim} eş zamanlı · ${nextDly} günlük</div>` : ''}
+                ${nextLevel <= maxLvl ? `<div style="font-size:10px;color:#64748b;margin-top:3px;">Düzey ${sayiEkle(nextLevel, 'de')}: ${nextSim} eş zamanlı · ${nextDly} günlük</div>` : ''}
               </div>
               <div style="margin-bottom:6px;">
                 <div style="font-size:11px;font-weight:600;color:#94a3b8;margin-bottom:3px;">📖 ETKİLERİ</div>
                 <div style="font-size:11px;color:#cbd5e1;">• Öğrenci memnuniyeti: +5</div>
                 <div style="font-size:11px;color:#cbd5e1;">• Araştırma bonusu: +%5</div>
-                <div style="font-size:11px;color:#cbd5e1;">• GPA etkisi: +0.1 ortalama</div>
+                <div style="font-size:11px;color:#cbd5e1;">• GPA etkisi: +0,1 ortalama</div>
                 ${pct > 100 ? `<div style="font-size:11px;color:#f59e0b;margin-top:3px;">⚠️ Öğrenci sayısı ${dailyCap} günlük kapasiteyi aşıyor!</div>` : ''}
               </div>`;
           } else if (b.type === 'yemekhane') {
@@ -3825,7 +4187,7 @@ export function renderCampusPanel(state, onBuildStart, onDecision) {
                 <div style="font-size:11px;color:#cbd5e1;">• Mevcut ihtiyaç: ${totalStudents} öğrenci + ${totalFaculty} hoca = ${need.toLocaleString('tr-TR')}</div>
                 <div style="font-size:11px;margin-top:3px;">Yeterlilik: <span style="color:${sfxColor};">${sfxIcon} %${pct} — ${sfxText}</span></div>
                 ${pct > 100 ? `<div style="font-size:10px;color:#f59e0b;margin-top:2px;">Kuyruk/bekleme süresi artıyor → memnuniyet düşüyor</div>` : ''}
-                ${nextLevel <= maxLvl ? `<div style="font-size:10px;color:#64748b;margin-top:3px;">Düzey ${nextLevel}'de: ${nextCap2.toLocaleString('tr-TR')} öğün/gün</div>` : ''}
+                ${nextLevel <= maxLvl ? `<div style="font-size:10px;color:#64748b;margin-top:3px;">Düzey ${sayiEkle(nextLevel, 'de')}: ${nextCap2.toLocaleString('tr-TR')} öğün/gün</div>` : ''}
               </div>
               <div style="margin-bottom:6px;">
                 <div style="font-size:11px;font-weight:600;color:#94a3b8;margin-bottom:3px;">🍽️ ETKİLERİ</div>
@@ -3849,7 +4211,7 @@ export function renderCampusPanel(state, onBuildStart, onDecision) {
                 <div style="font-size:11px;color:#cbd5e1;">• ${(cap.beds || 0).toLocaleString('tr-TR')} yatak · Dolu: ${usedBeds} · Boş: ${freeBeds}</div>
                 <div style="font-size:11px;color:#cbd5e1;">• Doluluk: %${ocpPct}</div>
                 <div style="font-size:11px;color:#cbd5e1;">• Toplam yatak / toplam öğrenci: %${dormPct} yurt imkânı</div>
-                ${nextLevel <= maxLvl ? `<div style="font-size:10px;color:#64748b;margin-top:3px;">Düzey ${nextLevel}'de: ${nextBeds.toLocaleString('tr-TR')} yatak</div>` : ''}
+                ${nextLevel <= maxLvl ? `<div style="font-size:10px;color:#64748b;margin-top:3px;">Düzey ${sayiEkle(nextLevel, 'de')}: ${nextBeds.toLocaleString('tr-TR')} yatak</div>` : ''}
               </div>
               <div style="margin-bottom:6px;">
                 <div style="font-size:11px;font-weight:600;color:#94a3b8;margin-bottom:3px;">🏠 ETKİLERİ</div>
@@ -3873,7 +4235,7 @@ export function renderCampusPanel(state, onBuildStart, onDecision) {
                 <div style="font-size:11px;color:#cbd5e1;">• Günlük ${sporCap.toLocaleString('tr-TR')} öğrenci/kullanıcı kapasitesi</div>
                 <div style="font-size:11px;color:#cbd5e1;">• Mevcut öğrenci: ${totalStudents.toLocaleString('tr-TR')}</div>
                 <div style="font-size:11px;margin-top:3px;">Yeterlilik: <span style="color:${sfxColor};">${sfxIcon} %${pct} — ${sfxText}</span></div>
-                ${nextLevel <= maxLvl ? `<div style="font-size:10px;color:#64748b;margin-top:3px;">Düzey ${nextLevel}'de: ${nextSCap.toLocaleString('tr-TR')} kişi/gün</div>` : ''}
+                ${nextLevel <= maxLvl ? `<div style="font-size:10px;color:#64748b;margin-top:3px;">Düzey ${sayiEkle(nextLevel, 'de')}: ${nextSCap.toLocaleString('tr-TR')} kişi/gün</div>` : ''}
               </div>
               <div style="margin-bottom:6px;">
                 <div style="font-size:11px;font-weight:600;color:#94a3b8;margin-bottom:3px;">⚽ ETKİLERİ</div>
@@ -3895,7 +4257,7 @@ export function renderCampusPanel(state, onBuildStart, onDecision) {
                 <div style="font-size:11px;color:#cbd5e1;">• Toplam: ${offices} ofis (Düzey ${b.level || 1})</div>
                 <div style="font-size:11px;color:#cbd5e1;">• Mevcut idari personel: ${adminStaffCount} kişi</div>
                 <div style="font-size:11px;margin-top:3px;">Yeterlilik: <span style="color:${sfxColor};">${sfxIcon} %${pct} — ${sfxText}</span></div>
-                ${nextLevel <= maxLvl && nextLvlCap.offices ? `<div style="font-size:10px;color:#64748b;margin-top:2px;">Düzey ${nextLevel}'de: ${nextLvlCap.offices} ofis</div>` : ''}
+                ${nextLevel <= maxLvl && nextLvlCap.offices ? `<div style="font-size:10px;color:#64748b;margin-top:2px;">Düzey ${sayiEkle(nextLevel, 'de')}: ${nextLvlCap.offices} ofis</div>` : ''}
               </div>
               <div style="margin-bottom:6px;">
                 <div style="font-size:11px;font-weight:600;color:#94a3b8;margin-bottom:3px;">🏛️ ETKİLERİ</div>
@@ -3963,7 +4325,7 @@ export function renderCampusPanel(state, onBuildStart, onDecision) {
                           data-building-id="${b.id}"
                           ${budget < upgCost ? 'disabled title="Yetersiz bütçe"' : ''}
                           style="font-size:11px;">
-                    ▲ Düzey ${nextLevel}'e Yükselt (${formatMoney(upgCost)} · ${upgTurns} dönem)
+                    ▲ Düzey ${sayiEkle(nextLevel)} Yükselt (${formatMoney(upgCost)} · ${upgTurns} dönem)
                   </button>` : `<span style="font-size:11px;color:#64748b;align-self:center;">Maks. düzey</span>`}
                 ${cat.assignable ? `
                 <button class="btn-campus-assign btn-small"
@@ -4031,7 +4393,7 @@ export function renderCampusPanel(state, onBuildStart, onDecision) {
     <!-- Tam ekran harita katmanı (varsayılan: gizli) -->
     <div class="campus-map-fullscreen" id="campus-map-fullscreen" style="display:none;">
       <div class="campus-map-fullscreen-header">
-        <span>Kampüs Haritası</span>
+        <span>Yerleşke Haritası</span>
         <button class="campus-map-close" id="campus-map-close">✕</button>
       </div>
       <div style="position:relative;width:90%;max-width:1200px;">
@@ -4162,7 +4524,10 @@ export function renderCampusPanel(state, onBuildStart, onDecision) {
         return;
       }
 
-      if (panel._onBuildStart) panel._onBuildStart(btype, catalog);
+      // v0.5.2: tek tıkla para harcanmasın; önce maliyet, süre ve kazanç gösterilir
+      showConfirmModal(`${catalog.name} İnşaatı`, _insaatOnayIcerigi(catalog, currentBudget), () => {
+        if (panel._onBuildStart) panel._onBuildStart(btype, catalog);
+      }, { onayMetni: `Onayla (${formatMoney(catalog.cost)})` });
     });
 
     // Düzey yükselt butonu tıklama
@@ -4170,7 +4535,15 @@ export function renderCampusPanel(state, onBuildStart, onDecision) {
       e.stopPropagation();
       const buildingId = btn.dataset.buildingId;
       if (!buildingId) return;
-      if (panel._onDecision) panel._onDecision({ type: 'upgrade_building', buildingId });
+      const building = (panel._currentState?.buildings || []).find(b => b.id === buildingId);
+      const onay = building ? _yukseltmeOnayIcerigi(building, panel._currentBudget ?? 0) : null;
+      if (!onay) {
+        if (panel._onDecision) panel._onDecision({ type: 'upgrade_building', buildingId });
+        return;
+      }
+      showConfirmModal(onay.baslik, onay.html, () => {
+        if (panel._onDecision) panel._onDecision({ type: 'upgrade_building', buildingId });
+      }, { onayMetni: `Onayla (${formatMoney(onay.maliyet)})` });
     });
 
     // Bölüm ata butonu tıklama
@@ -4461,6 +4834,17 @@ export function renderBudgetPanel(state, onAllocChange, onLoanAction, onTuitionC
   const costs   = expenseDetail.total || 0;
   const net     = revenue - costs;
 
+  // Kredi borcu: aşağıdaki kredi tablosuyla aynı kaynak (kalan anaparaların toplamı).
+  // uni.debt yalnız kasa eksiye düştüğünde dolar; o ayrıca "kasa açığı" olarak yazılır.
+  const krediler    = Array.isArray(uni.loans) ? uni.loans : [];
+  const krediBorcu  = krediler.length > 0
+    ? krediler.reduce((s, l) => s + (Number(l.remainingAmount) || 0), 0)
+    : (uni.totalDebt || 0);
+  const kasaAcigi   = budget < 0 ? -budget : 0;
+  const borcAltYazi = kasaAcigi > 0
+    ? `Ayrıca kasa açığı: ${formatMoney(kasaAcigi)}`
+    : krediler.length > 0 ? `${krediler.length} aktif kredi` : 'Aktif kredi yok';
+
   const allocDefs = [
     { key: 'faculty',   label: 'Kadro & Maaşlar', color: '#e94560' },
     { key: 'research',  label: 'Araştırma Fonu',  color: '#9b59b6' },
@@ -4484,7 +4868,7 @@ export function renderBudgetPanel(state, onAllocChange, onLoanAction, onTuitionC
       ${_statCardHtml('Dönem Geliri (Tahmini)', formatMoney(revenue), 'positive', '')}
       ${_statCardHtml('Dönem Gideri (Tahmini)', formatMoney(costs), 'negative', '')}
       ${_statCardHtml('Net Bakiye', formatMoney(net), net >= 0 ? 'positive' : 'negative', net >= 0 ? 'Artı bakiye' : 'Açık!')}
-      ${_statCardHtml('Toplam Borç', formatMoney(uni.debt ?? 0), (uni.debt ?? 0) > 0 ? 'negative' : null, '')}
+      ${_statCardHtml('Kredi Borcu', formatMoney(krediBorcu), krediBorcu > 0 ? 'negative' : null, borcAltYazi)}
     </div>
 
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;">
@@ -4627,7 +5011,7 @@ export function renderBudgetPanel(state, onAllocChange, onLoanAction, onTuitionC
 
       ${(() => {
         const loans    = uni.loans || [];
-        const totalDebt = uni.totalDebt || 0;
+        const totalDebt = krediBorcu;
 
         const loansHtml = loans.length === 0
           ? `<div class="card" style="font-size:12px;color:var(--text-muted);text-align:center;padding:16px;">
@@ -5040,7 +5424,7 @@ export function renderResearchPanel(state, onResearchBudget, onProjectDecision) 
 
     const upgradeBtn = ttoLevel < 3
       ? `<button class="btn btn-success btn-sm" onclick="window._onUpgradeTTO && window._onUpgradeTTO()" style="margin-left:10px;">
-           ⬆️ Seviye ${ttoLevel + 1}'e Yükselt (${formatMoney(upgradeCosts[ttoLevel])})
+           ⬆️ Seviye ${sayiEkle(ttoLevel + 1)} Yükselt (${formatMoney(upgradeCosts[ttoLevel])})
          </button>`
       : `<span class="badge badge-green" style="margin-left:10px;">Maksimum Seviye</span>`;
 
@@ -5117,7 +5501,7 @@ export function renderResearchPanel(state, onResearchBudget, onProjectDecision) 
               <div style="display:flex;justify-content:space-between;align-items:center;">
                 <div>
                   <span style="font-size:13px;font-weight:700;">🏭 ${sof.name}</span>
-                  <span style="font-size:11px;color:var(--text-muted);margin-left:8px;">Tur ${sof.foundedAt || '?'}'de kuruldu</span>
+                  <span style="font-size:11px;color:var(--text-muted);margin-left:8px;">${sof.foundedAt ? `${sof.foundedAt}. dönemde kuruldu` : 'Kuruluş dönemi bilinmiyor'}</span>
                 </div>
                 <div style="font-size:12px;">Yıllık: <strong style="color:var(--accent-green,#48bb78);">${formatMoney(sof.annualRevenue)}</strong></div>
               </div>
@@ -5590,9 +5974,22 @@ export function renderResearchPanel(state, onResearchBudget, onProjectDecision) 
  * Transfer pazarındaki bir hoca için kompakt liste kartı HTML'i üretir.
  * Sol panelde gösterilir; tıklanınca sağ panel detayı açar.
  */
+/**
+ * Transfer adayının bölüm adı. Aday department alanında bölüm kimliği taşır ('bilgisayar_muh');
+ * eski veride dizi sırası ('2') gelebilir, o zaman bölüm belirsiz sayılır.
+ * @returns {{ ad: string, acik: boolean }}
+ */
+export function adayBolumu(f, depts = []) {
+  const id   = f?.department ?? f?.departmentId;
+  const acik = depts.find(d => d.id === id && d.isOpen !== false);
+  if (acik) return { ad: acik.shortName || acik.name, acik: true };
+  const tanim = (typeof id === 'string') ? DEPARTMENTS[id] : null;
+  if (tanim) return { ad: tanim.shortName || tanim.name, acik: false };
+  return { ad: 'bölümü belirsiz', acik: false };
+}
+
 function _renderTransferFacultyCard(f, depts, state) {
-  const dept     = depts.find(d => d.id === f.department) || null;
-  const deptName = dept?.shortName || f.department || '—';
+  const deptName = adayBolumu(f, depts).ad;
   const titleMap = { argö: 'ArGö', dr_ogr_uyesi: 'Dr.Öğr.Üyesi', docent: 'Doçent', profesor: 'Prof. Dr.' };
   const titleKey  = f.title || 'dr_ogr_uyesi';
   const titleDisp = titleMap[titleKey] || f.title;
@@ -5630,7 +6027,7 @@ function _renderTransferFacultyCard(f, depts, state) {
       <!-- Alt satır: stat özeti + yayın + maaş -->
       <div style="padding:4px 10px 8px;border-top:1px solid var(--border);font-size:10px;color:var(--text-muted);
                   display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
-        <span>📊 Ar:<strong style="color:#3182ce;">${research}</strong> Eğ:<strong style="color:#38a169;">${teaching}</strong></span>
+        <span>📊 Ar:<strong style="color:#3182ce;">${tamPuan(research)}</strong> Eğ:<strong style="color:#38a169;">${tamPuan(teaching)}</strong></span>
         ${pubCount !== null ? `<span>📄 <strong>${pubCount}</strong> yayın</span>` : ''}
         <span style="margin-left:auto;color:var(--accent-yellow,#f5a623);font-weight:700;">
           ${formatMoney(f.askingSalary ?? f.salary)}/ay
@@ -5677,8 +6074,8 @@ function _renderTransferRightPanel(fac, depts, state) {
     compat: _getDeptCompatibility(fac, d.id, myDeptIds),
   })).filter(x => x.compat.count > 0).sort((a, b) => b.compat.pct - a.compat.pct);
 
-  const dept       = (state.departments || []).find(d => d.id === fac.department) || null;
-  const deptName   = dept?.shortName || fac.department || '—';
+  const adayBolum  = adayBolumu(fac, state.departments || []);
+  const deptName   = adayBolum.ad;
   const matchPct   = deptCompat.length > 0 ? deptCompat[0].compat.pct : 0;
   const matchNames = deptCompat.length > 0 ? deptCompat.map(x => x.dept.shortName || x.dept.name).join(', ') : deptName;
 
@@ -5707,7 +6104,7 @@ function _renderTransferRightPanel(fac, depts, state) {
         <div style="flex:1;height:6px;background:rgba(255,255,255,0.1);border-radius:3px;overflow:hidden;">
           <div style="width:${pct}%;height:100%;background:${s.color};border-radius:3px;"></div>
         </div>
-        <span style="width:28px;text-align:right;font-size:11px;font-weight:700;color:${s.color};">${s.val}</span>
+        <span style="width:28px;text-align:right;font-size:11px;font-weight:700;color:${s.color};">${tamPuan(s.val)}</span>
       </div>`;
   }).join('');
 
@@ -5778,7 +6175,7 @@ function _renderTransferRightPanel(fac, depts, state) {
       <div style="background:rgba(49,130,206,0.07);border:1px solid rgba(49,130,206,0.25);border-radius:8px;
                   padding:8px 12px;margin-bottom:10px;">
         <div style="font-size:10px;font-weight:700;text-transform:uppercase;color:#3182ce;margin-bottom:6px;letter-spacing:.06em;">
-          Verebilecegi Dersler (${teachable.length})
+          Verebileceği Dersler (${teachable.length})
         </div>
         ${teachable.slice(0, 6).map(c => `
           <div style="font-size:11px;margin-bottom:2px;display:flex;align-items:center;gap:6px;">
@@ -5800,7 +6197,7 @@ function _renderTransferRightPanel(fac, depts, state) {
       <div style="background:rgba(56,161,105,0.07);border:1px solid rgba(56,161,105,0.25);border-radius:8px;
                   padding:8px 12px;margin-bottom:10px;">
         <div style="font-size:10px;font-weight:700;text-transform:uppercase;color:#38a169;margin-bottom:6px;letter-spacing:.06em;">
-          Bolum Uyumu
+          Bölüm Uyumu
         </div>
         ${deptCompat.map(x => {
           const pct = x.compat.pct;
@@ -5829,6 +6226,9 @@ function _renderTransferRightPanel(fac, depts, state) {
       </div>
       ${fac.transferFee ? `<div>Tazminat: <strong style="color:var(--accent-red,#e53e3e);">${formatMoney(fac.transferFee)}</strong></div>` : ''}
       ${fac.currentUniversity ? `<div style="color:var(--text-muted);">Nereden: ${fac.currentUniversity}</div>` : ''}
+      <div style="margin-top:4px;">Katılacağı bölüm: ${adayBolum.acik
+        ? `<strong>${adayBolum.ad}</strong>`
+        : `<strong style="color:var(--accent-yellow,#f5a623);">seçmeniz istenecek</strong> <span style="color:var(--text-muted);font-size:10px;">(adayın bölümü sizde açık değil)</span>`}</div>
     </div>
 
     <!-- Bu hocayı alırsan -->
@@ -6238,6 +6638,15 @@ export function renderTurnSummary(summary, onNextTurn) {
   const events = summary.events   || [];
   const projApps = summary.projectApplications || null;
 
+  // v0.5.2: saygınlık dökümü (varsa): "51 → 52 (kalite +0,7 · olaylar +0,3)"
+  const dokum = summary.prestigeBreakdown || acad.prestigeBreakdown || null;
+  const sayginlikDokumu = (dokum && Number.isFinite(Number(dokum.onceki)) && Number.isFinite(Number(dokum.sonraki)))
+    ? `${Math.round(dokum.onceki)} → ${Math.round(dokum.sonraki)}`
+      + ((dokum.kalite != null || dokum.olay != null)
+        ? ` (kalite ${isaretliYaz(dokum.kalite ?? 0)} · olaylar ${isaretliYaz(dokum.olay ?? 0)})`
+        : '')
+    : null;
+
   bodyEl.innerHTML = `
     <div class="summary-cards-grid">
 
@@ -6299,9 +6708,13 @@ export function renderTurnSummary(summary, onNextTurn) {
         <div class="summary-row">
           <span class="summary-row-label">Saygınlık Değişimi</span>
           <span class="summary-row-value ${(acad.prestigeDelta ?? 0) >= 0 ? 'positive' : 'negative'}">
-            ${(acad.prestigeDelta ?? 0) >= 0 ? '+' : ''}${acad.prestigeDelta ?? 0}
+            ${isaretliYaz(acad.prestigeDelta ?? 0)}
           </span>
         </div>
+        ${sayginlikDokumu ? `
+        <div class="summary-row summary-row-dokum">
+          <span class="summary-row-label">${sayginlikDokumu}</span>
+        </div>` : ''}
         <div class="summary-row">
           <span class="summary-row-label">Sıralama</span>
           <span class="summary-row-value">
@@ -6315,7 +6728,7 @@ export function renderTurnSummary(summary, onNextTurn) {
         </div>
         <div class="summary-row">
           <span class="summary-row-label">Hoca Memnuniyeti</span>
-          <span class="summary-row-value">${acad.avgFacultyHappiness ?? '—'}/100</span>
+          <span class="summary-row-value">${tamPuan(acad.avgFacultyHappiness)}/100</span>
         </div>
       </div>
 
@@ -6342,7 +6755,7 @@ export function renderTurnSummary(summary, onNextTurn) {
         </div>
         <div class="summary-row">
           <span class="summary-row-label">Ortalama Memnuniyet</span>
-          <span class="summary-row-value">${stud.avgSatisfaction ?? '—'}/100</span>
+          <span class="summary-row-value">${tamPuan(stud.avgSatisfaction)}/100</span>
         </div>
       </div>
 
@@ -6355,21 +6768,22 @@ export function renderTurnSummary(summary, onNextTurn) {
           const allEvents = [...events];
           // Sadece gerçek açıklaması olan olayları göster (EfekanSalman Issue #21)
           const validEvents  = allEvents.filter(ev => !!(ev.description || ev.message || ev.title));
-          // Yıldız öğrenci olaylarını ayrı vurgula
-          const starEvents   = validEvents.filter(ev => ev.type === 'star_student_competition' || ev.type === 'star_student_publication' || ev.type === 'star_student_graduated' || ev.type === 'star_faculty_hired');
-          const otherEvents  = validEvents.filter(ev => !starEvents.includes(ev));
-          const shownEvents  = [...starEvents, ...otherEvents].slice(0, 8);
+          // v0.5.2: yıldız öğrenci olayları yalnız aşağıdaki "Yıldız Öğrenci Başarıları" kartında
+          // yazılır (iki kez görünüyordu); yıldız hoca burada vurgulanır
+          const otherEvents  = validEvents.filter(ev => !_YILDIZ_OGRENCI_OLAYLARI.includes(ev.type));
+          const starEvents   = otherEvents.filter(ev => ev.type === 'star_faculty_hired');
+          const shownEvents  = [...starEvents, ...otherEvents.filter(ev => !starEvents.includes(ev))].slice(0, 8);
+          const yildizVar    = validEvents.some(ev => _YILDIZ_OGRENCI_OLAYLARI.includes(ev.type));
           if (shownEvents.length === 0) {
-            return `<div style="font-size:12px;color:var(--text-faint);padding:8px 0;">Bu dönemde önemli bir olay yaşanmadı.</div>`;
+            return `<div style="font-size:12px;color:var(--text-faint);padding:8px 0;">${yildizVar ? 'Bu dönemin öne çıkanları yıldız öğrenci başarıları (aşağıda).' : 'Bu dönemde önemli bir olay yaşanmadı.'}</div>`;
           }
           return shownEvents.map(ev => {
-            const isStarStudent = ev.type === 'star_student_competition' || ev.type === 'star_student_publication' || ev.type === 'star_student_graduated';
             const isStarFaculty = ev.type === 'star_faculty_hired';
-            const icon = isStarStudent ? '⭐' : isStarFaculty ? '🌟' : ev.type === 'construction_complete' ? '🏗' : ev.type === 'research_complete' ? '📄' : '📣';
+            const icon = isStarFaculty ? '🌟' : ev.type === 'construction_complete' ? '🏗' : ev.type === 'research_complete' ? '📄' : '📣';
             return `
-              <div class="summary-row" style="${isStarStudent || isStarFaculty ? 'background:rgba(245,166,35,0.08);border-radius:4px;padding:3px 4px;margin-bottom:2px;' : ''}">
+              <div class="summary-row" style="${isStarFaculty ? 'background:rgba(245,166,35,0.08);border-radius:4px;padding:3px 4px;margin-bottom:2px;' : ''}">
                 <span class="summary-row-label">${icon} ${ev.description || ev.message || ev.title}</span>
-                ${(ev.prestigeBonus ?? 0) > 0 ? `<span class="summary-row-value positive">+${ev.prestigeBonus} saygınlık</span>` : ''}
+                ${(ev.prestigeBonus ?? 0) > 0 ? `<span class="summary-row-value positive">${isaretliYaz(ev.prestigeBonus)} saygınlık</span>` : ''}
               </div>`;
           }).join('');
         })()}
@@ -6378,8 +6792,7 @@ export function renderTurnSummary(summary, onNextTurn) {
       <!-- Yıldız Öğrenci Başarıları -->
       ${(() => {
         const starAchievements = events.filter(ev =>
-          ev.type === 'star_student_competition' || ev.type === 'star_student_publication' || ev.type === 'star_student_graduated'
-        );
+          _YILDIZ_OGRENCI_OLAYLARI.includes(ev.type) && (ev.description || ev.message || ev.title));
         if (starAchievements.length === 0) return '';
         return `
           <div class="summary-card" style="border-color:rgba(245,166,35,0.4);background:rgba(245,166,35,0.05);">
@@ -6388,8 +6801,8 @@ export function renderTurnSummary(summary, onNextTurn) {
             </div>
             ${starAchievements.map(ev => `
               <div class="summary-row" style="margin-bottom:4px;">
-                <span class="summary-row-label" style="font-weight:600;">${ev.description || ''}</span>
-                ${(ev.prestigeBonus ?? 0) > 0 ? `<span class="summary-row-value positive">+${ev.prestigeBonus} saygınlık</span>` : ''}
+                <span class="summary-row-label" style="font-weight:600;">${ev.description || ev.message || ev.title}</span>
+                ${(ev.prestigeBonus ?? 0) > 0 ? `<span class="summary-row-value positive">${isaretliYaz(ev.prestigeBonus)} saygınlık</span>` : ''}
               </div>
             `).join('')}
           </div>
@@ -6445,24 +6858,57 @@ export function renderTurnSummary(summary, onNextTurn) {
       })()}
 
     </div>
-
-    <div style="display:flex;justify-content:center;margin-top:8px;">
-      <button class="btn btn-primary" id="btn-confirm-next-turn"
-              style="padding:10px 40px;font-size:15px;">
-        Sonraki Dönem →
-      </button>
-    </div>
   `;
+
+  // v0.5.2: "Devam" düğmesi pencerenin altında yapışkan alt çubukta (içerik kaysa da görünür)
+  let altCubuk = el('summary-modal-footer');
+  if (!altCubuk) {
+    altCubuk = document.createElement('div');
+    altCubuk.id = 'summary-modal-footer';
+    altCubuk.className = 'summary-modal-footer';
+    bodyEl.after(altCubuk);
+  }
+  altCubuk.innerHTML = `
+    <button class="btn btn-primary" id="btn-confirm-next-turn" type="button">Devam</button>`;
 
   overlay.classList.remove('hidden');
   overlay.classList.add('active');
+  if (bodyEl.scrollTo) bodyEl.scrollTo({ top: 0, behavior: 'instant' }); else bodyEl.scrollTop = 0;
 
-  on(el('btn-confirm-next-turn'), 'click', () => {
+  // Devam, Esc ve arka plana tıklama aynı geri çağrıyı bir kez çalıştırır
+  let kapandi = false;
+  const kapat = () => {
+    if (kapandi) return;
+    kapandi = true;
+    if (_ozetiKapat === kapat) _ozetiKapat = null;
     overlay.classList.add('hidden');
     overlay.classList.remove('active');
+    overlay.onclick = null;
     if (onNextTurn) onNextTurn();
-  });
+  };
+  _ozetiKapat = kapat;
+  on(el('btn-confirm-next-turn'), 'click', kapat);
+  overlay.onclick = (e) => {
+    if (e.target === overlay || e.target.classList?.contains('modal-backdrop')) kapat();
+  };
+  el('btn-confirm-next-turn')?.focus({ preventScroll: true });
 }
+
+/** Açık dönem özetini kapatan işlev (Devam ile aynı); özet kapalıysa null. */
+let _ozetiKapat = null;
+
+/**
+ * Dönem özeti açıksa "Devam" ile aynı biçimde kapatır (Esc için).
+ * @returns {boolean} özet açıktı ve kapandıysa true
+ */
+export function dismissTurnSummary() {
+  if (!_ozetiKapat) return false;
+  _ozetiKapat();
+  return true;
+}
+
+// Yıldız öğrenci olay türleri (dönem özetinde ayrı kartta yazılır)
+const _YILDIZ_OGRENCI_OLAYLARI = ['star_student_competition', 'star_student_publication', 'star_student_graduated'];
 
 // ─────────────────────────────────────────────────────────────────────────────
 // 10. OLAY EKRANI
@@ -6814,46 +7260,42 @@ function _qualityBar(val) {
   return `<span style="color:${color};font-weight:700;font-size:12px;">${val}</span>`;
 }
 
-/** Dönem geliri tahmini (basit) */
-function _estimateRevenue(state) {
-  const uniType  = state.meta?.universityType || state.university?.type || 'vakif';
-  const students = state.students?.totalEnrolled ?? 0;
-  const tuition  = state.university?.tuitionPerSemester ?? 40_000;
-  const researchRevenue = ((state.research?.activeResearchProjects?.length ?? 0) + (state.research?.activeProjects?.length ?? 0)) * 500_000;
-  const donationRevenue = (state.alumni?.length ?? 0) * 5_000;
-
-  if (uniType === 'devlet') {
-    const yokModel  = UNIVERSITY_MODELS.devlet.revenueStreams.yokTahsisi;
-    const yokIncome = yokModel.base
-      + students * yokModel.perStudent
-      + (state.faculty?.length ?? 0) * yokModel.perFaculty;
-    const katkiPayi = students * (UNIVERSITY_MODELS.devlet.revenueStreams.ogrenciKatkiPayi?.perStudent ?? 2_000);
-    const donerEst  = UNIVERSITY_MODELS.devlet.revenueStreams.donerSermaye.base;
-    return Math.round(yokIncome + katkiPayi + researchRevenue * 0.8 + donerEst + donationRevenue);
+/**
+ * Genel Bakış "Bu Dönem Tahmini": Bütçe sekmesiyle aynı hesap (calculateIncome/calculateExpenses).
+ * Kalem adları üniversite tipine göre (devlette harç yok, YÖK tahsisi var).
+ * @returns {{ gelirler: {ad, tutar}[], giderler: {ad, tutar}[], gelir: number, gider: number, net: number }}
+ */
+function _donemTahmini(state) {
+  let gelir = null, gider = null;
+  try {
+    gelir = calculateIncome(state);
+    gider = calculateExpenses(state);
+  } catch (e) {
+    console.warn('[ui] Dönem tahmini hesaplanamadı:', e);
   }
+  const toplamGelir = gelir?.total || 0;
+  const toplamGider = gider?.total || 0;
+  const tip = state.meta?.universityType || state.university?.type || 'vakif';
 
-  if (uniType === 'us_private') {
-    const aidRate    = state.university?.financialAidRate ?? 0.45;
-    const tuitionNet = students * tuition * (1 - aidRate);
-    const endowReturn = (state.university?.endowment ?? UNIVERSITY_MODELS.us_private.revenueStreams.endowment.base)
-      * UNIVERSITY_MODELS.us_private.revenueStreams.endowment.returnRate / 2;
-    const alumniEst  = UNIVERSITY_MODELS.us_private.revenueStreams.alumniDonations.base;
-    return Math.round(tuitionNet + endowReturn + researchRevenue * 1.2 + alumniEst);
+  const gelirler = [];
+  if (tip === 'devlet') {
+    gelirler.push({ ad: 'YÖK tahsisi ve katkı payı', tutar: (gelir?.stateGrant || 0) + (gelir?.tuition || 0) });
+  } else if (tip === 'us_private') {
+    gelirler.push({ ad: 'Öğrenim ücretleri', tutar: gelir?.tuition || 0 });
+    gelirler.push({ ad: 'Bağış fonu getirisi', tutar: gelir?.stateGrant || 0 });
+  } else {
+    gelirler.push({ ad: 'Öğrenci ücretleri', tutar: gelir?.tuition || 0 });
+    gelirler.push({ ad: 'Vakıf katkısı', tutar: gelir?.stateGrant || 0 });
   }
+  const anaGelir = gelirler.reduce((s, k) => s + k.tutar, 0);
+  gelirler.push({ ad: 'Diğer gelirler', tutar: Math.max(0, toplamGelir - anaGelir) });
 
-  // Vakıf: bölüm bazlı harç tahmini
-  const byDeptEst   = state.students?.byDepartment || {};
-  let payingApprox  = 0;
-  for (const d of Object.values(byDeptEst)) {
-    for (const yr of [d?.year1, d?.year2, d?.year3, d?.year4]) {
-      if (yr) {
-        payingApprox += (yr.yariBurslu || 0) * 0.5 + (yr.ucretli || 0);
-      }
-    }
-  }
-  const tuitionRevenue = payingApprox > 0 ? payingApprox * tuition : students * tuition * 0.7;
-  const vakifKatkisi   = UNIVERSITY_MODELS.vakif.revenueStreams.vakifKatkisi.base;
-  return Math.round(tuitionRevenue + vakifKatkisi + researchRevenue + donationRevenue);
+  const giderler = [{ ad: 'Hoca maaşları', tutar: gider?.salariesAcademic || 0 }];
+  if ((gider?.scholarships || 0) > 0) giderler.push({ ad: 'Burs ödemeleri', tutar: gider.scholarships });
+  const anaGider = giderler.reduce((s, k) => s + k.tutar, 0);
+  giderler.push({ ad: 'Diğer giderler', tutar: Math.max(0, toplamGider - anaGider) });
+
+  return { gelirler, giderler, gelir: toplamGelir, gider: toplamGider, net: toplamGelir - toplamGider };
 }
 
 /** Bütçe sekmesi — Hoca maaş gideri (akademik, dönemlik) */
@@ -6928,27 +7370,6 @@ function _budgetOverhead(state) {
   const OVERHEAD_PER_STUDENT = 3500;
   const OVERHEAD_FIXED       = 1500000;
   return Math.round(OVERHEAD_FIXED + (state.students?.totalEnrolled ?? 0) * OVERHEAD_PER_STUDENT);
-}
-
-/** Dönem maliyeti tahmini (basit) */
-function _estimateCosts(state) {
-  const faculty = state.faculty || [];
-  const salaryCost = faculty.reduce((s, f) => s + (f.salary ?? 0), 0) * SEMESTER_MONTHS;
-  // Alan bazlı bina bakım maliyeti
-  const buildingCost = (state.buildings || []).filter(b => b.isCompleted).reduce((s, b) => {
-    const template = BUILDINGS[b.type];
-    if (!template) return s;
-    if (template.maintenanceCostPerM2 != null && b.area) {
-      return s + b.area * template.maintenanceCostPerM2;
-    } else if (b.maintenanceCost) {
-      return s + b.maintenanceCost;
-    }
-    const cost  = template.constructionCost || template.baseCost || 0;
-    const ratio = template.maintenanceCostRatio || 0.05;
-    return s + (cost * ratio) / 2;
-  }, 0);
-  const adminCost = Object.values(state.admin?.units ?? {}).reduce((s, u) => s + u.budget, 0);
-  return Math.round(salaryCost + buildingCost + adminCost);
 }
 
 /**
@@ -7425,7 +7846,7 @@ export function renderAdminPanel(state, onHireAdmin, onUpgradeUnit) {
     const titleRange     = getUnitTitleSalary(m.unit, m.title);
     const nextTitleName  = _nextTitle(m.title, m.unit);
     const expYears       = Math.round((m.totalExperience || m.experience || 0) * 2) / 2;
-    const happiness      = m.happiness ?? 60;
+    const happiness      = Math.round(m.happiness ?? 60);
     const happClass      = happiness >= 70 ? 'high' : happiness >= 45 ? 'mid' : 'low';
     const initials       = _initials(m.name);
 
@@ -7450,10 +7871,10 @@ export function renderAdminPanel(state, onHireAdmin, onUpgradeUnit) {
             <div class="faculty-name">${m.name || 'İsimsiz'}</div>
             <div class="faculty-meta">
               <span class="badge badge-default">${m.title || '—'}</span>
-              <span class="faculty-dept">${m.unit || '—'}</span>
+              <span class="faculty-dept">${ADMIN_UNITS[m.unit]?.name || m.unit || '—'}</span>
             </div>
             <div class="faculty-meta" style="margin-top:3px;">
-              <span class="faculty-age">${expYears} yıl deneyim</span>
+              <span class="faculty-age">${ondalikYaz(expYears, 1)} yıl deneyim</span>
             </div>
           </div>
           <div style="text-align:center;padding:4px 8px;border-radius:8px;background:${ratingBg};flex-shrink:0;">
@@ -7512,14 +7933,14 @@ export function renderAdminPanel(state, onHireAdmin, onUpgradeUnit) {
         <td style="padding:5px 8px;color:var(--text-muted);">${idx + 1}</td>
         <td style="padding:5px 8px;font-weight:600;">${m.name || '—'}</td>
         <td style="padding:5px 8px;color:var(--text-muted);">${m.title || '—'}</td>
-        <td style="padding:5px 8px;color:var(--text-muted);font-size:11px;">${m.unit || '—'}</td>
+        <td style="padding:5px 8px;color:var(--text-muted);font-size:11px;">${ADMIN_UNITS[m.unit]?.name || m.unit || '—'}</td>
         <td style="padding:5px 8px;font-weight:700;color:${ratingColor};">${quality}</td>
         <td style="padding:5px 8px;color:${_adminRatingColor(m.efficiency || 0)};">${m.efficiency || 0}</td>
         <td style="padding:5px 8px;color:${_adminRatingColor(m.communication || 0)};">${m.communication || 0}</td>
         <td style="padding:5px 8px;color:${_adminRatingColor(m.leadership || 0)};">${m.leadership || 0}</td>
         <td style="padding:5px 8px;color:${_adminRatingColor(m.techSkills || 0)};">${m.techSkills || 0}</td>
         <td style="padding:5px 8px;white-space:nowrap;">${formatMoney(m.salary)}/ay</td>
-        <td style="padding:5px 8px;">${expYears} yıl</td>
+        <td style="padding:5px 8px;">${ondalikYaz(expYears, 1)} yıl</td>
         <td style="padding:5px 8px;font-size:11px;color:${statusColor};">${statusText}</td>
       </tr>
     `;
@@ -7531,7 +7952,7 @@ export function renderAdminPanel(state, onHireAdmin, onUpgradeUnit) {
     const unitStaff  = adminStaff.filter(m => m.unit === template.id);
     const staffStatus2 = unit.staffCount >= unit.staffNeeded ? '✅' : unit.staffCount >= unit.staffNeeded * 0.7 ? '⚠️' : '🔴';
     const eksik      = Math.max(0, unit.staffNeeded - unit.staffCount);
-    const perf       = unit.satisfaction || 30;
+    const perf       = Math.round(unit.satisfaction || 30);
     const unitId     = template.id;
 
     // Yükseltme butonu
@@ -7647,7 +8068,7 @@ export function renderAdminPanel(state, onHireAdmin, onUpgradeUnit) {
           </div>
           <div style="background:var(--bg-secondary);border-radius:4px;padding:6px;font-size:12px;">
             <div style="color:var(--text-muted);font-size:10px;">Kalite</div>
-            <div>${unit.staffQuality || 0}/100</div>
+            <div>${tamPuan(unit.staffQuality, 0)}/100</div>
           </div>
         </div>
 
@@ -7974,9 +8395,9 @@ function _showAdminStaffDetail(staffId, adminStaff) {
           <div style="font-size:18px;font-weight:700;">${m.name || 'İsimsiz'}</div>
           <div style="font-size:13px;color:var(--text-muted);margin-top:2px;">
             <span class="badge badge-default">${m.title || '—'}</span>
-            &nbsp;·&nbsp;${m.unit || '—'}
+            &nbsp;·&nbsp;${ADMIN_UNITS[m.unit]?.name || m.unit || '—'}
           </div>
-          <div style="font-size:12px;color:var(--text-faint);margin-top:4px;">${expYears} yıl deneyim</div>
+          <div style="font-size:12px;color:var(--text-faint);margin-top:4px;">${ondalikYaz(expYears, 1)} yıl deneyim</div>
         </div>
         <div style="text-align:center;padding:8px 12px;border-radius:10px;background:${ratingColor(quality)}18;flex-shrink:0;">
           <div style="font-size:28px;font-weight:800;color:${ratingColor(quality)};line-height:1;">${quality}</div>
@@ -8039,12 +8460,17 @@ function _showAdminStaffDetail(staffId, adminStaff) {
  * @param {Function} onHire        — İşe al callback (candidate)
  * @param {string}   currentLevel  — Seçili deneyim seviyesi (Yenile tuşu sonrası korunur)
  */
-export function renderAdminHireModal(unitId, candidates, onHire, currentLevel) {
+export function renderAdminHireModal(unitId, candidates, onHire, currentLevel, secenek = {}) {
   const template = ADMIN_UNITS[unitId];
   if (!template) return;
 
   // Birim bazlı unvan listesi
   const unitTitleList = getUnitTitles(unitId);
+  // v0.5.2: "Ata" düğmesinden, birimde yönetici yokken açıldıysa yönetici rütbesi önceden seçili gelir
+  const yoneticiIcin     = !!secenek.yoneticiIcin;
+  const yoneticiRutbeler = unitTitleList.filter(t => isUnitManagerTitle(unitId, t));
+  const seciliRutbe = (sugT) => (yoneticiIcin && !isUnitManagerTitle(unitId, sugT) && yoneticiRutbeler.length)
+    ? yoneticiRutbeler[0] : sugT;
 
   // Deneyim seviyesi seçenekleri
   const levelOptions = [
@@ -8060,9 +8486,10 @@ export function renderAdminHireModal(unitId, candidates, onHire, currentLevel) {
 
   const candidateRows = candidates.map((c, idx) => {
     const sugT   = c.suggestedTitle || unitTitleList[1] || unitTitleList[0] || 'Uzman';
+    const secili = seciliRutbe(sugT);
     const titleOpts = unitTitleList.map(t => {
       const bar = getUnitTitleSalary(unitId, t);
-      return `<option value="${t}" ${t === sugT ? 'selected' : ''}>${t} (${formatMoney(bar.min)}–${formatMoney(bar.max)}/ay)</option>`;
+      return `<option value="${t}" ${t === secili ? 'selected' : ''}>${t}${isUnitManagerTitle(unitId, t) ? ' · yönetici' : ''} (${formatMoney(bar.min)}–${formatMoney(bar.max)}/ay)</option>`;
     }).join('');
 
     return `
@@ -8103,13 +8530,18 @@ export function renderAdminHireModal(unitId, candidates, onHire, currentLevel) {
   `}).join('');
 
   showModal(
-    `${template.icon} ${template.name} — Personel Alımı`,
+    `${template.icon} ${template.name}: ${yoneticiIcin ? 'Yönetici Alımı' : 'Personel Alımı'}`,
     `
       <p style="margin:0 0 12px;font-size:12px;color:var(--text-muted);">${template.description}</p>
+      ${yoneticiIcin ? `
+      <div style="margin:0 0 12px;padding:10px 12px;border-radius:8px;background:rgba(245,166,35,0.10);border:1px solid rgba(245,166,35,0.35);font-size:12px;line-height:1.55;">
+        Bu birimde yönetici rütbesinde (<strong>${yoneticiRutbeler.join(' ya da ')}</strong>) personel yok.
+        Aşağıdaki adaylardan birini bu rütbeyle alırsanız birim yöneticisi olarak kendiliğinden atanır.
+      </div>` : ''}
 
       <div style="margin-bottom:12px;">
         <label style="font-size:12px;color:var(--text-muted);display:block;margin-bottom:4px;">Deneyim seviyesi seç:</label>
-        <select id="admin-hire-title" class="form-input" style="font-size:12px;">
+        <select id="admin-hire-title" class="form-input" style="font-size:12px;" data-yonetici="${yoneticiIcin ? '1' : ''}">
           ${levelOptions}
         </select>
         <button class="btn btn-sm btn-secondary" style="margin-top:6px;font-size:11px;width:100%;"
@@ -8122,6 +8554,53 @@ export function renderAdminHireModal(unitId, candidates, onHire, currentLevel) {
       ${candidateRows}
     `
   );
+
+  // Önerilenden farklı rütbe önceden seçildiyse maaş tahmini ve uyarı ona göre yazılsın
+  candidates.forEach((c, idx) => {
+    const sugT = c.suggestedTitle || unitTitleList[1] || unitTitleList[0] || 'Uzman';
+    const secili = seciliRutbe(sugT);
+    if (secili !== sugT && typeof window._onAdminTitleSelectionChange === 'function') {
+      window._onAdminTitleSelectionChange(idx, secili);
+    }
+  });
+}
+
+/**
+ * v0.5.2: birim yöneticisi seçme penceresi (prompt() yerine). Uygun personel listelenir,
+ * oyuncu birine "Ata" der; yönetici varsa kaldırma seçeneği de çıkar.
+ * @param {string}   unitId
+ * @param {object[]} uygunlar      yönetici rütbesindeki personel
+ * @param {string|null} mevcutId   şimdiki yöneticinin kimliği
+ * @param {Function} onSec         (staffId | null) => void; null = yöneticiyi kaldır
+ */
+export function renderUnitManagerModal(unitId, uygunlar, mevcutId, onSec) {
+  const template = ADMIN_UNITS[unitId];
+  const satirlar = [...uygunlar]
+    .sort((a, b) => (b.leadership || 0) - (a.leadership || 0))
+    .map(s => `
+      <div class="yonetici-satir${s.id === mevcutId ? ' secili' : ''}">
+        <div class="yonetici-bilgi">
+          <div class="yonetici-ad">${s.name}${s.id === mevcutId ? ' <span class="badge badge-success">Şimdiki yönetici</span>' : ''}</div>
+          <div class="yonetici-alt">${s.title} · Liderlik ${tamPuan(s.leadership, 0)} · Kalite ${tamPuan(s.quality, 0)} · Mutluluk ${tamPuan(s.happiness, 0)}</div>
+        </div>
+        ${s.id === mevcutId ? '' : `<button class="btn btn-sm btn-primary btn-yonetici-ata" data-staff-id="${s.id}" type="button">Ata</button>`}
+      </div>`).join('');
+
+  showModal(`${template?.icon || ''} ${template?.name || 'Birim'}: Yönetici Seçimi`, `
+    <p style="margin:0 0 12px;font-size:12px;color:var(--text-muted);line-height:1.55;">
+      Yönetici, birimin en üst iki rütbesindeki personelden seçilir. Liderliği yüksek yönetici birimin performansını artırır.
+    </p>
+    <div class="yonetici-liste">${satirlar}</div>
+    <div class="onay-dugmeler">
+      ${mevcutId ? '<button class="btn btn-secondary" id="btn-yonetici-kaldir" type="button">Yöneticiyi Kaldır</button>' : ''}
+      <button class="btn btn-secondary" id="btn-yonetici-vazgec" type="button">Vazgeç</button>
+    </div>`);
+
+  qsa('#general-modal-body .btn-yonetici-ata').forEach(btn => {
+    btn.addEventListener('click', () => { hideModal(); if (onSec) onSec(btn.dataset.staffId); });
+  });
+  on(el('btn-yonetici-kaldir'), 'click', () => { hideModal(); if (onSec) onSec(null); });
+  on(el('btn-yonetici-vazgec'), 'click', () => hideModal());
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -8397,17 +8876,17 @@ export function renderRandomEventModal(event, onChoice) {
   const choicesHtml = event.choices.map((c, i) => {
     const budgetText = c.budgetDelta
       ? `<span style="color:${c.budgetDelta > 0 ? 'var(--success)' : 'var(--danger)'};">
-           ${c.budgetDelta > 0 ? '+' : ''}${(c.budgetDelta / 1_000_000).toFixed(1)}M ₺
+           Kasa ${c.budgetDelta > 0 ? '+' : ''}${formatMoney(c.budgetDelta)}
          </span>`
       : '';
     const prestigeText = c.prestigeDelta
       ? `<span style="color:${c.prestigeDelta > 0 ? 'var(--success)' : 'var(--danger)'};">
-           Saygınlık ${c.prestigeDelta > 0 ? '+' : ''}${c.prestigeDelta}
+           Saygınlık ${isaretliYaz(c.prestigeDelta)}
          </span>`
       : '';
     const satText = c.satisfactionDelta
       ? `<span style="color:${c.satisfactionDelta > 0 ? 'var(--success)' : 'var(--danger)'};">
-           Memnuniyet ${c.satisfactionDelta > 0 ? '+' : ''}${c.satisfactionDelta}
+           Memnuniyet ${isaretliYaz(c.satisfactionDelta)}
          </span>`
       : '';
 
@@ -8429,12 +8908,13 @@ export function renderRandomEventModal(event, onChoice) {
       <div style="color:var(--text-secondary);font-size:14px;">${event.description}</div>
     </div>
     <div style="font-size:13px;font-weight:600;color:var(--text-muted);margin-bottom:8px;">
-      Ne yapacaksınız?
+      Ne yapacaksınız? <span style="font-weight:400;">Devam etmek için bir seçenek seçin.</span>
     </div>
     <div id="random-event-choices">${choicesHtml}</div>
   `;
 
-  showModal(isCrisis ? '⚠️ Kriz!' : '📢 Olay', body, { wide: false });
+  // v0.5.2: olay penceresi kilitli (✕, Esc, arka plan yok); kapanırsa dönem özeti hiç açılmıyordu
+  showModal(isCrisis ? '⚠️ Kriz!' : '📢 Olay', body, { wide: false, kilitli: true });
 
   // Seçeneklere tıklama bağla
   setTimeout(() => {
@@ -8695,14 +9175,14 @@ export function renderClubsPanel(state) {
       <div class="clubs-stat">
         <span class="clubs-stat-icon">😊</span>
         <div>
-          <div class="clubs-stat-value">+${totalSatBonus.toFixed(1)}</div>
+          <div class="clubs-stat-value">+${ondalikYaz(totalSatBonus, 1)}</div>
           <div class="clubs-stat-label">Memnuniyet Bonusu</div>
         </div>
       </div>
       <div class="clubs-stat">
         <span class="clubs-stat-icon">⭐</span>
         <div>
-          <div class="clubs-stat-value">+${totalPresBonus.toFixed(1)}</div>
+          <div class="clubs-stat-value">+${ondalikYaz(totalPresBonus, 1)}</div>
           <div class="clubs-stat-label">Saygınlık Bonusu</div>
         </div>
       </div>
@@ -9268,7 +9748,7 @@ export function renderInternationalRankingPanel(
           Dünya Sırası: #${worldRank} &nbsp;·&nbsp; Türkiye: #${trRank}/${trTotal}
         </div>
         <div style="font-size:11px;color:var(--text-muted,#aaa);">
-          THE WUR metodolojisi: Eğitim %29.5 · Araştırma Ort. %29 · Atıflar %30 · Uluslararası %7.5 · Endüstri %4
+          THE WUR metodolojisi: Eğitim %29,5 · Araştırma Ort. %29 · Atıflar %30 · Uluslararası %7,5 · Endüstri %4
         </div>
       </div>
     </div>
@@ -9280,7 +9760,7 @@ export function renderInternationalRankingPanel(
         <div style="margin-bottom:12px;">
           <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;">
             <span style="font-size:12px;font-weight:600;color:${p.color};">${p.label}</span>
-            <span style="font-size:12px;font-weight:700;">${pillars[p.key]} <span style="font-size:10px;color:var(--text-muted,#aaa);">/ 100 · ağırlık %${p.pct}</span></span>
+            <span style="font-size:12px;font-weight:700;">${pillars[p.key]} <span style="font-size:10px;color:var(--text-muted,#aaa);">/ 100 · ağırlık %${ondalikYaz(p.pct, 1)}</span></span>
           </div>
           ${progressBar(pillars[p.key], p.color)}
         </div>`).join('')}
