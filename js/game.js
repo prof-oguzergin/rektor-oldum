@@ -1715,6 +1715,7 @@ export function initGame(playerName, universityName, universityType, difficulty,
     : (KURULUS_YASI[universityType] ?? 15);
   _state.university._prestigeBase   = _state.university.prestige;
   _state.university.prestigeCeiling = Math.round(_prestijTavani(_state));
+  _state.university.qualityScore    = Math.round(calculateQualityScore(_state));
   updateRankings(_state);
 
   return {
@@ -4796,6 +4797,21 @@ function migrateState(state) {
     }
     if (wc && state.meta.scenarioId === 'yeni_kurulan' && wc.type === 'prestige') {
       state.meta.scenarioWinCondition = { ...SCENARIOS.yeni_kurulan.winCondition };
+    }
+  }
+  // v0.5.2: Genel Bakış ilk dönemde de kalite, tavan ve 51 üniversite içindeki
+  // gerçek sırayı göstersin (yoksa eski 6'lı sıra ilk dönem sonunda birden düşer)
+  if (state.university && Array.isArray(state.rivals)) {
+    try {
+      if (!Number.isFinite(state.university.qualityScore)) {
+        state.university.qualityScore = Math.round(calculateQualityScore(state));
+      }
+      if (!Number.isFinite(state.university.prestigeCeiling)) {
+        state.university.prestigeCeiling = Math.round(_prestijTavani(state));
+      }
+      updateRankings(state);
+    } catch (e) {
+      console.warn('[migrate] v0.5.2 sıra/kalite hesaplanamadı:', e);
     }
   }
 

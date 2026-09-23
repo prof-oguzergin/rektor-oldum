@@ -89,7 +89,7 @@
           <span class="menu-feature-chip">Bütçe ve yerleşke</span>
           <span class="menu-feature-chip">Dünya sıralaması</span>
         </div>
-        <div class="menu-version">v0.5.1</div>
+        <div class="menu-version">v0.5.2</div>
       </div>
     </div>
   </div>
@@ -504,7 +504,7 @@
   <script>console.log('[inline] Script tag çalışıyor, before module');</script>
   <script type="module">
     // Cache-bust: build hash veya manuel versiyon. Her release'de bumpla.
-    const APP_VERSION = '0.5.1';
+    const APP_VERSION = '0.5.2';
     console.log('[inline-module] Sürüm:', APP_VERSION);
     try {
       const m = await import(`./js/main.js?v=${APP_VERSION}`);

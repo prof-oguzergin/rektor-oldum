@@ -6,6 +6,14 @@
 
 export const CHANGELOG = [
   {
+    version: '0.5.2',
+    date: '2026-09-23',
+    title: 'Genel Bakış düzeltmesi',
+    items: [
+      { type: 'fix', text: 'İlk dönemde Genel Bakış\'ta kalite puanı ve sıralama eksik ya da eski görünüyordu; düzeltildi.' },
+    ],
+  },
+  {
     version: '0.5.1',
     date: '2026-09-23',
     title: 'Gerçekçi oyun hızı ve yaşlanan hocalar',
