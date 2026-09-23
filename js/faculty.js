@@ -968,13 +968,21 @@ export function calculateFieldMatch(faculty, departmentId) {
 /**
  * Her dönem başında transfer pazarında yer alacak hocanın listesini üretir.
  * Yüksek prestijli üniversiteler daha iyi havuzdan çeker.
- * @param {object} state - Oyun durumu (state.prestige, state.departments vb.)
+ * Her adayın `department` alanı açık bölümlerden birinin kimliğidir (ör. 'bilgisayar_muh');
+ * alanı ve uzmanlıkları o bölümün alan havuzundan seçilir.
+ * @param {object} state - Oyun durumu (state.university.prestige, state.departments vb.)
  * @returns {object[]} Transfer pazarındaki hoca listesi (5-10 hoca)
  */
 export function generateTransferMarket(state) {
-  const prestige     = state.prestige ?? 30;
+  // v0.5.2: saygınlık state.university'de (state.prestige yoktu, hep 30 okunuyordu);
+  // bölümler dizi olduğu için Object.keys indis veriyordu ('0','1'), kimlikler alınır
+  const prestige     = Number.isFinite(state.university?.prestige) ? state.university.prestige
+                     : Number.isFinite(state.prestige) ? state.prestige : 30;
   const marketCount  = randInt(5, 10);
-  const activeDepts  = state.departments ? Object.keys(state.departments) : Object.keys(DEPARTMENTS);
+  const acikBolumler = Array.isArray(state.departments)
+    ? state.departments.filter(d => d && d.id && d.isOpen !== false && (DEPARTMENT_FIELDS[d.id] || DEPARTMENTS[d.id])).map(d => d.id)
+    : [];
+  const activeDepts  = acikBolumler.length > 0 ? acikBolumler : Object.keys(DEPARTMENTS);
 
   // Prestije göre kalite aralığı
   // Prestij 20 → düşük havuz; Prestij 80+ → yüksek havuz
@@ -999,7 +1007,7 @@ export function generateTransferMarket(state) {
       title,
       minQuality:     minQ,
       maxQuality:     maxQ,
-      currentTurn:    state.currentTurn ?? 1,
+      currentTurn:    state.meta?.turn ?? state.currentTurn ?? 1,
       universityType: state.meta?.universityType ?? 'vakif',
     });
 

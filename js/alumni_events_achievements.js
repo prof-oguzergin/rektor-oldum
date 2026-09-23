@@ -3,7 +3,7 @@
  * v0.2 — Üç yeni özellik tek modülde.
  */
 
-import { STUDENT_NAME_POOL } from './data.js?v=0.4.24';
+import { STUDENT_NAME_POOL, SAYGINLIK_OLAY_ETKI, SAYGINLIK_OLAY_SINIR } from './data.js?v=0.4.24';
 import { CLUB_TYPES } from './clubs.js?v=0.4.24';
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -13,6 +13,48 @@ import { CLUB_TYPES } from './clubs.js?v=0.4.24';
 function safeNum(val) {
   const n = Number(val);
   return (isFinite(n) && !isNaN(n)) ? n : 0;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// v0.5.2: SAYGINLIK KATKILARI
+// Oyuncu kararlarının saygınlık etkisi anında yazılmaz, dönem sonunda game.js
+// _updatePrestige ile kalıcı olarak yansır; saygınlık bir dönem sıçrayıp ertesi
+// dönem geri inmez ve oyuncuya gösterilen sayı gerçek etkidir.
+//   university._olaySayginlik: rastgele olay seçimlerinin kalıcı payı (dönem başına ±sınır)
+//   university._hamSayginlik:  dönem içi gelişmelerle aynı havuza giren ham katkı
+//                              (mezun buluşması, ödül); kalıcı payı dönem sonunda belli olur
+// ─────────────────────────────────────────────────────────────────────────────
+
+/** Ham saygınlık katkısının (ör. +5) tek başına kalıcı payı: %12, en çok ±0,4. */
+export function sayginlikKaliciPay(ham) {
+  const pay = safeNum(ham) * SAYGINLIK_OLAY_ETKI;
+  return Math.round(Math.max(-SAYGINLIK_OLAY_SINIR, Math.min(SAYGINLIK_OLAY_SINIR, pay)) * 100) / 100;
+}
+
+/**
+ * Olay seçeneğinin şimdi seçilirse dönem sonunda saygınlığa yansıyacak kalıcı etkisi
+ * (state değişmez). Aynı dönemde önceki seçimlerle birikenler hesaba katılır; toplam
+ * en çok ±0,4. applyRandomEventChoice'un effects.prestigeDelta değeriyle aynıdır.
+ * @param {object|null} state
+ * @param {number} ham  seçeneğin ham saygınlık değeri (RANDOM_EVENTS choice.prestigeDelta)
+ * @returns {number} iki basamağa yuvarlanmış kalıcı değişim (ör. 0.36, -0.4, 0)
+ */
+export function secimSayginlikEtkisi(state, ham) {
+  const once = safeNum(state?.university?._olaySayginlik);
+  const sonra = Math.max(-SAYGINLIK_OLAY_SINIR, Math.min(SAYGINLIK_OLAY_SINIR, once + sayginlikKaliciPay(ham)));
+  return Math.round((Math.round(sonra * 100) / 100 - once) * 100) / 100;
+}
+
+/** Olay seçiminin kalıcı payını dönem sonuna erteler; bu seçimin getirdiği gerçek değişimi döndürür. */
+function _secimSayginligiEkle(state, ham) {
+  const etki = secimSayginlikEtkisi(state, ham);
+  state.university._olaySayginlik = Math.round((safeNum(state.university._olaySayginlik) + etki) * 100) / 100;
+  return etki;
+}
+
+/** Dönem içi gelişmelerle aynı havuza ham katkı ekler; kalıcı payı dönem sonunda belli olur. */
+export function hamSayginlikEkle(state, ham) {
+  state.university._hamSayginlik = safeNum(state.university._hamSayginlik) + safeNum(ham);
 }
 
 function randInt(min, max) {
@@ -264,7 +306,7 @@ function _generateAlumniEvent(state, alum) {
     alumniId: alum.id,
     alumniName: alum.name,
     message: alum.achievement,
-    prestigeBonus: 2,
+    hamSayginlik: 2,   // v0.5.2: ham katkı; kalıcı payı dönem sonunda (alumniPrestigeBonus üzerinden)
   };
 }
 
@@ -289,9 +331,9 @@ export function organizeAlumniEvent(state, type) {
   if (type === 'reunion') {
     state.alumniData.alumniNetwork = Math.min(100,
       safeNum(state.alumniData.alumniNetwork) + 5);
-    state.university.prestige = Math.min(100,
-      safeNum(state.university.prestige) + 2);
-    message = 'Mezun buluşması düzenlendi. Ağ gücü +5, Saygınlık +2.';
+    // v0.5.2: saygınlık anında yazılmaz; katkı dönem sonunda öteki gelişmelerle birlikte yansır
+    hamSayginlikEkle(state, 2);
+    message = 'Mezun buluşması düzenlendi. Ağ gücü +5; saygınlığa katkısı dönem sonunda yansır.';
   } else if (type === 'career_day') {
     state.students.overallSatisfaction = Math.min(100,
       safeNum(state.students.overallSatisfaction) + 5);
@@ -335,7 +377,7 @@ export const RANDOM_EVENTS = [
   {
     id: 'pandemic',
     name: '🦠 Salgın Hastalık',
-    description: 'Kampüste salgın hastalık yayıldı. Online eğitime geçiş gerekebilir.',
+    description: 'Yerleşkede salgın hastalık yayıldı. Online eğitime geçiş gerekebilir.',
     probability: 0.03,
     isCrisis: true,
     choices: [
@@ -377,7 +419,7 @@ export const RANDOM_EVENTS = [
       },
       {
         text: '🏗️ Altyapıya yatır',
-        description: 'Kampüs iyileşir.',
+        description: 'Yerleşke iyileşir.',
         budgetDelta: 5_000_000,
         satisfactionDelta: 8,
       },
@@ -416,7 +458,7 @@ export const RANDOM_EVENTS = [
   {
     id: 'famous_speaker',
     name: '🎤 Ünlü Konuşmacı',
-    description: 'Dünyaca ünlü bir akademisyen kampüsünüzde konferans vermek istiyor.',
+    description: 'Dünyaca ünlü bir akademisyen yerleşkenizde konferans vermek istiyor.',
     probability: 0.07,
     isCrisis: false,
     choices: [
@@ -438,7 +480,7 @@ export const RANDOM_EVENTS = [
   {
     id: 'accreditation_visit',
     name: '📋 Akreditasyon Ziyareti',
-    description: 'MÜDEK/ABET değerlendirme heyeti kampüsü ziyaret edecek.',
+    description: 'MÜDEK/ABET değerlendirme heyeti yerleşkeyi ziyaret edecek.',
     probability: 0.06,
     isCrisis: false,
     choices: [
@@ -557,7 +599,7 @@ export const RANDOM_EVENTS = [
   {
     id: 'infrastructure_failure',
     name: '⚡ Altyapı Arızası',
-    description: 'Kampüste elektrik/su arızası yaşandı. Dersler aksadı.',
+    description: 'Yerleşkede elektrik/su arızası yaşandı. Dersler aksadı.',
     probability: 0.06,
     isCrisis: true,
     choices: [
@@ -611,7 +653,7 @@ export const RANDOM_EVENTS = [
     choices: [
       {
         text: '🎊 Tam destek ver',
-        description: 'Kampüs coşkusu!',
+        description: 'Yerleşke coşkusu!',
         budgetDelta: -500_000,
         prestigeDelta: 4,
         satisfactionDelta: 8,
@@ -693,7 +735,7 @@ export const RANDOM_EVENTS = [
   {
     id: 'akreditasyon_denetimi',
     name: '🔍 Akreditasyon Denetimi',
-    description: 'Akreditasyon denetçileri kampüsünüzü incelemeye geldi. Hazırlık durumunuz önemli.',
+    description: 'Akreditasyon denetçileri yerleşkenizi incelemeye geldi. Hazırlık durumunuz önemli.',
     probability: 0.04,
     isCrisis: false,
     condition: (state) => state.departments?.some(d =>
@@ -857,7 +899,7 @@ export const RANDOM_EVENTS = [
   {
     id: 'kulup_festivali',
     name: '🎉 Bahar Festivali',
-    description: 'Topluluklar birlikte büyük bir kampüs festivali düzenlemek istiyor.',
+    description: 'Topluluklar birlikte büyük bir yerleşke festivali düzenlemek istiyor.',
     probability: 0.06,
     isCrisis: false,
     condition: (state) => (state.clubs?.active?.length || 0) >= 4,
@@ -920,9 +962,11 @@ export function applyRandomEventChoice(state, eventId, choiceIndex) {
     effects.budgetDelta = choice.budgetDelta;
   }
   if (choice.prestigeDelta) {
-    state.university.prestige = Math.max(0, Math.min(100,
-      safeNum(state.university.prestige) + safeNum(choice.prestigeDelta)));
-    effects.prestigeDelta = choice.prestigeDelta;
+    // v0.5.2: saygınlık anında değişmez. choice.prestigeDelta ham değerdir; effects.prestigeDelta
+    // dönem sonunda saygınlığa yansıyacak kalıcı değişimdir (kesirli olabilir, aynı dönemdeki
+    // seçimlerin toplamı en çok ±0,4). Ham değer effects.hamSayginlik alanında durur.
+    effects.prestigeDelta = _secimSayginligiEkle(state, choice.prestigeDelta);
+    effects.hamSayginlik  = choice.prestigeDelta;
   }
   if (choice.satisfactionDelta) {
     state.students.overallSatisfaction = Math.max(0, Math.min(100,
@@ -992,7 +1036,7 @@ export const ACHIEVEMENTS = [
   { id: 'faculty_10',      name: '👨‍🏫 Kadro Kurucusu',      description: '10 öğretim üyesine ulaşın.',                       icon: '👨‍🏫', category: 'kadro',    check: (s) => (s.faculty?.length || 0) >= 10 },
   { id: 'faculty_50',      name: '🏛️ Akademik Güç',         description: '50 öğretim üyesine ulaşın.',                       icon: '🏛️', category: 'kadro',    check: (s) => (s.faculty?.length || 0) >= 50 },
   { id: 'students_1000',   name: '📚 Bin Öğrenci',          description: '1.000 öğrenciye ulaşın.',                          icon: '📚', category: 'ogrenci',  check: (s) => safeNum(s.students?.totalEnrolled) >= 1000 },
-  { id: 'students_5000',   name: '🏟️ Dev Kampüs',           description: '5.000 öğrenciye ulaşın.',                          icon: '🏟️', category: 'ogrenci', check: (s) => safeNum(s.students?.totalEnrolled) >= 5000 },
+  { id: 'students_5000',   name: '🏟️ Dev Yerleşke',           description: '5.000 öğrenciye ulaşın.',                          icon: '🏟️', category: 'ogrenci', check: (s) => safeNum(s.students?.totalEnrolled) >= 5000 },
   // Prestij
   { id: 'prestige_25',     name: '⭐ Yükselen Yıldız',      description: "Saygınlık 25'e ulaşsın.",                          icon: '⭐', category: 'prestij',  check: (s) => safeNum(s.university?.prestige) >= 25 },
   { id: 'prestige_50',     name: '🌟 Tanınan Üniversite',   description: "Saygınlık 50'ye ulaşsın.",                         icon: '🌟', category: 'prestij',  check: (s) => safeNum(s.university?.prestige) >= 50 },
@@ -1012,7 +1056,7 @@ export const ACHIEVEMENTS = [
   { id: 'first_donation',  name: '🤝 İlk Bağış',           description: 'Mezunlardan ilk bağışı alın.',                     icon: '🤝', category: 'finans',   check: (s) => safeNum(s.alumniData?.annualDonations) > 0 || safeNum(s.alumniData?.totalDonations) > 0 },
   // Binalar
   { id: 'first_building',  name: '🏗️ İlk İnşaat',          description: 'İlk binanızı inşa edin.',                          icon: '🏗️', category: 'kampus',  check: (s) => (s.buildings?.length || 0) >= 2 },
-  { id: 'buildings_10',    name: '🏘️ Kampüs Mimarı',        description: '10 bina inşa edin.',                               icon: '🏘️', category: 'kampus', check: (s) => (s.buildings?.length || 0) >= 10 },
+  { id: 'buildings_10',    name: '🏘️ Yerleşke Mimarı',        description: '10 bina inşa edin.',                               icon: '🏘️', category: 'kampus', check: (s) => (s.buildings?.length || 0) >= 10 },
   { id: 'max_level_building', name: '🏰 Düzey 5 Bina',      description: 'Bir binayı düzey 5\'e yükseltin.',                 icon: '🏰', category: 'kampus',  check: (s) => (s.buildings || []).some(b => b.level >= 5) },
   // Bölümler
   { id: 'new_department',  name: '📋 Yeni Bölüm',           description: 'İlk yeni bölümünüzü açın.',                        icon: '📋', category: 'bolum',   check: (s) => safeNum(s.stats?.departmentsOpened) >= 1 || (s.departments?.length || 0) > 3 },
@@ -1020,7 +1064,7 @@ export const ACHIEVEMENTS = [
   // Özel
   { id: 'first_graduate',  name: '🎓 İlk Mezun',            description: 'İlk mezunlarınızı verin.',                         icon: '🎓', category: 'ozel',    check: (s) => safeNum(s.alumniData?.totalGraduates) > 0 || (s.alumni?.length || 0) > 0 },
   { id: 'notable_alumni',  name: '🌟 Ünlü Mezun',           description: 'İlk ünlü mezununuz ortaya çıksın.',                icon: '🌟', category: 'ozel',    check: (s) => (s.alumniData?.notableAlumni || []).some(a => a.careerLevel >= 3) },
-  { id: 'survive_crisis',  name: '🛡️ Kriz Yöneticisi',     description: 'İlk krizi başarıyla atlatin.',                     icon: '🛡️', category: 'ozel',   check: (s) => safeNum(s.stats?.crisesHandled) >= 1 },
+  { id: 'survive_crisis',  name: '🛡️ Kriz Yöneticisi',     description: 'İlk krizi başarıyla atlatın.',                     icon: '🛡️', category: 'ozel',   check: (s) => safeNum(s.stats?.crisesHandled) >= 1 },
   // Akreditasyon
   { id: 'first_accreditation', name: '🏅 İlk Akreditasyon', description: 'Bir bölüm akreditasyon alsın.',                  icon: '🏅', category: 'akreditasyon', check: (s) => (s.departments || []).some(d => d.accreditation && Object.values(d.accreditation).some(a => a.status === 'granted')) },
   { id: 'abet_accreditation',  name: '🌍 ABET Akredite',    description: 'Bir bölüm ABET akreditasyonu alsın.',              icon: '🌍', category: 'akreditasyon', check: (s) => (s.departments || []).some(d => d.accreditation?.abet?.status === 'granted') },
@@ -1039,7 +1083,7 @@ export const ACHIEVEMENTS = [
   // v0.3: Kulüp Başarımları
   { id: 'kulup_kenti',    name: '🎭 Topluluk Kenti',    description: '8 veya daha fazla aktif topluluk kur.',                        icon: '🎭', category: 'ogrenci', check: (s) => (s.clubs?.active?.length || 0) >= 8 },
   { id: 'kulup_ustasi',   name: '⭐ Topluluk Ustası',   description: 'Bir topluluğu maksimum seviyeye yükselt.',                     icon: '⭐', category: 'ogrenci', check: (s) => (s.clubs?.active || []).some(c => c.level >= 3) },
-  { id: 'sosyal_kampus',  name: '🏫 Sosyal Kampüs',  description: 'Her kategoriden en az bir topluluk kur (5 kategori).',        icon: '🏫', category: 'ogrenci', check: (s) => {
+  { id: 'sosyal_kampus',  name: '🏫 Sosyal Yerleşke',  description: 'Her kategoriden en az bir topluluk kur (5 kategori).',        icon: '🏫', category: 'ogrenci', check: (s) => {
     const cats = new Set();
     for (const club of (s.clubs?.active || [])) {
       const type = CLUB_TYPES[club.typeId];

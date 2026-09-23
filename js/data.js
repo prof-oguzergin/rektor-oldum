@@ -13,6 +13,10 @@ export const SEMESTER_MONTHS          = 5;     // Bir dönemin yaklaşık ay say
 export const TURNS_PER_YEAR           = 2;     // Yılda kaç dönem (Güz + Bahar, yaz okulu hariç)
 export const TURNS_PER_YEAR_COOP      = 3;     // 3-dönem co-op modelinde yılda dönem sayısı
 export const MAX_PRESTIGE             = 100;   // Prestij tavanı
+// v0.5.2: doğrudan saygınlık katkılarının kalıcı payı (game.js _updatePrestige ve
+// alumni_events_achievements.js olay seçimleri aynı sabitleri kullanır)
+export const SAYGINLIK_OLAY_ETKI      = 0.12;  // ham katkının kalıcı kalan payı
+export const SAYGINLIK_OLAY_SINIR     = 0.4;   // dönem başına, kanal başına en büyük kalıcı değişim
 export const BANKRUPTCY_DEFICIT_TURNS = 3;    // Kaç dönem üst üste açık verilirse vakıf kapanır
 export const COOP_EMPLOYMENT_BONUS    = 0.30;  // Co-op mezun istihdam artışı
 export const COOP_SPONSOR_BONUS       = 0.20;  // Co-op sponsorluk geliri artışı
@@ -2381,7 +2385,7 @@ export const ADMIN_UNITS = {
     upgradeCost: [0, 4_000_000, 10_000_000],
     levelBonuses: {
       1: { satisfactionBonus: 0,  techBonus: 0,    description: 'Temel BT altyapı' },
-      2: { satisfactionBonus: 4,  techBonus: 0.10, description: 'Kampüs çapında WiFi 6' },
+      2: { satisfactionBonus: 4,  techBonus: 0.10, description: 'Yerleşke çapında WiFi 6' },
       3: { satisfactionBonus: 7,  techBonus: 0.20, description: 'HPC küme + bulut altyapı' },
     },
     satisfactionFactor: 'it',
@@ -2443,7 +2447,7 @@ export const ADMIN_UNITS = {
     id: 'guvenlik',
     name: 'Güvenlik',
     icon: '🛡️',
-    description: 'Kampüs güvenliği, giriş kontrol',
+    description: 'Yerleşke güvenliği, giriş denetimi',
     baseStaffNeeded: 4,
     staffPerStudentRatio: 1 / 300,
     maxLevel: 3,
@@ -2466,7 +2470,7 @@ export const ADMIN_UNITS = {
     id: 'temizlik_bakim',
     name: 'Temizlik ve Bakım',
     icon: '🧹',
-    description: 'Kampüs temizliği, bina bakımı, peyzaj',
+    description: 'Yerleşke temizliği, bina bakımı, peyzaj',
     baseStaffNeeded: 5,
     staffPerStudentRatio: 1 / 200,
     maxLevel: 3,
@@ -2474,7 +2478,7 @@ export const ADMIN_UNITS = {
     levelBonuses: {
       1: { satisfactionBonus: 0,  description: 'Temel temizlik hizmetleri' },
       2: { satisfactionBonus: 3,  description: 'Profesyonel peyzaj ekibi' },
-      3: { satisfactionBonus: 5,  description: 'Yeşil kampüs sertifikası' },
+      3: { satisfactionBonus: 5,  description: 'Yeşil yerleşke sertifikası' },
     },
     satisfactionFactor: 'temizlik',
     titles: [

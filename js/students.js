@@ -362,8 +362,10 @@ export function updateStudentYears(state, advanceYears = false) {
 
     const totalInDept = (deptData.year1?.count ?? 0) + (deptData.year2?.count ?? 0) +
                         (deptData.year3?.count ?? 0) + (deptData.year4?.count ?? 0);
-    const capacity    = dept.studentCapacity || 100;
-    const fillRatio   = capacity > 0 ? totalInDept / capacity : 1;
+    // v0.5.2: dört sınıflık bölüm kapasitesi (game.js _updateDeptCapacities, derslik koltuğundan);
+    // bilinmiyorsa ceza uygulanmaz
+    const capacity    = Number.isFinite(dept.studentCapacity) && dept.studentCapacity > 0 ? dept.studentCapacity : 0;
+    const fillRatio   = capacity > 0 ? totalInDept / capacity : 0;
     const sizeMult    = fillRatio <= 0.70 ? 1.0
                       : fillRatio <= 0.90 ? 0.95
                       : fillRatio <= 1.00 ? 0.88
@@ -513,7 +515,7 @@ export function processNewEnrollment(state) {
 
   const prestige = state.university.prestige;
   const quotas   = state.students.quotas || {};
-  const summary  = { enrolled: [], totalAdmitted: 0 };
+  const summary  = { enrolled: [], totalAdmitted: 0, engellenenBolumler: [] };
 
   state.departments.forEach(dept => {
     if (!dept.isOpen) return;
@@ -521,6 +523,16 @@ export function processNewEnrollment(state) {
     const deptId   = dept.id;
     const quota    = quotas[deptId];
     if (!quota) return;
+
+    // v0.5.2: kurucu kadro şartı. En az öğretim üyesi sayısına (dept.minFaculty, çoğu
+    // bölümde 3) ulaşmamış bölüm yeni öğrenci almaz; kontenjan bir sonraki yıla kalır.
+    const gerekliHoca = Number.isFinite(dept.minFaculty) ? dept.minFaculty : 3;
+    const bolumHocasi = (state.faculty || []).filter(f => (f.department || f.departmentId) === deptId).length;
+    if (bolumHocasi < gerekliHoca) {
+      const kontenjan = (quota.tamBurslu || 0) + (quota.yariBurslu || 0) + (quota.ucretli || 0);
+      summary.engellenenBolumler.push({ departmentId: deptId, gerekli: gerekliHoca, mevcut: bolumHocasi, kontenjan });
+      return;
+    }
 
     const deptTempl  = getDeptTemplate(deptId);
     const demand     = deptTempl?.baseStudentDemand ?? 1.0;
