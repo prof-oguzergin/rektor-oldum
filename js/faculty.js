@@ -392,6 +392,7 @@ export function generateFaculty(options = {}) {
     name,
     gender,
     age,
+    portreYasi: age,      // v0.5.0: portre işe girişteki yaşa göre sabit kalır
     title: resolvedTitle,
     department: resolvedDept,
     field: mainField,
@@ -656,7 +657,10 @@ export function renderFacultyPortrait(f, size = 96, extraClass = '') {
   if (cinsiyet !== 'female' && cinsiyet !== 'male') {
     return f.avatar ? renderFacultyAvatar(f.avatar, size) : '';
   }
-  const yas = Number.isFinite(f.age) ? f.age : (_YAS_GORUNUM[f.avatar?.ageAppearance] ?? 42);
+  // Portre işe girişteki yaşa göre seçilir; hoca yaşlandıkça yüzü başka birine dönüşmesin
+  const yas = Number.isFinite(f.portreYasi) ? f.portreYasi
+            : Number.isFinite(f.age) ? f.age
+            : (_YAS_GORUNUM[f.avatar?.ageAppearance] ?? 42);
   const grup = yas < 36 ? 0 : yas < 47 ? 1 : yas < 57 ? 2 : 3;
   const h = _portreHash(String(f.id ?? f.name ?? ''));
   const sayfa = h % 2;

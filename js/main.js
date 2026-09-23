@@ -8,8 +8,8 @@ console.log('[main] main.js modülü yükleniyor...');
 // IMPORT
 // ─────────────────────────────────────────────────────────────────────────────
 
-import { initGame, nextTurn, getState, setState, applyDecision, assignCourses, applyQuotas, assignDeptHead, reassignFacultyToDept, generateAdminCandidates, hireAdminStaff, upgradeAdminUnit, promoteAdminStaff, fireAdminStaff, updateAdminStaffSalary, assignUnitManager, RANDOM_EVENTS, ACHIEVEMENTS, getAchievementStats, organizeAlumniEvent, applyRandomEventChoice, ACCREDITATION_BODIES, applyForAccreditation, checkAccreditationRequirements, establishTTO, upgradeTTO, acceptDeal, rejectDeal, foundClub, upgradeClub, dissolveClub, CLUB_TYPES, CLUB_CATEGORIES, SPORTS, foundTeam, upgradeTeam, dissolveTeam, setCourseDifficulty, getUnitTitles, getUnitTitleSalary, isUnitManagerTitle, enableFreeMode } from './game.js?v=0.5.0';
-import { ADMIN_TITLES } from './data.js?v=0.4.53';
+import { initGame, nextTurn, getState, setState, applyDecision, assignCourses, applyQuotas, assignDeptHead, reassignFacultyToDept, generateAdminCandidates, hireAdminStaff, upgradeAdminUnit, promoteAdminStaff, fireAdminStaff, updateAdminStaffSalary, assignUnitManager, RANDOM_EVENTS, ACHIEVEMENTS, getAchievementStats, organizeAlumniEvent, applyRandomEventChoice, ACCREDITATION_BODIES, applyForAccreditation, checkAccreditationRequirements, establishTTO, upgradeTTO, acceptDeal, rejectDeal, foundClub, upgradeClub, dissolveClub, CLUB_TYPES, CLUB_CATEGORIES, SPORTS, foundTeam, upgradeTeam, dissolveTeam, setCourseDifficulty, getUnitTitles, getUnitTitleSalary, isUnitManagerTitle, enableFreeMode } from './game.js?v=0.5.1';
+import { ADMIN_TITLES } from './data.js?v=0.5.1';
 
 import {
   showScreen,
@@ -50,16 +50,16 @@ import {
   showGameWonModal,
   el,
   on,
-} from './ui.js?v=0.5.0';
+} from './ui.js?v=0.5.1';
 
-import { CHANGELOG, hasUnseenChanges, setLastSeenVersion } from './changelog.js?v=0.5.0';
+import { CHANGELOG, hasUnseenChanges, setLastSeenVersion } from './changelog.js?v=0.5.1';
 
 import { saveGame, loadGame, autoSave, getSaveSlots, deleteSave, exportSave, importSave, sanitizeForSave } from './save.js?v=0.4.63';
 import { calculateScore, scoreBreakdown, submitScore, getTopScores, initFirebase, isLeaderboardUnavailable, saveLocalScore, getLocalScores } from './leaderboard.js?v=0.4.45';
 import { showTutorialIfNeeded, replayTutorial } from './tutorial.js?v=0.4.55';
 import { initAudio, playSound, toggleMute, isMuted, startMusic, stopMusic, setMusicVolume, setSFXVolume, getAudioSettings } from './audio.js?v=0.4.24';
 
-import { generateTransferMarket, renderFacultyAvatar, renderFacultyPortrait, calculateOverallRating, getFacultyRatingTrend } from './faculty.js?v=0.5.0';
+import { generateTransferMarket, renderFacultyAvatar, renderFacultyPortrait, calculateOverallRating, getFacultyRatingTrend } from './faculty.js?v=0.5.1';
 import { resolveDecision } from './events.js?v=0.4.24';
 
 // Uluslararası sıralama modülleri
@@ -624,6 +624,12 @@ function _startGameWithState(state) {
     }
   };
 
+  // v0.5.0: senaryo süresi dolunca skor gönderme (serbest moda geçmeden önce)
+  window._onScenarioScore = () => {
+    hideModal();
+    _showLeaderboardSubmitModal(false);
+  };
+
   // Serbest mod: kazanma modal'ından "Serbest Devam Et" butonuyla çağrılır (Issue #26)
   window._onEnableFreeMode = () => {
     const result = enableFreeMode();
@@ -1033,6 +1039,21 @@ function _continueAfterEvents(summary, state) {
         showNotification('⚠️ Öğrenci sayısı kapasitenin %25 altında 3 dönemdir. 6 döneme tamamlanırsa kapanma riski.', 'warning', 6000);
       }
     });
+  }
+
+  // v0.5.0: senaryo süresi doldu; oyun bitmez, oyuncu skorunu gönderip sürdürebilir
+  if (summary?.scenarioEnded) {
+    setTimeout(() => {
+      showModal('⏳ Senaryo Süresi Doldu', `
+        <p style="line-height:1.65;margin:0 0 12px;">${summary.message}</p>
+        <p style="line-height:1.6;margin:0 0 18px;color:var(--text-muted);font-size:13px;">
+          Skorunu liderlik tablosuna şimdi gönderebilirsin. Sonraki dönemden itibaren oyun serbest modda sürer ve skor gönderilmez.
+        </p>
+        <div style="display:flex;gap:10px;flex-wrap:wrap;justify-content:flex-end;">
+          <button class="btn btn-secondary" onclick="window._onScenarioScore && window._onScenarioScore()">Skorumu Gönder</button>
+          <button class="btn btn-primary" onclick="window._onEnableFreeMode && window._onEnableFreeMode()">Serbest Devam Et</button>
+        </div>`);
+    }, 800);
   }
 
   // Oyun kazanıldıysa kutlama ekranını göster

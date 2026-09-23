@@ -28,7 +28,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@600;700;800&family=Cinzel:wght@600;700;800&display=swap">
-  <link rel="stylesheet" href="css/theme.css?v=0.5.0">
+  <link rel="stylesheet" href="css/theme.css?v=0.5.1">
   <link rel="preload" as="image" href="assets/ui/anasayfa_genis.webp?v=0.5.0" media="(min-aspect-ratio: 4/5)">
   <link rel="preload" as="image" href="assets/ui/anasayfa_dikey.webp?v=0.5.0" media="(max-aspect-ratio: 4/5)">
 
@@ -89,7 +89,7 @@
           <span class="menu-feature-chip">Bütçe ve yerleşke</span>
           <span class="menu-feature-chip">Dünya sıralaması</span>
         </div>
-        <div class="menu-version">v0.5.0</div>
+        <div class="menu-version">v0.5.1</div>
       </div>
     </div>
   </div>
@@ -104,13 +104,13 @@
         <button id="btn-back-menu" class="btn btn-ghost btn-sm">← Geri</button>
         <h2>Yeni Oyun Kur</h2>
         <div class="setup-step-indicator">
-          <span class="step active" data-step="0">Senaryo</span>
-          <span class="step-sep">›</span>
-          <span class="step" data-step="1">1. Profil</span>
-          <span class="step-sep">›</span>
-          <span class="step" data-step="2">2. Üniversite</span>
-          <span class="step-sep">›</span>
-          <span class="step" data-step="3">3. Bölümler</span>
+          <span class="step active" data-step="0"><b>1</b>Senaryo</span>
+          <span class="step-sep"></span>
+          <span class="step" data-step="1"><b>2</b>Profil</span>
+          <span class="step-sep"></span>
+          <span class="step" data-step="2"><b>3</b>Üniversite</span>
+          <span class="step-sep"></span>
+          <span class="step" data-step="3"><b>4</b>Bölümler</span>
         </div>
       </div>
 
@@ -125,7 +125,7 @@
             </div>
           </div>
           <div class="setup-nav">
-            <button class="btn btn-primary" id="btn-scenario-next">İleri →</button>
+            <button class="btn btn-primary setup-go" id="btn-scenario-next">İleri →</button>
           </div>
         </div>
 
@@ -146,7 +146,7 @@
           </div>
           <div class="setup-nav">
             <button class="btn btn-ghost" id="btn-step1-back">← Geri</button>
-            <button class="btn btn-primary" id="btn-step1-next">İleri →</button>
+            <button class="btn btn-primary setup-go" id="btn-step1-next">İleri →</button>
           </div>
         </div>
 
@@ -156,7 +156,7 @@
             <h3>Üniversite Tipi</h3>
             <div class="type-cards" id="type-cards">
               <div class="type-card" data-type="devlet">
-                <div class="type-card-icon">🏛️</div>
+                <div class="type-card-icon"><img src="assets/buildings/idari_bina_3.webp?v=0.5.0" alt="" width="112" height="112" loading="lazy"></div>
                 <div class="type-card-name">Devlet Üniversitesi</div>
                 <div class="type-card-desc">
                   Sabit harç, kamu bütçesi, daha yüksek başlangıç saygınlığı.
@@ -170,21 +170,21 @@
                 </div>
               </div>
               <div class="type-card" data-type="vakif">
-                <div class="type-card-icon">🏗️</div>
+                <div class="type-card-icon"><img src="assets/buildings/arastirma_merkezi_4.webp?v=0.5.0" alt="" width="112" height="112" loading="lazy"></div>
                 <div class="type-card-name">Vakıf Üniversitesi</div>
                 <div class="type-card-desc">
-                  Harç belirleyebilirsin, endowment fonu, esnek kadro politikası.
+                  Harç belirleyebilirsin, bağış fonu, esnek kadro politikası.
                   İtibar kazanmak daha zor.
                 </div>
                 <div class="type-card-stats">
                   <span class="type-stat good">+ Harç kontrolü</span>
                   <span class="type-stat good">+ Esnek bütçe yönetimi</span>
                   <span class="type-stat bad">− Düşük başlangıç saygınlığı</span>
-                  <span class="type-stat bad">− Öğrenci talebi unstable</span>
+                  <span class="type-stat bad">− Öğrenci talebi değişken</span>
                 </div>
               </div>
               <div class="type-card" data-type="coop">
-                <div class="type-card-icon">🤝</div>
+                <div class="type-card-icon"><img src="assets/buildings/lab_3.webp?v=0.5.0" alt="" width="112" height="112" loading="lazy"></div>
                 <div class="type-card-name">Co-op Üniversitesi</div>
                 <div class="type-card-desc">
                   Sanayi iş birliği yoğun, 3 dönem/yıl, sponsorluk gelirleri yüksek.
@@ -204,15 +204,15 @@
             <h3>Zorluk Seviyesi</h3>
             <div class="difficulty-cards" id="difficulty-cards">
               <div class="difficulty-card selected" data-difficulty="kolay">
-                <div class="diff-name">Kolay</div>
+                <div class="diff-name"><span class="diff-pips" aria-hidden="true"><i class="on"></i><i></i><i></i></span>Kolay</div>
                 <div class="diff-desc">Geniş bütçe, yavaş gider artışı. Öğrenmek için ideal.</div>
               </div>
               <div class="difficulty-card" data-difficulty="normal">
-                <div class="diff-name">Normal</div>
+                <div class="diff-name"><span class="diff-pips" aria-hidden="true"><i class="on"></i><i class="on"></i><i></i></span>Normal</div>
                 <div class="diff-desc">Dengeli ekonomi. Rakipler aktif, bütçe sıkı.</div>
               </div>
               <div class="difficulty-card" data-difficulty="zor">
-                <div class="diff-name">Zor</div>
+                <div class="diff-name"><span class="diff-pips" aria-hidden="true"><i class="on"></i><i class="on"></i><i class="on"></i></span>Zor</div>
                 <div class="diff-desc">Kısıtlı bütçe, agresif rakipler. Her karar kritik.</div>
               </div>
             </div>
@@ -220,7 +220,7 @@
 
           <div class="setup-nav">
             <button class="btn btn-ghost" id="btn-step2-back">← Geri</button>
-            <button class="btn btn-primary" id="btn-step2-next">İleri →</button>
+            <button class="btn btn-primary setup-go" id="btn-step2-next">İleri →</button>
           </div>
         </div>
 
@@ -236,13 +236,14 @@
               <button class="dept-filter-btn" data-cat="temel_bilim">Temel Bilim</button>
               <button class="dept-filter-btn" data-cat="sosyal">Sosyal</button>
               <button class="dept-filter-btn" data-cat="saglik">Sağlık</button>
+              <button class="dept-filter-btn" data-cat="sanat_mimarlik">Sanat ve Mimarlık</button>
             </div>
 
             <div class="dept-selection-grid" id="dept-selection-grid">
               <!-- JS tarafından doldurulacak -->
             </div>
 
-            <div class="dept-selection-limit-hint" id="dept-selection-limit-hint" style="background:rgba(78,204,163,0.08);border:1px solid rgba(78,204,163,0.25);border-radius:8px;padding:8px 12px;margin:8px 0;font-size:13px;color:var(--accent-green,#4ecca3);"></div>
+            <div class="dept-selection-limit-hint setup-note" id="dept-selection-limit-hint"></div>
             <div class="dept-selection-info">
               <span id="dept-selected-count">0</span> / <span id="dept-max-count">6</span> bölüm seçildi
               <span class="dept-selection-names" id="dept-selection-names"></span>
@@ -251,9 +252,7 @@
 
           <div class="setup-nav">
             <button class="btn btn-ghost" id="btn-step3-back">← Geri</button>
-            <button class="btn btn-success" id="btn-start-game" disabled>
-              🎓 Üniversiteyi Kur
-            </button>
+            <button class="btn btn-primary setup-go" id="btn-start-game" disabled>Üniversiteyi Kur</button>
           </div>
         </div>
       </div>
@@ -505,7 +504,7 @@
   <script>console.log('[inline] Script tag çalışıyor, before module');</script>
   <script type="module">
     // Cache-bust: build hash veya manuel versiyon. Her release'de bumpla.
-    const APP_VERSION = '0.5.0';
+    const APP_VERSION = '0.5.1';
     console.log('[inline-module] Sürüm:', APP_VERSION);
     try {
       const m = await import(`./js/main.js?v=${APP_VERSION}`);

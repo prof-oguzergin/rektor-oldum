@@ -8,7 +8,7 @@ import {
   MAX_PRESTIGE,
   INITIAL_RIVAL_UNIVERSITIES,
   DIFFICULTY_SETTINGS,
-} from './data.js?v=0.4.39';
+} from './data.js?v=0.5.1';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // YARDIMCI: 0-100 aralığına sıkıştır
@@ -98,8 +98,16 @@ export function calculateResearchScore(state) {
   const research = state.research;
   if (!research) return 0;
 
-  // Yayın bileşeni: her 5 yayın ~10 puan (tavan 40)
-  const pubScore  = clamp(Math.floor(research.publications / 5) * 10, 0, 40);
+  // Yayın bileşeni (v0.5.1): toplam yayın değil, son iki yılın hoca başına
+  // yıllık yayın hızı. Toplam sayı birkaç dönemde tavana vuruyordu.
+  const gecmis    = state.stats?.history || [];
+  const L         = gecmis.length;
+  const eskiKayit = L >= 4 ? gecmis[L - 4] : (L > 0 ? gecmis[0] : null);
+  const eskiYayin = eskiKayit ? (eskiKayit.publications || 0) : 0;
+  const donemSay  = L >= 4 ? 4 : Math.max(1, L);
+  const yillik    = Math.max(0, (research.publications || 0) - eskiYayin) / donemSay * 2;
+  const hiz       = yillik / Math.max(1, (state.faculty || []).length);
+  const pubScore  = clamp(40 * (1 - Math.exp(-hiz / 1.2)), 0, 40);
 
   // Proje bileşeni: aktif proje başına 4 puan (tavan 20)
   const projCount = (research.activeProjects || []).length;
@@ -193,6 +201,34 @@ export function calculateSatisfactionScore(state) {
  * @param {object} state — Oyun durumu
  * @returns {number} 0-100 prestij puanı
  */
+/**
+ * v0.5.1: kurumsal birikim tavanı. İtibar on yıllar içinde birikir; kuruluşundan
+ * bu yana geçen yıla göre ulaşılabilecek en yüksek saygınlık.
+ *   0 yıl -> 50, 10 yıl -> 70, 20 yıl -> 80, 30 yıl -> 86, 50 yıl -> 92
+ */
+export function kurumsalTavan(yas) {
+  return 50 + 45 * (1 - Math.exp(-Math.max(0, yas) / 18));
+}
+
+/**
+ * v0.5.1: üniversitenin o anki kalite puanı (0-100). Saygınlık bu puana her dönem
+ * yavaşça yaklaşır (game.js _updatePrestige); kurumsal tavanı aşamaz.
+ */
+export function calculateQualityScore(state) {
+  const education    = calculateEducationScore(state);
+  const research     = calculateResearchScore(state);
+  const alumni       = calculateAlumniScore(state);
+  const satisfaction = calculateSatisfactionScore(state);
+  const intlRatio    = state.university.internationalRatio || 0.02;
+  const hasConference = state.buildings.some(b => b.type === 'konferans' && b.isCompleted);
+  const internationalization = clamp(intlRatio * 500 + (hasConference ? 15 : 0));
+  const w = RANKING_WEIGHTS;
+  return clamp(
+    education * w.education + research * w.research + alumni * w.alumni +
+    satisfaction * w.satisfaction + internationalization * w.internationalization
+  );
+}
+
 export function calculatePrestige(state) {
   const education      = calculateEducationScore(state);
   const research       = calculateResearchScore(state);
@@ -259,27 +295,21 @@ export function updateRivals(state) {
     const change = { rivalId: rival.id, prestigeDelta: 0, budgetDelta: 0, actions: [] };
     const agg = rival.aggressiveness || 0.5;
 
-    // Prestij büyümesi: agresifliğe ve zorluk büyüme oranına bağlı şans
-    if (Math.random() < agg * growthRate) {
-      const prestigeGain = Math.round(randInt(1, 3) * growthRate);
-      rival.prestige     = clamp(rival.prestige + prestigeGain, 0, 98);
-      change.prestigeDelta += prestigeGain;
+    // v0.5.1: saygınlık, rakibin uzun vadeli seviyesinin çevresinde dalgalanır.
+    // Seviye yavaşça kayar; hırslı (agresif) rakipler hafifçe yükselir, parasız
+    // kalanlar geriler. Eskiden her rakip dönem dönem tırmanıp 98'e dayanıyordu.
+    if (!Number.isFinite(rival.hedefPrestij)) rival.hedefPrestij = rival.prestige;
+    const egilim = (agg - 0.5) * 0.04 * growthRate;
+    rival.hedefPrestij = clamp(rival.hedefPrestij + (Math.random() - 0.5) * 0.4 + egilim, 10, 90);
+    if ((rival.budget || 0) < 5_000_000) {
+      rival.hedefPrestij = clamp(rival.hedefPrestij - 0.4, 10, 90);
+      if (Math.random() < 0.3) change.actions.push(`${rival.name} bütçe sıkıntısı nedeniyle kalite kaybetti.`);
     }
-
-    // Rastgele prestij dalgalanması: hem yukarı hem aşağı (rakipler statik değil)
-    if (Math.random() < 0.45) {
-      const delta = randInt(-3, Math.ceil(2 * growthRate));
-      rival.prestige = clamp(rival.prestige + delta, 0, 98);
-      change.prestigeDelta += delta;
-    }
-
-    // Düşük bütçeli rakip prestij kaybedebilir
-    if ((rival.budget || 0) < 5_000_000 && Math.random() < 0.4) {
-      const decay = randInt(1, 3);
-      rival.prestige = clamp(rival.prestige - decay, 0, 98);
-      change.prestigeDelta -= decay;
-      change.actions.push(`${rival.name} bütçe sıkıntısı nedeniyle kalite kaybetti.`);
-    }
+    // Küçük adımlar, ondalıklı tutulur: yuvarlama sıçramaları sırayı karıştırmasın
+    const oncekiPrestij = rival.prestige;
+    const yeniPrestij = rival.prestige + (rival.hedefPrestij - rival.prestige) * 0.2 + (Math.random() - 0.5) * 0.3;
+    rival.prestige = Math.round(clamp(yeniPrestij, 0, 95) * 10) / 10;
+    change.prestigeDelta = rival.prestige - oncekiPrestij;
 
     // Bütçe değişimi: gelir - gider simülasyonu
     const budgetDelta = (rival.studentCount || 1000) * 30_000
@@ -293,9 +323,7 @@ export function updateRivals(state) {
       const targetsDept = rival.strengthDept === strongestDept.id
         || rival.strengthDept === strongestDept.category;
       if (targetsDept && Math.random() < agg * 0.4) {
-        const extraGain = randInt(1, 2);
-        rival.prestige  = clamp(rival.prestige + extraGain, 0, 98);
-        change.prestigeDelta += extraGain;
+        rival.hedefPrestij = clamp(rival.hedefPrestij + 0.3, 10, 90);
         change.actions.push(`${rival.name} "${strongestDept.name}" bölümüne agresif yatırım yaptı.`);
       }
     }
@@ -304,8 +332,6 @@ export function updateRivals(state) {
     if (Math.random() < agg * 0.25) {
       const hired = randInt(1, 3);
       rival.facultyCount = (rival.facultyCount || 30) + hired;
-      rival.prestige     = clamp(rival.prestige + 1, 0, 98);
-      change.prestigeDelta += 1;
       change.actions.push(`${rival.name} ${hired} yeni öğretim üyesi kadrosuna kattı.`);
     }
 
@@ -313,11 +339,8 @@ export function updateRivals(state) {
     if (Math.random() < 0.20) {
       const lost = randInt(1, 2);
       rival.facultyCount = Math.max(5, (rival.facultyCount || 30) - lost);
-      // Eğer çok fazla hoca kaybederse prestij düşer
-      if (rival.facultyCount < 20 && Math.random() < 0.5) {
-        rival.prestige = clamp(rival.prestige - 1, 0, 98);
-        change.prestigeDelta -= 1;
-      }
+      // Çok hoca kaybeden rakibin seviyesi geriler
+      if (rival.facultyCount < 20) rival.hedefPrestij = clamp(rival.hedefPrestij - 0.3, 10, 90);
       change.actions.push(`${rival.name} ${lost} öğretim üyesini kadroda tutamadı.`);
     }
 
@@ -348,6 +371,17 @@ export function updateRivals(state) {
     changes.push(change);
   });
 
+  // v0.5.1: 50 rakipten her dönem onlarca haber gelmesin; oyuncuya saygınlıkça
+  // en yakın rakiplerin haberlerinden en çok üçü gösterilir
+  const oyuncuP = state.university?.prestige ?? 50;
+  const haberler = [];
+  changes.forEach(c => {
+    const r = state.rivals.find(x => x.id === c.rivalId);
+    c.actions.forEach(m => haberler.push({ c, m, fark: Math.abs((r?.prestige ?? 0) - oyuncuP) + Math.random() * 6 }));
+    c.actions = [];
+  });
+  haberler.sort((a, b) => a.fark - b.fark).slice(0, 3).forEach(h => h.c.actions.push(h.m));
+
   return changes;
 }
 
@@ -363,9 +397,7 @@ export function updateRivals(state) {
  * @returns {Array} Sıralanmış üniversite listesi
  */
 export function updateRankings(state) {
-  // Oyuncunun güncel prestijini hesapla ve state'e yaz
-  const newPrestige       = calculatePrestige(state);
-  state.university.prestige = newPrestige;
+  // v0.5.1: saygınlık game.js _updatePrestige'de güncellenir; burada yalnız sıralanır
 
   // Tüm üniversiteleri bir diziye topla
   const allUniversities = [

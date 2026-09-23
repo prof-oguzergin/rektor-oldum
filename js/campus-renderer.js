@@ -264,6 +264,70 @@ const COLORS = {
 
 let _hoveredTile = null;   // { col, row }
 let _selectedBuilding = null;
+let _hoveredBuilding = null;           // v0.5.0: imlecin görsel olarak üstünde olduğu bina
+
+// v0.5.0: isabet listesi. Her çizimde binaların ekrandaki görsel dikdörtgenleri
+// çizim sırasıyla kaydedilir; imleç en üstteki binanın saydam olmayan pikseline
+// denk geliyorsa o bina seçilir (çatı ve kule taban izinin dışında kalsa da).
+const _hitLists  = new WeakMap();      // canvas -> [{ b, img, dx, dy, dw, dh }]
+const _alphaCache = {};                // görsel adresi -> { w, h, a } | null
+let   _currentHits = null;
+
+function _alphaMask(img) {
+  const anahtar = img.src;
+  if (anahtar in _alphaCache) return _alphaCache[anahtar];
+  let maske = null;
+  try {
+    const w = Math.max(1, Math.round(img.naturalWidth / 2));
+    const h = Math.max(1, Math.round(img.naturalHeight / 2));
+    const c = document.createElement('canvas');
+    c.width = w; c.height = h;
+    const cx = c.getContext('2d', { willReadFrequently: true });
+    cx.drawImage(img, 0, 0, w, h);
+    const d = cx.getImageData(0, 0, w, h).data;
+    const a = new Uint8Array(w * h);
+    for (let i = 0; i < a.length; i++) a[i] = d[i * 4 + 3];
+    maske = { w, h, a };
+  } catch (e) {
+    maske = null;   // okunamazsa dikdörtgen yeter
+  }
+  _alphaCache[anahtar] = maske;
+  return maske;
+}
+
+/** Fare olayını dünya koordinatına çevirir (kamera dönüşümünün tersi). */
+function _worldPoint(e, canvas) {
+  const rect = canvas.getBoundingClientRect();
+  const sx = canvas.width / rect.width;
+  const sy = canvas.height / rect.height;
+  const cam = _cameras.get(canvas) || { s: 1, tx: 0, ty: 0 };
+  return {
+    x: ((e.clientX - rect.left) * sx - cam.tx) / cam.s,
+    y: ((e.clientY - rect.top) * sy - cam.ty) / cam.s,
+  };
+}
+
+/** İmlecin altındaki bina (görselin görünen pikseline göre), yoksa null. */
+export function pickBuildingAt(e, canvas) {
+  const hits = _hitLists.get(canvas);
+  if (!hits || !hits.length) return null;
+  const p = _worldPoint(e, canvas);
+  for (let i = hits.length - 1; i >= 0; i--) {
+    const h = hits[i];
+    if (p.x < h.dx || p.y < h.dy || p.x > h.dx + h.dw || p.y > h.dy + h.dh) continue;
+    if (!h.img) return h.b;
+    const m = _alphaMask(h.img);
+    if (!m) return h.b;
+    const px = Math.min(m.w - 1, Math.floor((p.x - h.dx) / h.dw * m.w));
+    const py = Math.min(m.h - 1, Math.floor((p.y - h.dy) / h.dh * m.h));
+    if (m.a[py * m.w + px] > 40) return h.b;
+  }
+  return null;
+}
+
+function _ayniBina(a, b) {
+  return !!a && !!b && (a === b || (a.id != null && a.id === b.id));
+}
 
 // ─────────────────────────────────────────────────────────────────────────────
 // İZOMETRİK PROJEKSİYON
@@ -1324,6 +1388,13 @@ function drawBuilding(ctx, building, state) {
     _drawBuildingSprite(ctx, building, _getSprite(spKey), BUILDING_SPRITES[spKey], x, baseY, gw, gh);
     return;
   }
+  if (_currentHits) {
+    const ust = isoProject(gx, gy), sag = isoProject(gx + gw, gy);
+    const alt = isoProject(gx + gw, gy + gh), sol = isoProject(gx, gy + gh);
+    const yuk = TILE_W * 1.2;
+    _currentHits.push({ b: building, img: null, dx: sol.x, dy: ust.y - yuk,
+                        dw: sag.x - sol.x, dh: alt.y - ust.y + yuk });
+  }
   if (spDurum === 'yukleniyor') {
     // Görsel gelene kadar yalnız taş zemin (eski kutu çizimi bir an görünüp kaybolmasın)
     for (let dc = 0; dc < gw; dc++) {
@@ -1545,11 +1616,9 @@ function _drawBuildingSprite(ctx, b, img, m, x, baseY, gw, gh) {
   const dy   = baseY - m.padB * k;
   const topY = dy + (m.top || 0) * k;
 
-  const secili  = !!_selectedBuilding && (_selectedBuilding === b ||
-    (_selectedBuilding.id != null && _selectedBuilding.id === b.id));
-  const uzerinde = _hoveredTile &&
-    _hoveredTile.col >= b.gridX && _hoveredTile.col < b.gridX + gw &&
-    _hoveredTile.row >= b.gridY && _hoveredTile.row < b.gridY + gh;
+  const secili   = _ayniBina(_selectedBuilding, b);
+  const uzerinde = _ayniBina(_hoveredBuilding, b);
+  if (_currentHits) _currentHits.push({ b, img, dx, dy, dw: m.w * k, dh: m.h * k });
 
   ctx.save();
   ctx.imageSmoothingEnabled = true;
@@ -1734,8 +1803,8 @@ export function renderCampusMap(canvas, state) {
     }
   }
 
-  // 2. Hover highlight
-  if (_hoveredTile) {
+  // 2. Hover highlight (bina üzerindeyken bina parlar, karo vurgusu gerekmez)
+  if (_hoveredTile && !_hoveredBuilding) {
     _drawTileHighlight(ctx, _hoveredTile.col, _hoveredTile.row, COLORS.hoverGlow);
   }
 
@@ -1764,6 +1833,8 @@ export function renderCampusMap(canvas, state) {
   }
 
   renderables.sort((a, b) => (a.depth - b.depth) || (SIRA[a.type] - SIRA[b.type]) || (a.row - b.row));
+  const hits = [];
+  _currentHits = hits;
 
   for (const r of renderables) {
     if (r.type === 'tree') {
@@ -1778,6 +1849,9 @@ export function renderCampusMap(canvas, state) {
       drawBuilding(ctx, r.data, state);
     }
   }
+
+  _currentHits = null;
+  _hitLists.set(canvas, hits);
 
   // 5. Kampüs etiketleri (fiziksel tuval koordinatlarında, yarı saydam hap içinde)
   ctx.setTransform(1, 0, 0, 1, 0, 0);
@@ -1818,6 +1892,11 @@ function _drawPill(ctx, metin, x, y, hiza, kalin, kz = 1) {
  * @returns {object|null} — building object veya null
  */
 export function handleCampusClick(e, canvas, state) {
+  const secilen = pickBuildingAt(e, canvas);
+  if (secilen) {
+    _selectedBuilding = secilen;
+    return secilen;
+  }
   const tile = isoUnproject(e.offsetX, e.offsetY, canvas);
   const buildings = state.buildings || [];
 
@@ -1846,6 +1925,9 @@ export function handleCampusHover(e, canvas, state) {
   } else {
     _hoveredTile = null;
   }
+  _hoveredBuilding = pickBuildingAt(e, canvas);
+  canvas.style.cursor = _hoveredBuilding ? 'pointer' : '';
+  return _hoveredBuilding;
 }
 
 /**
@@ -1853,5 +1935,6 @@ export function handleCampusHover(e, canvas, state) {
  */
 export function clearHover() {
   _hoveredTile = null;
+  _hoveredBuilding = null;
   _selectedBuilding = null;
 }

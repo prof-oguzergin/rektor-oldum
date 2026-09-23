@@ -1225,7 +1225,7 @@ export const DEPT_TO_FACULTY = (() => {
 // RAKIP ÜNİVERSİTELER
 // ─────────────────────────────────────────────────────────────────────────────
 
-export const INITIAL_RIVAL_UNIVERSITIES = [
+const _TEMEL_RAKIPLER = [
   {
     id:           'bogazici_teknik',
     name:         'Boğaziçi Teknik Üniversitesi',
@@ -1303,6 +1303,81 @@ export const INITIAL_RIVAL_UNIVERSITIES = [
     facultyCount:   30,
     studentCount:   1800,
   },
+];
+
+// v0.5.1: ülke ölçeğinde rakip havuzu. Adlar kurgusaldır. Dağılım: birkaç seçkin
+// (79-85), bir grup güçlü (65-78), çok sayıda orta (45-63) ve alt sıra (23-44).
+// [kimlik, ad, tür, saygınlık, güçlü bölüm]
+const _EK_RAKIPLER = [
+  ['galata_teknik',       'Galata Teknik Üniversitesi',        'devlet', 85, 'bilgisayar_muh'],
+  ['yildiztepe',          'Yıldıztepe Üniversitesi',           'devlet', 83, 'fizik'],
+  ['kavaklidere_bilim',   'Kavaklıdere Bilim Üniversitesi',    'vakif',  81, 'isletme'],
+  ['kizilirmak_teknik',   'Kızılırmak Teknik Üniversitesi',    'devlet', 79, 'makine'],
+  ['sariyer_vakif',       'Sarıyer Vakıf Üniversitesi',        'vakif',  78, 'hukuk'],
+  ['goksu',               'Göksu Üniversitesi',                'devlet', 76, 'tip'],
+  ['camlica_bilim',       'Çamlıca Bilim Üniversitesi',        'vakif',  75, 'yapay_zeka'],
+  ['besiktepe',           'Beşiktepe Üniversitesi',            'devlet', 74, 'elektrik_elektronik'],
+  ['toroslar_teknik',     'Toroslar Teknik Üniversitesi',      'devlet', 72, 'insaat'],
+  ['uludere',             'Uludere Üniversitesi',              'devlet', 70, 'kimya'],
+  ['kiyikent',            'Kıyıkent Üniversitesi',             'vakif',  69, 'iletisim'],
+  ['meric',               'Meriç Üniversitesi',                'devlet', 67, 'biyoloji'],
+  ['yesilirmak',          'Yeşilırmak Üniversitesi',           'devlet', 66, 'iktisat'],
+  ['kackar_teknik',       'Kaçkar Teknik Üniversitesi',        'devlet', 65, 'bilgisayar_muh'],
+  ['gediz_bilim',         'Gediz Bilim Üniversitesi',          'vakif',  63, 'psikoloji'],
+  ['sakarya_vadisi',      'Sakarya Vadisi Üniversitesi',       'devlet', 62, 'endustri'],
+  ['porsuk',              'Porsuk Üniversitesi',               'devlet', 61, 'matematik'],
+  ['munzur_vadisi',       'Munzur Vadisi Üniversitesi',        'devlet', 59, 'cevre_muh'],
+  ['kapidag',             'Kapıdağ Üniversitesi',              'devlet', 58, 'gida_muh'],
+  ['ergene',              'Ergene Üniversitesi',               'devlet', 57, 'makine'],
+  ['bafa_bilim',          'Bafa Bilim Üniversitesi',           'vakif',  56, 'mimarlik'],
+  ['akcakoca_vakif',      'Akçakoca Vakıf Üniversitesi',       'vakif',  54, 'isletme'],
+  ['tuzla_teknoloji',     'Tuzla Teknoloji Üniversitesi',      'vakif',  53, 'yazilim_muh'],
+  ['alacahoyuk',          'Alacahöyük Üniversitesi',           'devlet', 52, 'siyaset_bilimi'],
+  ['goreme',              'Göreme Üniversitesi',               'devlet', 51, 'guzel_sanatlar'],
+  ['salda',               'Salda Üniversitesi',                'devlet', 50, 'biyoloji'],
+  ['sapanca_bilim',       'Sapanca Bilim Üniversitesi',        'vakif',  49, 'psikoloji'],
+  ['nemrut',              'Nemrut Üniversitesi',               'devlet', 47, 'hukuk'],
+  ['ilgaz',               'Ilgaz Üniversitesi',                'devlet', 46, 'iktisat'],
+  ['datca_vakif',         'Datça Vakıf Üniversitesi',          'vakif',  45, 'iletisim'],
+  ['hazar',               'Hazar Üniversitesi',                'devlet', 44, 'kimya'],
+  ['pamukova',            'Pamukova Üniversitesi',             'devlet', 43, 'insaat'],
+  ['egirdir',             'Eğirdir Üniversitesi',              'devlet', 41, 'gida_muh'],
+  ['kemer_vakif',         'Kemer Vakıf Üniversitesi',          'vakif',  40, 'isletme'],
+  ['seyhan_vadisi',       'Seyhan Vadisi Üniversitesi',        'devlet', 39, 'tip'],
+  ['murat_dagi',          'Murat Dağı Üniversitesi',           'devlet', 38, 'fizik'],
+  ['zigana',              'Zigana Üniversitesi',               'devlet', 36, 'cevre_muh'],
+  ['uzungol',             'Uzungöl Üniversitesi',              'devlet', 34, 'biyoloji'],
+  ['bozcaada_vakif',      'Bozcaada Vakıf Üniversitesi',       'vakif',  33, 'psikoloji'],
+  ['aglasun',             'Ağlasun Üniversitesi',              'devlet', 31, 'matematik'],
+  ['kizilcahamam_vakif',  'Kızılcahamam Vakıf Üniversitesi',   'vakif',  30, 'iletisim'],
+  ['harran_ovasi',        'Harran Ovası Üniversitesi',         'devlet', 28, 'gida_muh'],
+  ['palandoken',          'Palandöken Üniversitesi',           'devlet', 27, 'insaat'],
+  ['aras',                'Aras Üniversitesi',                 'devlet', 25, 'iktisat'],
+  ['yesilyurt_vakif',     'Yeşilyurt Vakıf Üniversitesi',      'vakif',  23, 'isletme'],
+];
+
+/** Kısa tanımdan rakip nesnesi üretir; ölçekler saygınlıkla uyumlu tutulur. */
+function _rakipUret([id, name, type, prestige, strengthDept], i) {
+  return {
+    id,
+    name,
+    type,
+    prestige,
+    budget:         Math.round((30 + prestige * 1.6) * 1_000_000),
+    strengthDept,
+    weakDept:       'saglik',
+    aggressiveness: Math.round((0.3 + ((i * 37) % 60) / 100) * 100) / 100,
+    researchFocus:  prestige >= 70,
+    avgYKS:         Math.round(250_000 * Math.exp(-prestige / 17)),
+    publicationsPerSemester: Math.round((prestige * prestige) / 110),
+    facultyCount:   Math.round(20 + prestige * 1.2),
+    studentCount:   Math.round(800 + prestige * 45),
+  };
+}
+
+export const INITIAL_RIVAL_UNIVERSITIES = [
+  ..._TEMEL_RAKIPLER,
+  ..._EK_RAKIPLER.map(_rakipUret),
 ];
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -2570,17 +2645,18 @@ export const SCENARIOS = {
     name: 'Yeni Kurulan Üniversite',
     icon: '🌱',
     subtitle: 'Küçük bütçe, büyük potansiyel',
-    description: 'Sıfırdan kurulan bir vakıf üniversitesini dünya sıralamasına taşıyın. Az bölümle başlayacak, hızlı büyümek zorunda kalacaksınız.',
+    description: 'Sıfırdan kurulan bir vakıf üniversitesini 15 yılda Türkiye\'nin ilk 30 üniversitesi arasına taşıyın. Az bölümle başlayacak, hızlı büyümek zorunda kalacaksınız.',
     difficulty: 'normal',
     universityType: 'vakif',
     startBudgetOverride: 60_000_000,
     startPrestigeOverride: 10,
+    foundedYearsAgo: 0,             // v0.5.1: kurumsal birikim yeni başlıyor
     forcedDepartments: ['bilgisayar_muh', 'isletme'],
     maxStartDepartments: 3,
     specialRules: {
       rapidGrowthBonus: 0.3,         // İlk 4 dönem öğrenci büyümesi +%30
     },
-    winCondition: { type: 'prestige', target: 60, maxTurns: 20 },
+    winCondition: { type: 'ranking', target: 30, maxTurns: 30 },
     flavorText: '"Her büyük yolculuk küçük bir adımla başlar."',
   },
 
@@ -2589,11 +2665,12 @@ export const SCENARIOS = {
     name: 'Köklü Devlet Üniversitesi',
     icon: '🏛️',
     subtitle: 'Miras ve bürokratik zorluklar',
-    description: '50 yıllık geçmişi olan devlet üniversitesinin sıralama düşüşünü durdurun. Eski binalar ve bürokratik engeller sizi bekliyor.',
+    description: '50 yıllık geçmişi olan devlet üniversitesinin düşüşünü durdurup 15 yılda Türkiye\'nin ilk 10 üniversitesi arasına sokun. Eski binalar ve bürokratik engeller sizi bekliyor.',
     difficulty: 'normal',
     universityType: 'devlet',
     startBudgetOverride: null,      // UNIVERSITY_TYPES.devlet default
     startPrestigeOverride: 55,
+    foundedYearsAgo: 50,            // v0.5.1: 50 yıllık geçmiş
     forcedDepartments: ['bilgisayar_muh', 'elektrik_elektronik', 'makine', 'insaat', 'fizik', 'kimya', 'matematik', 'isletme', 'iktisat', 'hukuk', 'mimarlik', 'psikoloji'],
     maxStartDepartments: 12,
     specialRules: {
@@ -2601,7 +2678,7 @@ export const SCENARIOS = {
       agingInfrastructure: true,    // Binalar %60 durumda başlar
       bureaucracyPenalty: 0.15,     // İşlem gecikmesi +%15
     },
-    winCondition: { type: 'ranking', target: 30, maxTurns: 25 },
+    winCondition: { type: 'ranking', target: 10, maxTurns: 30 },
     flavorText: '"Geleneği korurken geleceği inşa et."',
   },
 
@@ -2615,6 +2692,7 @@ export const SCENARIOS = {
     universityType: 'vakif',
     startBudgetOverride: 20_000_000,
     startPrestigeOverride: 15,
+    foundedYearsAgo: 12,            // v0.5.1
     forcedDepartments: ['bilgisayar_muh', 'isletme', 'psikoloji'],
     maxStartDepartments: 3,
     specialRules: {

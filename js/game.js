@@ -32,10 +32,10 @@ import {
   ACCREDITATION_BODIES,
   SCENARIOS,
   BANKS,
-} from './data.js?v=0.4.53';
+} from './data.js?v=0.5.1';
 
 import { calculateEconomy, applyBudget, calculateLoanPayment, processLoanPayments } from './economy.js?v=0.4.24';
-import { generateInitialFaculty, updateAllFacultyHappiness, generateApplicants, generateFaculty, getSalaryRange, calculateOverallRating, getFacultyRatingTrend } from './faculty.js?v=0.5.0';
+import { generateInitialFaculty, updateAllFacultyHappiness, generateApplicants, generateFaculty, getSalaryRange, calculateOverallRating, getFacultyRatingTrend } from './faculty.js?v=0.5.1';
 import {
   generateInitialStudents,
   getTotalEnrolled,
@@ -53,7 +53,7 @@ import {
   processGraduation,
   processAdmissions,
 } from './students.js?v=0.4.24';
-import { calculatePrestige, updateRivals, updateRankings } from './ranking.js?v=0.4.39';
+import { calculatePrestige, calculateQualityScore, kurumsalTavan, updateRivals, updateRankings } from './ranking.js?v=0.5.1';
 import { calculateIntlPillars, calculateIntlTotalScore, findIntlRank } from './intl_ranking.js?v=0.4.39';
 import { THE_2024 } from './intl_rankings_the2024.js?v=0.4.39';
 import { checkForEvents, applyEventEffects } from './events.js?v=0.4.24';
@@ -1709,6 +1709,14 @@ export function initGame(playerName, universityName, universityType, difficulty,
     _state.meta.scenarioPositiveTurns = 0;
   }
 
+  // v0.5.1: kurumsal birikim yaşı ve açılış sıralaması (50 rakip arasında)
+  _state.university.foundedYearsAgo = (scenarioId && SCENARIOS[scenarioId]?.foundedYearsAgo != null)
+    ? SCENARIOS[scenarioId].foundedYearsAgo
+    : (KURULUS_YASI[universityType] ?? 15);
+  _state.university._prestigeBase   = _state.university.prestige;
+  _state.university.prestigeCeiling = Math.round(_prestijTavani(_state));
+  updateRankings(_state);
+
   return {
     success: true,
     message: `${universityName} kuruldu! ${difficulty} modda oyun başlıyor.`,
@@ -3188,6 +3196,8 @@ function runSimulation() {
   // (player + rakipler) prestige'e gore sirala. Bu cagri olmadigi icin
   // state.university.ranking baslangic 50'sinden hic degismiyor, leaderboard'da
   // herkesin rank'i 50 gozukuyordu (kullanici raporu, 5 May 2026).
+  // v0.5.1: saygınlık dönemin en sonunda nextTurn içinde güncellenir (bkz. _updatePrestige);
+  // burada yalnız ara sıralama yapılır
   updateRankings(_state);
 
   // ── 7c. ULUSLARARASI + DÜNYA SIRALAMA HESABI — STATE'E YAZ ─────────────────
@@ -3205,44 +3215,7 @@ function runSimulation() {
     _state.university.intlRanking     = intlWorldRank;
   }
 
-  // TODO: ranking.js'den: const rankResult = calculateRanking(_state);
-  // Placeholder prestige güncelleme
-  const researchScore   = Math.min(100, (_state.research.publications / 10) * 30);
-  const avgSatisfaction = _state.students.overallSatisfaction ?? 50;
-  const avgFacultyHappy = _state.faculty.length > 0
-    ? _state.faculty.reduce((s, f) => s + (f.happiness || 60), 0) / _state.faculty.length
-    : 50;
-
-  const prestigeContrib =
-    researchScore   * RANKING_WEIGHTS.research      +
-    avgSatisfaction * RANKING_WEIGHTS.satisfaction   +
-    avgFacultyHappy * RANKING_WEIGHTS.education;
-
-  const currentPrestige = isNaN(_state.university.prestige) ? 0 : _state.university.prestige;
-  const targetPrestige = Math.round((isNaN(prestigeContrib) ? currentPrestige : prestigeContrib) * 0.4 + currentPrestige * 0.6);
-  let prestigeDelta  = Math.sign(targetPrestige - currentPrestige) || 0;
-
-  // Yatırım yapılmadığında prestij durgunlaşır veya geriler
-  // Araştırma yatırımı yoksa ve memnuniyet düşükse negatif etki
-  const researchInvesting = (_state.research?.activeResearchProjects?.length || 0) > 0
-    || (_state.research?.publications || 0) > 0;
-  const budgetHealthy = _state.university.budget > 0;
-  if (!researchInvesting && !budgetHealthy) {
-    prestigeDelta = Math.min(prestigeDelta, -1);  // yatırım yok + bütçe açık → prestij düşer
-  } else if (!researchInvesting && avgFacultyHappy < 50) {
-    prestigeDelta = Math.min(prestigeDelta, 0);   // yatırım yok + mutsuz hocalar → prestij stagnate
-  }
-
-  // Yıldız hoca prestij bonusunu ekle (dönem başına maks +3)
-  prestigeDelta += Math.min(3, starFacultyPrestigeBonus);
-
-  // Dönem başına maks +3 / maks -3 ile sınırla (çok ani değişimleri önle)
-  prestigeDelta = Math.max(-3, Math.min(3, prestigeDelta));
-
-  _state.university.prestige = Math.max(0, Math.min(MAX_PRESTIGE,
-    currentPrestige + prestigeDelta));
-
-  results.prestigeDelta = prestigeDelta;
+  // (v0.5.1: eski yer tutucu saygınlık hesabı kaldırıldı; bkz. _updatePrestige)
 
   // Trend ısılarını dönem sonunda güncelle
   _updateTrendHeats();
@@ -3685,6 +3658,12 @@ export function nextTurn() {
     return { gameOver: _gameOver, gameWon: _gameWon, message: 'Oyun zaten bitti.' };
   }
 
+  // Senaryo süresi dolduysa oyun serbest modda sürer (skor o dönem gönderilebilirdi)
+  if (_state.meta.scenarioTimedOut && !_state._internal?.freeMode) {
+    if (!_state._internal) _state._internal = {};
+    _state._internal.freeMode = true;
+  }
+
   // Bekleyen karar varsa tur geçişine izin verme
   if (_state.events.pendingDecision) {
     return {
@@ -3734,6 +3713,12 @@ export function nextTurn() {
   // Lab binalarına göre bölüm labScore'larını güncelle
   _recalcDeptLabScores(_state);
 
+  // v0.5.1: saygınlık, simülasyonun bütün doğrudan eklemelerinden (olay, ödül,
+  // mezun, akreditasyon) sonra tek seferde güncellenir; oyuncu ekranda bir dönem
+  // sıçrayıp ertesi dönem geri inen değer görmez. Ardından son sıralama.
+  simResults.prestigeDelta = _updatePrestige(_state, Math.min(3, simResults.starFacultyPrestige || 0));
+  updateRankings(_state);
+
   // Bütçe geçmişine ekle
   _state.university.budgetHistory.push({
     turn:   _state.meta.turn,
@@ -3765,6 +3750,15 @@ export function nextTurn() {
     _state.meta.year++;
   }
   _state.meta.turn++;
+
+  // v0.5.0: hoca yaşlanması, emeklilik, vefat (yeni akademik yıl güzle başlar)
+  {
+    const yasamOlaylari = _processFacultyLifecycle(_state, prevSemester === 'bahar');
+    if (yasamOlaylari.length > 0) {
+      if (!simResults.events) simResults.events = [];
+      simResults.events.push(...yasamOlaylari);
+    }
+  }
 
   // Yanıtsız ilan başvurularını temizle (2 dönem geçmişse otomatik çekilir)
   {
@@ -4178,6 +4172,180 @@ export function getAccreditationPrestigeBonus(dept) {
  *
  * @returns {{ gameOver: boolean, gameWon: boolean, reason: string|null }}
  */
+// ─────────────────────────────────────────────────────────────────────────────
+// v0.5.1: SAYGINLIK GÜNCELLEMESİ (tek yer)
+// Saygınlık, üniversitenin kalite puanına her dönem yavaşça yaklaşır ve kurumsal
+// birikim tavanını (kuruluştan bu yana geçen yıl) aşamaz. Olay, ödül, mezun ve
+// yıldız hoca gibi doğrudan eklemelerin kalıcı etkisi sınırlıdır. Eskiden bu
+// eklemeler sınırsız birikiyor, saygınlık iki yılda 85'i geçiyordu.
+// ─────────────────────────────────────────────────────────────────────────────
+
+const KURULUS_YASI     = { devlet: 25, vakif: 8, coop: 5, us_private: 8 };
+const SAYGINLIK_HIZ    = 0.05;   // kalite puanına dönemlik yaklaşma oranı
+const SAYGINLIK_ADIM   = 1.0;    // kalite kaynaklı dönemlik en büyük değişim
+const OLAY_ETKI        = 0.12;   // doğrudan eklemelerin kalıcı kalan payı
+const OLAY_SINIR       = 0.4;    // olay kaynaklı dönemlik en büyük değişim
+
+function _kurumsalYas(state) {
+  return (state.university.foundedYearsAgo ?? 15) + Math.max(0, (state.meta?.year || 1) - 1);
+}
+
+/** Saygınlık tavanı: kurumsal birikim; vakıflarda ilk 30 yıl ayrıca 75. */
+function _prestijTavani(state) {
+  let tavan = Math.min(MAX_PRESTIGE, kurumsalTavan(_kurumsalYas(state)));
+  if (state.meta?.universityType === 'vakif' && (state.meta?.year || 1) <= 30) tavan = Math.min(tavan, 75);
+  return tavan;
+}
+
+function _updatePrestige(state, ekBonus = 0) {
+  const u = state.university;
+  const simdi = Number.isFinite(u.prestige) ? u.prestige : 0;
+  const taban = Number.isFinite(u._prestigeBase) ? u._prestigeBase : simdi;
+  const olay  = (simdi - taban) + (ekBonus || 0);           // son güncellemeden bu yana eklenenler
+  const kalite = calculateQualityScore(state);
+  const tavan  = _prestijTavani(state);
+  const hedef  = Math.min(kalite, tavan);
+
+  const kayma    = Math.max(-SAYGINLIK_ADIM, Math.min(SAYGINLIK_ADIM, (hedef - taban) * SAYGINLIK_HIZ));
+  const olayEtki = Math.max(-OLAY_SINIR, Math.min(OLAY_SINIR, olay * OLAY_ETKI));
+  const d = kayma + olayEtki;
+  // Olasılıklı yuvarlama: saygınlık tam sayı kalır, beklenen değer korunur
+  const tam = Math.floor(d) + (Math.random() < d - Math.floor(d) ? 1 : 0);
+  let yeni = taban + tam;
+  // Olaylar tavanın üstüne taşıyamaz; tavanın üstündeki (eski kayıt) değer yalnız iner
+  yeni = Math.min(yeni, Math.max(tavan, taban));
+  yeni = Math.max(0, Math.min(MAX_PRESTIGE, Math.round(yeni)));
+
+  u.prestige       = yeni;
+  u._prestigeBase  = yeni;
+  u.qualityScore   = Math.round(kalite);
+  u.prestigeCeiling = Math.round(tavan);
+  return yeni - taban;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// v0.5.0: HOCA YAŞAM DÖNGÜSÜ (yaşlanma, emeklilik, vefat)
+// Yaş her akademik yıl başında (güz dönemine geçerken) bir artar. 67 yaşını
+// dolduran hoca yaş haddinden emekli olur (2547 sayılı Kanun). 61 yaşından sonra
+// her yıl erken emeklilik olasılığı vardır. Vefat olasılığı yaşla artar; yıllık
+// değerler Türkiye yaşam tablosu mertebesindedir, her dönem yarısı uygulanır.
+// ─────────────────────────────────────────────────────────────────────────────
+
+const YAS_HADDI = 67;
+const UNVAN_VARSAYILAN_YAS = { argö: 28, dr_ogr_uyesi: 36, docent: 45, profesor: 55 };
+const UNVAN_KISA = { profesor: 'Prof. Dr.', docent: 'Doç. Dr.', dr_ogr_uyesi: 'Dr. Öğr. Üyesi', argö: 'Arş. Gör.' };
+
+function _yillikVefatOlasiligi(yas) {
+  if (yas < 40) return 0.001;
+  if (yas < 50) return 0.0025;
+  if (yas < 60) return 0.006;
+  if (yas < 65) return 0.011;
+  return 0.016;
+}
+
+/** Yaşı olmayan (eski kayıt) hocaya unvanına göre yaş verir; portre yaşını sabitler. */
+function _hocaYasiniTamamla(f) {
+  if (!Number.isFinite(f.age)) {
+    f.age = (UNVAN_VARSAYILAN_YAS[f.title] ?? 40) + randInt(-3, 5);
+  }
+  if (!Number.isFinite(f.portreYasi)) f.portreYasi = f.age;
+}
+
+/**
+ * Dönem sonu yaşam döngüsü. Ayrılan hocalar kadrodan ve bölüm kayıtlarından
+ * çıkarılır, boşalan bölüm başkanlıkları doldurulur. Dönem özeti olaylarını döner.
+ * @param {object} state
+ * @param {boolean} yeniYil  güz dönemine geçildiyse true
+ */
+function _processFacultyLifecycle(state, yeniYil) {
+  const olaylar = [];
+  const ayrilanlar = [];
+
+  for (const f of state.faculty || []) {
+    _hocaYasiniTamamla(f);
+    if (yeniYil) f.age += 1;
+
+    if (Math.random() < _yillikVefatOlasiligi(f.age) / 2) {
+      ayrilanlar.push({ f, neden: 'vefat' });
+      continue;
+    }
+    if (!yeniYil) continue;
+
+    if (f.age >= YAS_HADDI) {
+      ayrilanlar.push({ f, neden: 'emeklilik', haddi: true });
+      continue;
+    }
+    if (f.age >= 61) {
+      let p = 0.05 + (f.age - 61) * 0.015;
+      if ((f.happiness ?? 60) < 40) p += 0.08;
+      if (Math.random() < p) ayrilanlar.push({ f, neden: 'emeklilik', haddi: false });
+    }
+  }
+  if (ayrilanlar.length === 0) return olaylar;
+
+  const bolumAdi = (id) => {
+    const d = (state.departments || []).find(x => x.id === id);
+    return d ? (d.shortName || d.name) : '';
+  };
+  const oncekiBaskanlar = new Map((state.departments || []).map(d => [d.id, d.headId]));
+  if (!Array.isArray(state.facultyDepartures)) state.facultyDepartures = [];
+
+  for (const { f, neden, haddi } of ayrilanlar) {
+    const i = state.faculty.indexOf(f);
+    if (i >= 0) state.faculty.splice(i, 1);
+    for (const d of state.departments || []) {
+      if (Array.isArray(d.assignedFacultyIds)) d.assignedFacultyIds = d.assignedFacultyIds.filter(id => id !== f.id);
+      if (d.headId === f.id) d.headId = null;
+    }
+    const bolum = f.department || f.departmentId;
+    const kim = `${UNVAN_KISA[f.title] || ''} ${f.name}`.trim();
+    const yer = bolumAdi(bolum);
+    state.facultyDepartures.push({ name: f.name, title: f.title, department: bolum, age: f.age, turn: state.meta.turn, neden });
+
+    if (neden === 'vefat') {
+      // Yas: bölüm arkadaşlarının morali düşer, üniversitenin geneli biraz etkilenir
+      for (const g of state.faculty) {
+        const ayniBolum = (g.department || g.departmentId) === bolum;
+        g.happiness = Math.max(0, (g.happiness ?? 60) - (ayniBolum ? 4 : 1));
+      }
+      olaylar.push({
+        type: 'info',
+        icon: '🕊️',
+        title: 'Vefat',
+        description: `${kim}${yer ? ` (${yer})` : ''} ${f.age} yaşında hayatını kaybetti. Üniversite yas tutuyor; bölüm arkadaşlarının morali düştü.`,
+      });
+    } else {
+      olaylar.push({
+        type: 'info',
+        icon: '🎓',
+        title: 'Emeklilik',
+        description: haddi
+          ? `${kim}${yer ? ` (${yer})` : ''} ${f.age} yaşını doldurduğu için yaş haddinden emekli oldu. Derslerine yeni hoca atanmalı.`
+          : `${kim}${yer ? ` (${yer})` : ''} ${f.age} yaşında emekliliğini istedi ve ayrıldı. Derslerine yeni hoca atanmalı.`,
+      });
+    }
+  }
+  if (state.facultyDepartures.length > 40) state.facultyDepartures.splice(0, state.facultyDepartures.length - 40);
+
+  // Boşalan başkanlıklar: bölümdeki en uygun Prof/Doç atanır
+  _autoAssignDeptHeads(state);
+  for (const d of state.departments || []) {
+    const onceki = oncekiBaskanlar.get(d.id);
+    if (onceki && onceki !== d.headId) {
+      const yeni = d.headId ? state.faculty.find(x => x.id === d.headId) : null;
+      olaylar.push({
+        type: 'info',
+        icon: '🏛️',
+        title: 'Bölüm Başkanlığı',
+        description: yeni
+          ? `${d.shortName || d.name} bölüm başkanlığına ${UNVAN_KISA[yeni.title] || ''} ${yeni.name} atandı.`
+          : `${d.shortName || d.name} bölüm başkanlığı boşaldı; bölümde başkan olabilecek profesör ya da doçent yok.`,
+      });
+    }
+  }
+  return olaylar;
+}
+
 export function checkWinLose() {
   if (!_state) return { gameOver: false, gameWon: false, reason: null };
 
@@ -4278,15 +4446,17 @@ export function checkWinLose() {
         }
       }
 
-      // Senaryo: maxTurns aşıldıysa başarısız
+      // Senaryo süresi doldu (v0.5.0): oyun bitmez. Hedef kaldırılır; oyuncu o anki
+      // skorunu gönderebilir, sonraki dönemden itibaren oyun serbest modda sürer.
       if (scenarioWin.maxTurns && turn > scenarioWin.maxTurns) {
-        _gameOver = true;
-        _state._internal.gameOver = true;
+        _state.meta.scenarioWinCondition = null;
+        _state.meta.scenarioTimedOut = true;
         return {
-          gameOver: true,
-          gameWon:  false,
-          reason:   'scenario_timeout',
-          message:  `Senaryo başarısız! ${scenarioWin.maxTurns} dönem içinde hedefe ulaşılamadı.`,
+          gameOver:      false,
+          gameWon:       false,
+          scenarioEnded: true,
+          reason:        'scenario_timeout',
+          message:       `Senaryo süresi doldu: ${scenarioWin.maxTurns} dönemde ${_describeScenarioGoal(scenarioWin)} hedefine ulaşılamadı. Oyun bitmedi; üniversiteni serbest modda yönetmeye devam edebilirsin.`,
         };
       }
     } else {
@@ -4600,6 +4770,34 @@ function migrateState(state) {
 
   // v0.4 Feature: Kampüs grid layout (v0.5.0: eski düzen bir kez yeni düzene taşınır)
   ensureCampusLayout(state);
+
+  // v0.5.1: kuruluş yaşı, ülke ölçeğinde rakip havuzu, güncellenen senaryo hedefleri
+  if (state.university && !Number.isFinite(state.university.foundedYearsAgo)) {
+    const sid = state.meta?.scenarioId;
+    state.university.foundedYearsAgo = (sid && SCENARIOS[sid]?.foundedYearsAgo != null)
+      ? SCENARIOS[sid].foundedYearsAgo
+      : (KURULUS_YASI[state.meta?.universityType] ?? 15);
+  }
+  if (Array.isArray(state.rivals) && state.rivals.length < INITIAL_RIVAL_UNIVERSITIES.length) {
+    const varOlan = new Set(state.rivals.map(r => r.id));
+    const zorluk  = DIFFICULTY_SETTINGS[state.meta?.difficulty] || DIFFICULTY_SETTINGS.normal;
+    for (const r of INITIAL_RIVAL_UNIVERSITIES) {
+      if (varOlan.has(r.id)) continue;
+      state.rivals.push({
+        ...deepClone(r),
+        aggressiveness: Math.min(1, r.aggressiveness * zorluk.rivalAggressiveness / 0.65),
+      });
+    }
+  }
+  {
+    const wc = state.meta?.scenarioWinCondition;
+    if (wc && state.meta.scenarioId === 'koklu_devlet' && wc.type === 'ranking' && wc.target === 30) {
+      state.meta.scenarioWinCondition = { ...SCENARIOS.koklu_devlet.winCondition };
+    }
+    if (wc && state.meta.scenarioId === 'yeni_kurulan' && wc.type === 'prestige') {
+      state.meta.scenarioWinCondition = { ...SCENARIOS.yeni_kurulan.winCondition };
+    }
+  }
 
   // v0.4 Feature: Banka kredileri sistemi
   if (!state.university.loans) state.university.loans = [];

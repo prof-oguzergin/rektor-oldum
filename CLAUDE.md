@@ -2,7 +2,7 @@
 
 - GitHub: https://github.com/prof-oguzergin/rektor-oldum (private)
 - Yayında: https://prof-oguzergin.github.io/rektor-oldum/
-- Durum: v0.5.0 (Görsel Sürüm, 23 Eyl 2026, canlıda); aktif geliştirme, oyuncu rapor akışı (Erdinç, Emir, Burak, AkaDemi, Yusuf, Fatih)
+- Durum: v0.5.1 (oyun hızı dengesi, hoca yaşam döngüsü, 23 Eyl 2026, canlıda); aktif geliştirme, oyuncu rapor akışı (Erdinç, Emir, Burak, AkaDemi, Yusuf, Fatih)
 - Dizin: C:\Users\Z GAMES\Yapay Zeka\university-tycoon
 
 ## Teknik
@@ -78,6 +78,10 @@ Tam liste: `js/changelog.js` (oyun içi "Yenilikler" panelinde de gösterilir, b
   - `campus-renderer.js`: 1600x1000 tuval + kamera (binaların bölgesine odak), görsel yoksa yer tutucu, gölge, mevsimlik ağaç.
   - `css/theme.css` (tema), `assets/ui/ikonlar.webp` (6x4 ikon atlası, `.ikon--<ad>`), `assets/ui/portreler.webp` (6x8 portre atlası; çift sütun kadın, satır yaş grubu; `renderFacultyPortrait` faculty.js).
   - Mobil: alt gezinme sekmeleri 1120 px genişliyordu (width:100% + max-content), Sonraki Dönem çubuğu uzun sayfada içeriğin arkasında kalıyordu; ikisi theme.css'te düzeltildi (#24).
+
+- v0.5.1 (23 Eyl 2026): Hoca yaşam döngüsü (game.js `_processFacultyLifecycle`: yaş her güz başında +1, 67'de yaş haddi, 61+ erken emeklilik, yaşa bağlı düşük vefat olasılığı, boşalan başkanlığa `_autoAssignDeptHeads`; `state.facultyDepartures` son 40 ayrılış). Portre `portreYasi` ile işe girişteki yaşa sabit. Senaryo süresi dolunca oyun bitmez (`scenarioEnded`, `meta.scenarioTimedOut`, sonraki dönem serbest mod). Yeni Oyun Kur ekranı yeniden tasarlandı (senaryo kapakları `assets/ui/senaryo_*.webp`, bölüm ikon atlası `assets/ui/bolumler.webp` + ui.js `bolumIkonu()`), yapışkan alt düğme çubuğu. Haritada binanın görünen piksellerine göre seçim ve bilgi kutusu (campus-renderer `pickBuildingAt`).
+  - Oyun hızı dengesi (eskiden devlet üniversitesi 2 yılda 1. oluyordu): 50 rakip (`data.js` `_TEMEL_RAKIPLER` + `_EK_RAKIPLER`, `_rakipUret`); saygınlık tek yerde, dönem sonunda `game.js _updatePrestige` ile güncellenir: kalite puanı (`ranking.js calculateQualityScore`) ile kurumsal tavanın (`kurumsalTavan(yas)`, yaş = `foundedYearsAgo` + geçen yıl) küçüğüne dönem başına %5, en çok 1 puan kayar; olay/ödül gibi doğrudan eklemelerin %12'si kalır (en çok ±0,4). Araştırma puanı toplam yayına değil son 2 yılın hoca başına yayın hızına bakar. Rakipler yavaş kayan `hedefPrestij`e döner, `updateRankings` artık saygınlığa dokunmaz, yalnız sıralar. Ölçüm (Playwright vekili): pasif oyunda 2 yılda en çok 3-4 sıra; çok iyi yönetimde devlet ilk 10'a ~15. yılda, köklü devlet ~10. yılda, vakıf (75 tavanı) ~23. yılda. Senaryo hedefleri: köklü devlet "15 yılda ilk 10", yeni kurulan "15 yılda ilk 30" (30 dönem). migrateState eski kayıtları 50 rakibe tamamlar, şişkin saygınlık dönem başına ~1 puan iner.
+  - Skor tablosu: puan saygınlık ve sıraya bağlı, eski sürümde şişen skorlar yeni dengede aşılamaz; sezon ayrımı / "eski sistem" rozeti Oğuz'un kararına bırakıldı.
 
 ## Aktif Oyuncu Raporcuları
 Erdinç (en yoğun), AkaDemi, Emir, Burak Gökalp, Yusuf Sertkaya, R-Fatih (Issue #7, #9), X, serhattural

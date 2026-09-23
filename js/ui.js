@@ -4,11 +4,11 @@
  * Vanilla JS, framework yok.
  */
 
-import { DEPARTMENTS, DEPARTMENT_CURRICULA, UNIVERSITY_TYPES, UNIVERSITY_MODELS, USD_TO_TL, DIFFICULTY_SETTINGS, BUILDINGS, SEMESTER_MONTHS, FACULTIES, DEPT_TO_FACULTY, SALARY_SCALES, ADMIN_UNITS, ADMIN_TITLES, ADMIN_UNIT_BUILDINGS, ACCREDITATION_BODIES, SCENARIOS, BANKS } from './data.js?v=0.4.53';
-import { DEPARTMENT_FIELDS, getSalaryRange, renderFacultyAvatar, renderFacultyPortrait, calculateOverallRating, getFacultyRatingTrend } from './faculty.js?v=0.5.0';
-import { AVAILABLE_NEW_DEPARTMENTS, getCourseEffectiveDifficulty, getUnitTitles, getUnitTitleSalary, calculateCampusUsageSummary } from './game.js?v=0.5.0';
+import { DEPARTMENTS, DEPARTMENT_CURRICULA, UNIVERSITY_TYPES, UNIVERSITY_MODELS, USD_TO_TL, DIFFICULTY_SETTINGS, BUILDINGS, SEMESTER_MONTHS, FACULTIES, DEPT_TO_FACULTY, SALARY_SCALES, ADMIN_UNITS, ADMIN_TITLES, ADMIN_UNIT_BUILDINGS, ACCREDITATION_BODIES, SCENARIOS, BANKS } from './data.js?v=0.5.1';
+import { DEPARTMENT_FIELDS, getSalaryRange, renderFacultyAvatar, renderFacultyPortrait, calculateOverallRating, getFacultyRatingTrend } from './faculty.js?v=0.5.1';
+import { AVAILABLE_NEW_DEPARTMENTS, getCourseEffectiveDifficulty, getUnitTitles, getUnitTitleSalary, calculateCampusUsageSummary } from './game.js?v=0.5.1';
 import { calculateIncome, calculateExpenses, calculateLoanPayment } from './economy.js?v=0.4.24';
-import { renderCampusMap, handleCampusClick, handleCampusHover, clearHover } from './campus-renderer.js?v=0.5.0';
+import { renderCampusMap, handleCampusClick, handleCampusHover, clearHover } from './campus-renderer.js?v=0.5.1';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // DOM YARDIMCILARI
@@ -40,6 +40,22 @@ export function delegate(parent, selector, event, handler) {
 // ─────────────────────────────────────────────────────────────────────────────
 // FORMAT YARDIMCILARI
 // ─────────────────────────────────────────────────────────────────────────────
+
+// v0.5.0: bölüm ikon atlası (assets/ui/bolumler.webp, 6 sütun x 5 satır, sıra atlasla aynı)
+const _BOLUM_IKON_SIRA = [
+  'bilgisayar_muh', 'yazilim_muh', 'elektrik_elektronik', 'makine', 'insaat', 'endustri',
+  'biyomedikal', 'yapay_zeka', 'fizik', 'kimya', 'matematik', 'biyoloji',
+  'isletme', 'iktisat', 'hukuk', 'psikoloji', 'iletisim', 'siyaset_bilimi',
+  'mekatronik', 'mimarlik', 'guzel_sanatlar', 'tip', 'dis_hekimligi', 'eczacilik',
+  'hemsirelik', 'cevre_muh', 'gida_muh', 'rektor', 'zorluk', 'kimlik',
+];
+
+/** Bölümün atlas ikonu (HTML); atlasta yoksa verilen yedek (emoji) döner. */
+export function bolumIkonu(id, boyut = 34, yedek = '🏫') {
+  const i = _BOLUM_IKON_SIRA.indexOf(id);
+  if (i < 0) return yedek;
+  return `<i class="bikon" style="width:${boyut}px;height:${boyut}px;background-position:${(i % 6) * 20}% ${Math.floor(i / 6) * 25}%;" aria-hidden="true"></i>`;
+}
 
 /**
  * Para formatla: 1500000 → "1.500.000 ₺"
@@ -651,21 +667,36 @@ function _renderScenarioCards() {
   const diffLabels = { kolay: 'Kolay', normal: 'Normal', zor: 'Zor', serbest: 'Serbest' };
   const diffClass  = { kolay: 'easy', normal: 'normal', zor: 'hard', serbest: 'easy' };
 
+  // v0.5.0: her senaryonun kapak resmi (Codex ile çizildi); resmi olmayan senaryoda emoji
+  const KAPAK = {
+    serbest:        'senaryo_serbest',
+    yeni_kurulan:   'senaryo_yeni_kurulan',
+    koklu_devlet:   'senaryo_koklu_devlet',
+    vakif_kurtarma: 'senaryo_vakif_kurtarma',
+  };
+  const kapak = (id, emoji) => KAPAK[id]
+    ? `<div class="sc2-art" style="background-image:url('assets/ui/${KAPAK[id]}.webp?v=0.5.0');"></div>`
+    : `<div class="sc2-art" style="display:grid;place-items:center;font-size:54px;">${emoji || ''}</div>`;
+  const SAAT = '<svg class="menu-svg" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>';
+
   // "Serbest Oyun" sanal kartı: senaryo olmadan başlangıç
   const serbestCard = `
     <div class="scenario-card" data-scenario-id="serbest">
-      <div class="scenario-card-header">
-        <span class="scenario-card-icon">🎮</span>
-        <div class="scenario-card-title-block">
-          <div class="scenario-card-name">Serbest Oyun</div>
-          <div class="scenario-card-subtitle">Hazır senaryosuz, sıfırdan</div>
+      ${kapak('serbest', '🎮')}
+      <span class="sc2-check" aria-hidden="true">✓</span>
+      <div class="sc2-body">
+        <div class="scenario-card-header">
+          <div class="scenario-card-title-block">
+            <div class="scenario-card-name">Serbest Oyun</div>
+            <div class="scenario-card-subtitle">Hazır senaryosuz, sıfırdan</div>
+          </div>
+          <span class="scenario-diff-badge scenario-diff-easy">Serbest</span>
         </div>
-        <span class="scenario-diff-badge scenario-diff-easy">Serbest</span>
-      </div>
-      <div class="scenario-card-desc">Üniversite tipini, zorluğu ve bölümleri sen seç. Hiçbir senaryo kısıtı yok, klasik açılış.</div>
-      <div class="scenario-card-footer">
-        <span class="scenario-flavor">"Boş tuval, sınırsız olasılık."</span>
-        <span class="scenario-meta" style="font-size:11px;color:var(--text-muted,#888);margin-left:8px;">⏱️ Sınırsız</span>
+        <div class="scenario-card-desc">Üniversite tipini, zorluğu ve bölümleri sen seç. Hiçbir senaryo kısıtı yok, klasik açılış.</div>
+        <div class="scenario-card-footer">
+          <span class="scenario-flavor">"Boş tuval, sınırsız olasılık."</span>
+          <span class="sc2-sure">${SAAT} Süre sınırı yok</span>
+        </div>
       </div>
     </div>
   `;
@@ -675,7 +706,7 @@ function _renderScenarioCards() {
     if (!winCondition) return 'Açık uçlu';
     if (winCondition.maxTurns) {
       const t = winCondition.maxTurns;
-      return `${t} dönem (~${Math.round(t / 2)} yıl)`;
+      return `Hedef ${t} dönemde (~${Math.round(t / 2)} yıl)`;
     }
     if (winCondition.consecutiveTurns) {
       const t = winCondition.consecutiveTurns;
@@ -686,18 +717,21 @@ function _renderScenarioCards() {
 
   const realCards = Object.values(SCENARIOS).map(s => `
     <div class="scenario-card" data-scenario-id="${s.id}">
-      <div class="scenario-card-header">
-        <span class="scenario-card-icon">${s.icon}</span>
-        <div class="scenario-card-title-block">
-          <div class="scenario-card-name">${s.name}</div>
-          <div class="scenario-card-subtitle">${s.subtitle}</div>
+      ${kapak(s.id, s.icon)}
+      <span class="sc2-check" aria-hidden="true">✓</span>
+      <div class="sc2-body">
+        <div class="scenario-card-header">
+          <div class="scenario-card-title-block">
+            <div class="scenario-card-name">${s.name}</div>
+            <div class="scenario-card-subtitle">${s.subtitle}</div>
+          </div>
+          <span class="scenario-diff-badge scenario-diff-${diffClass[s.difficulty] || 'normal'}">${diffLabels[s.difficulty] || s.difficulty}</span>
         </div>
-        <span class="scenario-diff-badge scenario-diff-${diffClass[s.difficulty] || 'normal'}">${diffLabels[s.difficulty] || s.difficulty}</span>
-      </div>
-      <div class="scenario-card-desc">${s.description}</div>
-      <div class="scenario-card-footer">
-        <span class="scenario-flavor">${s.flavorText}</span>
-        <span class="scenario-meta" style="font-size:11px;color:var(--text-muted,#888);margin-left:8px;">⏱️ ${_scenarioDuration(s.winCondition)}</span>
+        <div class="scenario-card-desc">${s.description}</div>
+        <div class="scenario-card-footer">
+          <span class="scenario-flavor">${s.flavorText}</span>
+          <span class="sc2-sure">${SAAT} ${_scenarioDuration(s.winCondition)}</span>
+        </div>
       </div>
     </div>
   `).join('');
@@ -723,7 +757,7 @@ function _updateScenarioNextButton() {
   const btn = el('btn-scenario-next');
   if (!btn) return;
   const isSerbest = !_setup.scenarioId || _setup.scenarioId === 'serbest';
-  btn.textContent = isSerbest ? '🎮 Serbest Oyna →' : 'Senaryoyla Başla →';
+  btn.textContent = isSerbest ? 'Serbest Oyna →' : 'Senaryoyla Başla →';
   btn.disabled = !_setup.scenarioId;
 }
 
@@ -757,10 +791,15 @@ function _showSetupStep(step) {
   const target = el(targetId);
   if (target) target.classList.remove('hidden');
 
-  // Step indikatör güncelle
+  // Step indikatör güncelle (v0.5.0: geçilen adımlar "done")
   qsa('.setup-step-indicator .step').forEach(s => {
-    s.classList.toggle('active', parseInt(s.dataset.step) === step);
+    const n = parseInt(s.dataset.step);
+    s.classList.toggle('active', n === step);
+    s.classList.toggle('done', n < step);
   });
+  // Yeni adım baştan görünsün (masaüstünde ekran, telefonda sayfa kayar)
+  el('screen-setup')?.scrollTo?.(0, 0);
+  window.scrollTo(0, 0);
 }
 
 /** Bölüm seçim grid'ini render et */
@@ -773,10 +812,13 @@ function _renderDeptSelection(filter = 'hepsi') {
     temel_bilim: 'Temel Bilim',
     sosyal:      'Sosyal',
     saglik:      'Sağlık',
+    mimarlik:    'Mimarlık',
+    sanat:       'Sanat',
   };
 
   const items = Object.values(DEPARTMENTS).filter(d => {
     if (filter === 'hepsi') return true;
+    if (filter === 'sanat_mimarlik') return d.category === 'sanat' || d.category === 'mimarlik';
     return d.category === filter;
   });
 
@@ -797,7 +839,7 @@ function _renderDeptSelection(filter = 'hepsi') {
     return `
       <div class="dept-option${sel ? ' selected' : ''}${dis ? ' disabled' : ''}${forced ? ' forced' : ''}"
            data-dept-id="${d.id}" title="${title}">
-        <span class="dept-option-icon">${d.icon || '🏫'}</span>
+        <span class="dept-option-icon">${bolumIkonu(d.id, 36, d.icon || '🏫')}</span>
         <div class="dept-option-info">
           <div class="dept-option-name">${d.name}${forced ? ' <span class="forced-badge">Zorunlu</span>' : ''}</div>
           <div class="dept-option-cat">${catLabels[d.category] || d.category}</div>
@@ -851,15 +893,15 @@ function _updateDeptSelectionInfo() {
 
   if (namesEl) {
     const names = [..._setup.departments].map(id => DEPARTMENTS[id]?.shortName || id);
-    namesEl.textContent = names.length > 0 ? ', ' + names.join(', ') : '';
+    namesEl.textContent = names.length > 0 ? '· ' + names.join(', ') : '';
   }
 
   if (hintEl) {
     if (activeScenario) {
-      hintEl.textContent = `📌 "${activeScenario.name}" senaryosu en fazla ${maxDepts} bölümle başlamana izin veriyor (küçük bütçe, hızlı büyüme).`;
+      hintEl.textContent = `"${activeScenario.name}" senaryosu en fazla ${maxDepts} bölümle başlamana izin veriyor.`;
       hintEl.style.display = 'block';
     } else {
-      hintEl.textContent = `📌 Serbest oyunda en fazla ${maxDepts} bölümle başlayabilirsin. Sonradan yeni bölüm açılabilir.`;
+      hintEl.textContent = `Serbest oyunda en fazla ${maxDepts} bölümle başlayabilirsin. Sonradan yeni bölüm açılabilir.`;
       hintEl.style.display = 'block';
     }
   }
@@ -1057,7 +1099,8 @@ export function renderDashboard(state) {
           <div class="gb-prestige-text">
             <span class="gb-prestige-label">Saygınlık</span>
             <span class="gb-prestige-value">${Math.round(uni.prestige)} / 100</span>
-            <span class="gb-prestige-sub">${uni.intlRanking ? `Dünya sıralamasında #${uni.intlRanking}` : 'Henüz dünya sıralamasında değil'}</span>
+            <span class="gb-prestige-sub">Türkiye'de ${uni.ranking ?? '—'}. sırada (${(state.rivals?.length ?? 0) + 1} üniversite)</span>
+            <span class="gb-prestige-sub gb-prestige-kalite" title="Saygınlık her dönem kalite puanına yavaşça yaklaşır. Kurumsal birikim tavanı, üniversitenin kuruluşundan bu yana geçen yıllarla artar; saygınlık bu tavanı aşamaz.">Kalite ${uni.qualityScore ?? '—'} · birikim tavanı ${uni.prestigeCeiling ?? '—'}</span>
           </div>
         </div>
         <div class="gb-forecast">
@@ -1090,7 +1133,7 @@ export function renderDashboard(state) {
         netBalance >= 0 ? `+${formatMoney(netBalance)}/dönem` : `${formatMoney(netBalance)}/dönem`,
         netBalance >= 0 ? 'positive' : 'negative', '#f0c040')}
       ${kart('sayginlik', 'Saygınlık', Math.round(uni.prestige),
-        uni.intlRanking ? `Dünya #${uni.intlRanking}` : 'Dünya —', '', '#ffd866')}
+        `Türkiye #${uni.ranking ?? '—'} · ${(state.rivals?.length ?? 0) + 1} üniversite`, '', '#ffd866')}
       ${kart('ogrenci', 'Öğrenci', formatNumber(state.students?.totalEnrolled ?? 0),
         `${state.students?.starStudents?.length ?? 0} yıldız öğrenci`, '', '#4fa3e0')}
       ${kart('kadro', 'Kadro', formatNumber(state.faculty?.length ?? 0),
@@ -1114,7 +1157,7 @@ export function renderDashboard(state) {
           </div>
           ${(state.departments || []).map(d => `
             <div class="gb-dept-row">
-              <span class="gb-dept-icon">${d.icon || '🏫'}</span>
+              <span class="gb-dept-icon">${bolumIkonu(d.id, 26, d.icon || '🏫')}</span>
               <span class="gb-dept-name" title="${d.name}">${d.shortName || d.name}</span>
               <span class="gb-dept-num">${formatNumber(d.enrolledStudents ?? 0)}</span>
               ${kalite(d.educationQuality ?? 50)}
@@ -1338,7 +1381,7 @@ export function renderDepartmentsPanel(state) {
             <!-- Bölüm başlığı -->
             <div style="display:flex;align-items:center;gap:12px;padding:14px 16px;
                  border-bottom:2px solid var(--border);background:var(--bg-secondary);">
-              <span style="font-size:28px;">${dept.icon || '🏫'}</span>
+              <span style="font-size:28px;line-height:0;">${bolumIkonu(dept.id, 38, dept.icon || '🏫')}</span>
               <div style="flex:1;">
                 <div style="font-size:15px;font-weight:700;">${dept.name}</div>
                 <div style="font-size:12px;color:var(--text-muted);">${deptFaculty.length} hoca · ${deptFaculty.reduce((s, f) => s + ((f.currentLoad?.assignedCourses || []).length), 0)} ders yükü · <span title="${statusTip}" style="cursor:help;border-bottom:1px dotted currentColor;">${statusText}</span></div>
@@ -2089,7 +2132,7 @@ export function renderFacultyPanel(state, onTransferMarket, onFacultyDetail, onO
         .filter(d => byDept[d.id])
         .map(d => {
           const { dept, members } = byDept[d.id];
-          const icon = dept.icon || '🏛';
+          const icon = bolumIkonu(d.id, 24, dept.icon || '🏛');
           const name = dept.name || dept.shortName || d.id;
           const groupId = `faculty-group-${dept.id}`;
           return `
@@ -2266,7 +2309,8 @@ export function renderFacultyCard(f, depts = []) {
   const maasBin  = Math.round((f.salary || 0) / 1000);
   const maasAralik = f.salaryRange ? `Aralık: ${formatMoney(f.salaryRange.min)} - ${formatMoney(f.salaryRange.max)}` : '';
   const courses  = f.currentLoad?.assignedCourses || [];
-  const altBilgi = [f.age ? `${f.age} yaş` : '', f.field || ''].filter(Boolean).join(' · ');
+  const emeklilik = Number.isFinite(f.age) && f.age >= 62 ? `emekliliğe ${Math.max(0, 67 - f.age)} yıl` : '';
+  const altBilgi = [f.age ? `${f.age} yaş` : '', emeklilik, f.field || ''].filter(Boolean).join(' · ');
 
   return `
     <div class="faculty-card fc2" data-faculty-id="${f.id}" style="cursor:pointer;">
@@ -2558,7 +2602,7 @@ export function renderBolumlerPanel(state, onAssignHead, onReassignFaculty) {
       <div class="card dept-detail-card" data-dept-id="${dept.id}" style="margin-bottom:16px;">
         <div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:8px;margin-bottom:12px;">
           <div>
-            <span style="font-size:18px;">${dept.icon || '🏛️'}</span>
+            <span style="font-size:18px;line-height:0;">${bolumIkonu(dept.id, 26, dept.icon || '🏛️')}</span>
             <strong style="font-size:15px;">${dept.name}</strong>
             <span class="badge badge-default" style="margin-left:6px;">${dept.accreditationStatus || 'pending'}</span>
           </div>
@@ -3288,7 +3332,7 @@ export function renderQuotaModal(state, onConfirm) {
         return `
           <div class="card" style="margin-bottom:12px;" data-dept="${dept.id}">
             <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;">
-              <span style="font-size:16px;">${dept.icon||'🏛️'}</span>
+              <span style="font-size:16px;line-height:0;">${bolumIkonu(dept.id, 24, dept.icon || '🏛️')}</span>
               <div style="flex:1;">
                 <div style="font-weight:700;">${dept.name}</div>
                 <div style="font-size:11px;color:var(--text-muted);">
@@ -3519,6 +3563,39 @@ function _campusSummaryCard(icon, label, value) {
  * @param {Function} onBuildStart   — İnşaat başlat callback (buildingType alır)
  * @param {Function} onDecision     — Karar callback (upgrade_building, assign_department_to_building vb.)
  */
+/**
+ * v0.5.0: haritada binanın bilgi kutusu (adı, türü, düzeyi, durumu).
+ * Konum imlecin sağ altı; kapsayıcıdan taşacaksa imlecin öbür yanına geçer.
+ */
+function _binaIpucu(tooltip, b, e) {
+  if (!tooltip) return;
+  if (!b) { tooltip.style.display = 'none'; return; }
+  const cat  = BUILDINGS[b.type] || {};
+  const tur  = cat.name || b.type;
+  const ad   = b.name || tur;
+  const max  = cat.maxLevel || 3;
+  const yuzde = Math.round(b.constructionProgress || 0);
+  const durum = !b.isCompleted
+    ? `<span class="ct-durum ct-insaat">İnşaat %${yuzde}${b.turnsRemaining != null ? ` · ${b.turnsRemaining} dönem kaldı` : ''}</span>`
+    : b.status === 'upgrading'
+      ? `<span class="ct-durum ct-yukselt">Düzey ${(b._pendingLevel ?? (b.level || 1) + 1)} için yükseltiliyor · %${yuzde}</span>`
+      : `<span class="ct-durum ct-aktif">Aktif</span>`;
+  tooltip.innerHTML = `
+    <strong>${ad}</strong>
+    ${ad.startsWith(tur) ? '' : `<span class="ct-tur">${tur}</span>`}
+    <span class="ct-duzey">Düzey ${b.level || 1}/${max} · ${(b.area || 0).toLocaleString('tr-TR')} m²</span>
+    ${durum}`;
+  tooltip.style.display = 'flex';
+  const kap = (tooltip.offsetParent || tooltip.parentElement).getBoundingClientRect();
+  const mx = e.clientX - kap.left, my = e.clientY - kap.top;
+  const tw = tooltip.offsetWidth, th = tooltip.offsetHeight;
+  let x = mx + 16, y = my + 18;
+  if (x + tw > kap.width - 8) x = mx - tw - 16;
+  if (y + th > kap.height - 8) y = my - th - 14;
+  tooltip.style.left = Math.max(8, x) + 'px';
+  tooltip.style.top  = Math.max(8, y) + 'px';
+}
+
 /**
  * v0.5.0: binanın görseli (assets/buildings). Düzey üst sınırı aşılırsa sınıra çekilir;
  * inşaat sürüyorsa ilerlemeye göre inşaat aşaması gösterilir.
@@ -3971,26 +4048,14 @@ export function renderCampusPanel(state, onBuildStart, onDecision) {
 
     campusCanvas.addEventListener('click', (e) => {
       const building = handleCampusClick(e, campusCanvas, state);
-      const tooltip = document.getElementById('campus-tooltip');
-      if (building && tooltip) {
-        tooltip.style.display = 'block';
-        tooltip.style.left = (e.offsetX + 12) + 'px';
-        tooltip.style.top = (e.offsetY - 12) + 'px';
-        const statusText = building.isCompleted ? '✅ Aktif' : `🔨 Yapım: %${Math.round(building.constructionProgress || 0)}`;
-        tooltip.innerHTML = `
-          <strong>${building.name || building.type}</strong><br>
-          Düzey ${building.level || 1} · ${(building.area || 0).toLocaleString('tr-TR')} m²<br>
-          ${statusText}
-        `;
-      } else if (tooltip) {
-        tooltip.style.display = 'none';
-      }
       renderCampusMap(campusCanvas, state);
+      _binaIpucu(document.getElementById('campus-tooltip'), building, e);
     });
 
     campusCanvas.addEventListener('mousemove', (e) => {
-      handleCampusHover(e, campusCanvas, state);
+      const building = handleCampusHover(e, campusCanvas, state);
       renderCampusMap(campusCanvas, state);
+      _binaIpucu(document.getElementById('campus-tooltip'), building, e);
     });
 
     campusCanvas.addEventListener('mouseleave', () => {
@@ -4031,26 +4096,14 @@ export function renderCampusPanel(state, onBuildStart, onDecision) {
 
   function _fullCanvasClick(e) {
     const building = handleCampusClick(e, fullCanvas, state);
-    const tooltip  = document.getElementById('campus-tooltip-full');
-    if (building && tooltip) {
-      tooltip.style.display = 'block';
-      tooltip.style.left = (e.offsetX + 12) + 'px';
-      tooltip.style.top  = (e.offsetY - 12) + 'px';
-      const statusText = building.isCompleted ? '✅ Aktif' : `🔨 Yapım: %${Math.round(building.constructionProgress || 0)}`;
-      tooltip.innerHTML = `
-        <strong>${building.name || building.type}</strong><br>
-        Düzey ${building.level || 1} · ${(building.area || 0).toLocaleString('tr-TR')} m²<br>
-        ${statusText}
-      `;
-    } else if (tooltip) {
-      tooltip.style.display = 'none';
-    }
     renderCampusMap(fullCanvas, state);
+    _binaIpucu(document.getElementById('campus-tooltip-full'), building, e);
   }
 
   function _fullCanvasMove(e) {
-    handleCampusHover(e, fullCanvas, state);
+    const building = handleCampusHover(e, fullCanvas, state);
     renderCampusMap(fullCanvas, state);
+    _binaIpucu(document.getElementById('campus-tooltip-full'), building, e);
   }
 
   function _fullCanvasLeave() {
@@ -7097,7 +7150,7 @@ export function showNewDeptProgramModal(state) {
                             display:flex;align-items:center;gap:10px;"
                      class="ndp-dept-row${canAfford && !isPending ? '' : ' ndp-cant-afford'}"
                      data-dept-id="${d.id}" data-cost="${d.cost}">
-                  <span style="font-size:20px;">${d.icon || '🏫'}</span>
+                  <span style="font-size:20px;line-height:0;">${bolumIkonu(d.id, 30, d.icon || '🏫')}</span>
                   <div style="flex:1;">
                     <div style="font-size:13px;font-weight:700;">${d.name}</div>
                     <div style="font-size:10px;color:var(--text-muted);">
@@ -7127,7 +7180,7 @@ export function showNewDeptProgramModal(state) {
             : ylEligible.map(d => `
               <div style="background:var(--bg-secondary);border-radius:8px;border:1px solid var(--border);
                           padding:10px 12px;display:flex;align-items:center;gap:10px;">
-                <span style="font-size:20px;">${d.icon || '🏫'}</span>
+                <span style="font-size:20px;line-height:0;">${bolumIkonu(d.id, 30, d.icon || '🏫')}</span>
                 <div style="flex:1;">
                   <div style="font-size:13px;font-weight:700;">${d.name}</div>
                   <div style="font-size:10px;color:var(--text-muted);">
@@ -7154,7 +7207,7 @@ export function showNewDeptProgramModal(state) {
             : phdEligible.map(d => `
               <div style="background:var(--bg-secondary);border-radius:8px;border:1px solid var(--border);
                           padding:10px 12px;display:flex;align-items:center;gap:10px;">
-                <span style="font-size:20px;">${d.icon || '🏫'}</span>
+                <span style="font-size:20px;line-height:0;">${bolumIkonu(d.id, 30, d.icon || '🏫')}</span>
                 <div style="flex:1;">
                   <div style="font-size:13px;font-weight:700;">${d.name}</div>
                   <div style="font-size:10px;color:var(--text-muted);">
@@ -8522,7 +8575,7 @@ export function renderAccreditationPanel(state, onApply, onRenew) {
       <tr style="border-bottom:1px solid var(--border);">
         <td style="padding:10px 12px;">
           <div style="display:flex;align-items:center;gap:8px;">
-            <span style="font-size:20px;">${dept.icon || '🏫'}</span>
+            <span style="font-size:20px;line-height:0;">${bolumIkonu(dept.id, 30, dept.icon || '🏫')}</span>
             <div>
               <div style="font-size:13px;font-weight:600;">${dept.name}</div>
               <div style="font-size:11px;color:var(--text-muted);">${dept.shortName || ''} ${accBadge}</div>

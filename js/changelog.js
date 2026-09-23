@@ -6,18 +6,25 @@
 
 export const CHANGELOG = [
   {
+    version: '0.5.1',
+    date: '2026-09-23',
+    title: 'Gerçekçi oyun hızı ve yaşlanan hocalar',
+    items: [
+      { type: 'balance', text: 'Oyun yavaşladı: sıralamada 50 üniversite var, saygınlık yıllar içinde birikiyor. İyi yönetimle bile ilk 10\'a girmek 10 yıldan uzun sürüyor. Kayıtlı oyunlarda saygınlık yavaşça yeni dengeye iniyor.' },
+      { type: 'balance', text: 'Senaryo hedefleri: Köklü Devlet "15 yılda ilk 10", Yeni Kurulan "15 yılda ilk 30". Süre dolunca oyun bitmiyor, serbest devam ediyor.' },
+      { type: 'feat', text: 'Hocalar her yıl yaşlanıyor, 67\'de emekli oluyor, nadiren vefat ediyor.' },
+      { type: 'feat', text: 'Yeni Oyun Kur ekranı ve bölüm ikonları yenilendi. Haritada binanın üstüne gelince adı yazıyor.' },
+    ],
+  },
+  {
     version: '0.5.0',
     date: '2026-09-23',
     title: 'Görsel Sürüm: yeni yerleşke, oyun ekranı ve hoca portreleri',
     items: [
-      { type: 'feat', text: 'Yerleşke haritası baştan çizildi. Sıcak izometrik üslupta 47 bina görseli var: her binanın her düzeyi ayrı çizildi, binalar yükseltildikçe görünümleri de değişiyor. Örneğin fakülte binası iki katlı bir yapıdan başlayıp sütunlu cepheye, ek kanada ve en sonunda kubbeli ana binaya dönüşüyor; araştırma merkezine uydu anteni ve gözlemevi ekleniyor. İnşaat alanları üç aşamada görünüyor: kazı, iskelet ve vinçli son kat.' },
-      { type: 'feat', text: 'Kampüs yerleşimi yenilendi: artı biçimli iki ana yol, ortada çeşmeli bir meydan, binalar arasında bir karo boşluk. Akademik binalar meydanın çevresinde, yurt ve teknokent dış halkada kuruluyor; her bina en yakın yola bir patikayla bağlanıyor. Ağaçlar, fenerler, banklar, çiçeklikler ve yürüyen öğrenciler eklendi. Ağaçlar mevsimi izliyor: güz döneminde yapraklar turuncuya dönüyor, bahar döneminde çiçek açan ağaçlar çıkıyor. Kayıtlı oyunlardaki binalar ilk açılışta bir kez yeni düzene yerleşir.' },
-      { type: 'feat', text: 'Harita artık Yerleşke sekmesinin ana görünümü. Kamera binaların olduğu bölgeye odaklanıyor, kampüs büyüdükçe uzaklaşıyor. Yerleşke kartlarında da her binanın o anki düzey görseli gösteriliyor.' },
-      { type: 'feat', text: 'Giriş ekranı yenilendi: arkada gün batımında Boğaz kıyısında bir yerleşke tablosu var (saat kuleli ana bina, gözlemevi, çeşmeli meydan, ışıkları yanan pencereler). Tablo yavaşça yakınlaşıyor, fareyle hafifçe kayıyor, önünde sıcak ışık zerrecikleri süzülüyor. Başlık klasik altın harflerle yazıldı, menü sağ sütundaki cam panelde; telefonda aynı sahnenin dikey kadrajı gösteriliyor. Yeni Oyun Kur ekranının arkasında da aynı tablo var.' },
-      { type: 'feat', text: 'Oyun ekranı yeniden tasarlandı: üst çubukta ikonlu kaynak göstergeleri (kasa, saygınlık, dünya sırası, öğrenci, kadro), yan menüde her sekmeye özel ikon, kabartmalı oyun düğmeleri ve yeni başlık yazı tipi.' },
-      { type: 'feat', text: 'Genel Bakış yenilendi: canlı yerleşke görünümü (tıklayınca Yerleşke açılır), saygınlık halkası ve bu dönem gelir-gider tahminini birlikte gösteren karşılama paneli, ikonlu kaynak kartları.' },
-      { type: 'feat', text: 'Hoca portreleri: yaşa ve cinsiyete göre 48 farklı kişi çizildi. Kadro kartlarında büyük portre, unvana göre renkli fon, portrenin köşesinde genel puan, yayın, h-indeksi, maaş ve mutluluk için bilgi kutuları ve daha okunur istatistik çubukları var. Hoca ayrıntı penceresinde, transfer pazarında ve başvurularda da aynı portreler görünüyor (kocamane18 Issue #29 madde 1).' },
-      { type: 'fix', text: 'Mobilde alt gezinme çubuğundaki sekmeler aşırı genişliyor, çubuk boş görünüyordu; düzeltildi. "Sonraki Dönem" çubuğu uzun sayfalarda içeriğin arkasında kalıyordu; artık alt gezinmenin hemen üstünde sabit duruyor. Üst çubuktaki kaynak göstergeleri kendi satırına alındı (enesduran Issue #24).' },
+      { type: 'feat', text: 'Yerleşke baştan çizildi: 47 bina görseli var, binalar yükseltildikçe görünümleri değişiyor. Yeni yol düzeni, meydan ve mevsimle renk değiştiren ağaçlar eklendi.' },
+      { type: 'feat', text: 'Giriş ekranı, oyun ekranı ve Genel Bakış yeniden tasarlandı.' },
+      { type: 'feat', text: 'Hocaların yaşına ve cinsiyetine göre portreleri var, kadro kartları büyüdü (kocamane18 Issue #29 madde 1).' },
+      { type: 'fix', text: 'Mobilde alt gezinme ve "Sonraki Dönem" çubuğu düzeltildi (enesduran Issue #24).' },
     ],
   },
   {
