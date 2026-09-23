@@ -35,7 +35,7 @@ import {
 } from './data.js?v=0.4.53';
 
 import { calculateEconomy, applyBudget, calculateLoanPayment, processLoanPayments } from './economy.js?v=0.4.24';
-import { generateInitialFaculty, updateAllFacultyHappiness, generateApplicants, generateFaculty, getSalaryRange, calculateOverallRating, getFacultyRatingTrend } from './faculty.js?v=0.4.39';
+import { generateInitialFaculty, updateAllFacultyHappiness, generateApplicants, generateFaculty, getSalaryRange, calculateOverallRating, getFacultyRatingTrend } from './faculty.js?v=0.5.0';
 import {
   generateInitialStudents,
   getTotalEnrolled,
@@ -81,7 +81,7 @@ export { foundClub, upgradeClub, dissolveClub, CLUB_TYPES, CLUB_CATEGORIES };
 import { SPORTS, initSportsState, foundTeam, upgradeTeam, dissolveTeam, processSports } from './sports.js?v=0.4.24';
 export { SPORTS, foundTeam, upgradeTeam, dissolveTeam };
 
-import { initCampusState, assignBuildingPosition, BUILDING_FOOTPRINTS } from './campus-layout.js?v=0.4.24';
+import { initCampusState, ensureCampusLayout, assignBuildingPosition, BUILDING_FOOTPRINTS } from './campus-layout.js?v=0.5.0';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // YARDİMCI: Derin kopya (state immutability için)
@@ -4598,10 +4598,8 @@ function migrateState(state) {
     state.clubs.active = state.clubs.active.filter(c => !sportClubIds.includes(c.typeId));
   }
 
-  // v0.4 Feature: Kampüs grid layout
-  if (!state.campus) {
-    initCampusState(state);
-  }
+  // v0.4 Feature: Kampüs grid layout (v0.5.0: eski düzen bir kez yeni düzene taşınır)
+  ensureCampusLayout(state);
 
   // v0.4 Feature: Banka kredileri sistemi
   if (!state.university.loans) state.university.loans = [];
@@ -4883,8 +4881,8 @@ export function setState(loadedState) {
     // Not: migrateState zaten initSportsState'i çağırıyor, bu idempotent çağrıdır
     initSportsState(s);
 
-    // v0.4: Kampüs grid layout'unu tamamla (eski kayıtlar için)
-    if (!s.campus) initCampusState(s);
+    // v0.4: Kampüs grid layout'unu tamamla (eski kayıtlar için; v0.5.0 yeni düzen)
+    ensureCampusLayout(s);
 
     // Yükleme sonrası grace-period sayaçlarını sıfırla (ani iflas/kapanmayı önler)
     _bankruptcyTurns = 0;

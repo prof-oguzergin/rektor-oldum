@@ -2,7 +2,7 @@
 
 - GitHub: https://github.com/prof-oguzergin/rektor-oldum (private)
 - Yayında: https://prof-oguzergin.github.io/rektor-oldum/
-- Durum: v0.4.64 — aktif geliştirme, oyuncu rapor akışı (Erdinç, Emir, Burak, AkaDemi, Yusuf, Fatih)
+- Durum: v0.5.0 (Görsel Sürüm, 23 Eyl 2026, canlıda); aktif geliştirme, oyuncu rapor akışı (Erdinç, Emir, Burak, AkaDemi, Yusuf, Fatih)
 - Dizin: C:\Users\Z GAMES\Yapay Zeka\university-tycoon
 
 ## Teknik
@@ -70,6 +70,14 @@ Tam liste: `js/changelog.js` (oyun içi "Yenilikler" panelinde de gösterilir, b
   - v0.4.54 (21 May 2026): iOS Safari mobil kullanılabilirlik paketi — viewport-fit=cover, 100dvh, safe-area-inset env() tüm fixed elementlere uygulandı, tutorial overlay sticky footer, input otomatik zoom engeli (enesduran Issue #24).
   - v0.4.53 (20 May 2026): Birim bazlı unvan havuzu - her idari birim için göreve özel 5 unvan tanımlandı (Ulaşım: Şoför/Kıdemli Şoför/Tamirci/Servis Sorumlusu/Ulaşım Müdürü vb.); ADMIN_UNITS.titles alanı; getUnitTitles/getUnitTitleSalary/isUnitManagerTitle helper'ları; eski kayıtlarda migration (Memur→birim unvanı); modal birim unvanlarını gösterir (EfekanSalman Issue #17).
   - v0.4.52 (16 May 2026): BAP bildirim spam + Olaylar UI — renderResearchPanel'de .proj-decision-btn delegate listener her UI yenilemesinde birikiyordu; panel._projDecisionDelegateAttached flag ile tek seferlik ekleme sağlandı (Issue #22). Bu Dönem Olaylar'da description'sız event'ler "Olay" placeholder gösteriyordu; validEvents filtresi + "Bu dönemde önemli bir olay yaşanmadı." boş durum mesajı (Issue #21). Her ikisi EfekanSalman raporu.
+
+- v0.5.0 (23 Eyl 2026) Görsel Sürüm:
+  - Görseller Codex (gpt-5.6-sol, imagegen) ile macenta zeminli sayfalar olarak çizildi; çalışma klasörü `C:\repos\_codex-rektor` (istem_*.txt, dilimle_genel.py anahtarlama ve dilimleme, sprite_paketle.py, paketle_arayuz.py).
+  - `assets/buildings/`: 47 bina görseli (`<tür>_<düzey>.webp`, `insaat_1..3`, `meydan`) + 15 süsleme (ağaç türleri, fener, bank ...). Ölçüler `js/building-sprites.js` (BUILDING_SPRITES zemin plakası, PROP_SPRITES dayanak noktası). Bina, taban izine zemin plakasından ölçeklenir.
+  - `campus-layout.js` düzen 2 (LAYOUT_VERSION=2): artı yollar, 3x3 meydan, 1 karo boşluk, bölge bantları, BFS patikalar. `ensureCampusLayout` eski kayıtları bir kez yeniden yerleştirir. Konumlar yalnız çizicide kullanılır, oyun mantığını etkilemez.
+  - `campus-renderer.js`: 1600x1000 tuval + kamera (binaların bölgesine odak), görsel yoksa yer tutucu, gölge, mevsimlik ağaç.
+  - `css/theme.css` (tema), `assets/ui/ikonlar.webp` (6x4 ikon atlası, `.ikon--<ad>`), `assets/ui/portreler.webp` (6x8 portre atlası; çift sütun kadın, satır yaş grubu; `renderFacultyPortrait` faculty.js).
+  - Mobil: alt gezinme sekmeleri 1120 px genişliyordu (width:100% + max-content), Sonraki Dönem çubuğu uzun sayfada içeriğin arkasında kalıyordu; ikisi theme.css'te düzeltildi (#24).
 
 ## Aktif Oyuncu Raporcuları
 Erdinç (en yoğun), AkaDemi, Emir, Burak Gökalp, Yusuf Sertkaya, R-Fatih (Issue #7, #9), X, serhattural

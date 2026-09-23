@@ -627,6 +627,51 @@ export function renderFacultyAvatar(avatar, size = 48) {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+// v0.5.0: PORTRE ATLASI
+// assets/ui/portreler.webp: 6 sütun x 8 satır. Çift sütun kadın, tek sütun erkek;
+// satır = yaş grubu (0-3 ilk sayfa, 4-7 ikinci sayfa). Her yaş ve cinsiyet için
+// 6 farklı kişi var; hoca kimliğinden türetilen sayı hep aynı yüzü seçer.
+// ─────────────────────────────────────────────────────────────────────────────
+
+function _portreHash(metin) {
+  let h = 2166136261;
+  for (let i = 0; i < metin.length; i++) {
+    h ^= metin.charCodeAt(i);
+    h = Math.imul(h, 16777619);
+  }
+  return h >>> 0;
+}
+
+const _YAS_GORUNUM = { young: 30, mid: 42, senior: 52, old: 62 };
+
+/**
+ * Hoca portresi (HTML). Cinsiyet bilinmiyorsa eski SVG avatara düşer.
+ * @param {object} f: hoca (id, name, gender, age, title, avatar)
+ * @param {number} [size]: piksel
+ * @param {string} [extraClass]: ek CSS sınıfı (ör. 'portre--yuvarlak')
+ */
+export function renderFacultyPortrait(f, size = 96, extraClass = '') {
+  if (!f) return '';
+  const cinsiyet = f.gender || f.avatar?.gender;
+  if (cinsiyet !== 'female' && cinsiyet !== 'male') {
+    return f.avatar ? renderFacultyAvatar(f.avatar, size) : '';
+  }
+  const yas = Number.isFinite(f.age) ? f.age : (_YAS_GORUNUM[f.avatar?.ageAppearance] ?? 42);
+  const grup = yas < 36 ? 0 : yas < 47 ? 1 : yas < 57 ? 2 : 3;
+  const h = _portreHash(String(f.id ?? f.name ?? ''));
+  const sayfa = h % 2;
+  const kisi = Math.floor(h / 2) % 3;
+  const sutun = (cinsiyet === 'female' ? 0 : 1) + 2 * kisi;
+  const satir = sayfa * 4 + grup;
+  const x = sutun * 20;
+  const y = (satir * 100 / 7).toFixed(4);
+  const unvan = String(f.title || '').replace(/[^a-zçğıöşü_]/gi, '');
+  const ad = String(f.name || '').replace(/"/g, '&quot;');
+  return `<span class="portre portre--${unvan} ${extraClass}" role="img" aria-label="${ad}"
+    style="width:${size}px;height:${size}px;background-position:${x}% ${y}%, 0 0;"></span>`;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 // FEATURE 3: GENEL PUAN HESAPLAMA
 // ─────────────────────────────────────────────────────────────────────────────
 

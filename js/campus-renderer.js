@@ -9,14 +9,90 @@
  *   - Bina tipine özgü dekoratif unsurlar
  */
 
-import { GRID_SIZE, BUILDING_FOOTPRINTS } from './campus-layout.js?v=0.4.24';
+import { GRID_SIZE, BUILDING_FOOTPRINTS, PLAZA } from './campus-layout.js?v=0.5.0';
+import { BUILDING_SPRITES, PROP_SPRITES } from './building-sprites.js?v=0.5.0';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // SABİTLER
 // ─────────────────────────────────────────────────────────────────────────────
 
-const CANVAS_W = 960;
+const CANVAS_W = 960;   // dünya koordinatları (karo geometrisi bunlardan türer)
 const CANVAS_H = 600;
+
+// Fiziksel tuval (v0.5.0): dünya bir kamera dönüşümüyle bu boyuta ölçeklenir.
+// Bütün çizim kodu dünya koordinatlarında kalır; kamera dolu bölgeye odaklanır.
+const VIEW_W = 1600;
+const VIEW_H = 1000;
+const _cameras = new WeakMap();          // canvas -> { s, tx, ty }
+
+// ── Sprite yükleyici (v0.5.0) ────────────────────────────────────────────────
+const SPRITE_BASE = 'assets/buildings/';
+const SPRITE_VER  = '0.5.0';
+const _spriteCache   = {};               // anahtar -> { img, ok, failed }
+const _liveCanvases  = new Map();        // canvas -> son çizilen state
+let   _rerenderPending = false;
+
+function _spriteEntry(key) {
+  if (!key || !(BUILDING_SPRITES[key] || PROP_SPRITES[key])) return null;
+  let e = _spriteCache[key];
+  if (!e) {
+    const img = new Image();
+    e = _spriteCache[key] = { img, ok: false, failed: false };
+    img.onload  = () => { e.ok = true; _rerenderLive(); };
+    img.onerror = () => { e.failed = true; _rerenderLive(); };
+    img.src = `${SPRITE_BASE}${key}.webp?v=${SPRITE_VER}`;
+  }
+  return e;
+}
+
+function _getSprite(key) {
+  const e = _spriteEntry(key);
+  return e && e.ok ? e.img : null;
+}
+
+/** 'hazir' | 'yukleniyor' | 'yok' (görsel tanımlı değil ya da yüklenemedi) */
+function _spriteDurum(key) {
+  const e = _spriteEntry(key);
+  if (!e || e.failed) return 'yok';
+  return e.ok ? 'hazir' : 'yukleniyor';
+}
+
+/** Görseller geç yüklenince açık haritaları yeniden çiz (ilk karede kutu görünür). */
+function _rerenderLive() {
+  if (_rerenderPending) return;
+  _rerenderPending = true;
+  requestAnimationFrame(() => {
+    _rerenderPending = false;
+    for (const [cv, st] of _liveCanvases) {
+      if (!cv.isConnected) { _liveCanvases.delete(cv); continue; }
+      renderCampusMap(cv, st);
+    }
+  });
+}
+
+/** Binanın o anki görsel anahtarı: inşaat aşaması, düzey görseli ya da düzeysiz görsel. */
+function _spriteKeyFor(b) {
+  if (!b.isCompleted) {
+    const p = b.constructionProgress || 0;
+    const asama = p < 34 ? 1 : p < 67 ? 2 : 3;
+    if (BUILDING_SPRITES[`insaat_${asama}`]) return `insaat_${asama}`;
+    return BUILDING_SPRITES.insaat ? 'insaat' : null;
+  }
+  // Düzey görseli yoksa (üst sınırı aşan eski kayıt) en yakın alt düzey kullanılır
+  for (let l = Math.max(1, Math.floor(b.level || 1)); l >= 1; l--) {
+    if (BUILDING_SPRITES[`${b.type}_${l}`]) return `${b.type}_${l}`;
+  }
+  return BUILDING_SPRITES[b.type] ? b.type : null;
+}
+
+/** Karo başına sabit sözde rastgele sayı [0, 1): her çizimde aynı sonuç */
+function _hash(a, b) {
+  let h = (Math.imul(a | 0, 374761393) + Math.imul(b | 0, 668265263)) | 0;
+  h = Math.imul(h ^ (h >>> 13), 1274126177);
+  return ((h ^ (h >>> 16)) >>> 0) / 4294967296;
+}
+
+let _camS = 1;   // o anki kamera ölçeği (gölge ofsetleri dönüşümden etkilenmez)
 
 // Tile boyutları ve başlangıç noktası — renderCampusMap tarafından güncellenir
 // (Grid'in tüm canvas'a sığması için dinamik hesap)
@@ -163,11 +239,14 @@ const BUILDING_STYLES = {
 
 // Zemin renkleri
 const COLORS = {
-  grass: '#1a4a28',
-  grassLight: '#1e5830',
-  grassStroke: '#164020',
-  path: '#5a5040',
-  pathStroke: '#4a4030',
+  grass: '#5b7a31',
+  grassLight: '#628236',
+  grassStroke: '#51702b',
+  path: '#d7bf97',
+  pathStroke: '#a88d62',
+  plaza: '#e2cca6',
+  soilLeft: '#6b5234',
+  soilRight: '#53402a',
   water: '#2060a0',
   waterLight: '#3080c0',
   treeCanopy: '#2a7a3a',
@@ -202,8 +281,9 @@ function isoUnproject(px, py, canvas) {
   const rect = canvas.getBoundingClientRect();
   const scaleX = canvas.width / rect.width;
   const scaleY = canvas.height / rect.height;
-  const cx = px * scaleX;
-  const cy = py * scaleY;
+  const cam = _cameras.get(canvas) || { s: 1, tx: 0, ty: 0 };
+  const cx = (px * scaleX - cam.tx) / cam.s;
+  const cy = (py * scaleY - cam.ty) / cam.s;
 
   const relX = cx - ORIGIN_X;
   const relY = cy - ORIGIN_Y;
@@ -275,39 +355,119 @@ function drawIsoBox(ctx, x, y, tileW, tileH, height, topColor, leftColor, rightC
 // ÇİZİM: DEKORASYONLAR
 // ─────────────────────────────────────────────────────────────────────────────
 
+// Çim tonları: karo karo hafif değişir, ızgara çizgisi yok (v0.5.0)
+const GRASS_TONES = ['#5a7930', '#5f7f34', '#57752e', '#648538', '#5c7b33', '#61803a'];
+
 function drawGrassTile(ctx, col, row) {
   const { x, y } = isoProject(col, row);
-  const shade = ((col + row) % 2 === 0) ? COLORS.grass : COLORS.grassLight;
-  drawIsoDiamond(ctx, x, y + TILE_H / 2, TILE_W, TILE_H, shade, COLORS.grassStroke);
+  const ton = GRASS_TONES[Math.floor(_hash(col, row) * GRASS_TONES.length)];
+  // Karo sınırında ince açıklık kalmasın diye elmas biraz büyütülür
+  drawIsoDiamond(ctx, x, y + TILE_H / 2, TILE_W + 1, TILE_H + 0.5, ton, null);
 }
 
-function drawPathTile(ctx, col, row) {
+/** Taş döşeli yol ya da meydan karosu; yalnız yol olmayan komşuya bakan kenara bordür çizilir. */
+function drawPathTile(ctx, col, row, grid, renk = COLORS.path) {
   const { x, y } = isoProject(col, row);
-  drawIsoDiamond(ctx, x, y + TILE_H / 2, TILE_W, TILE_H, COLORS.path, COLORS.pathStroke);
-}
-
-function drawTree(ctx, col, row) {
-  const { x, y } = isoProject(col, row);
-  const baseY = y + TILE_H / 2;
-
-  // Zemin
-  drawIsoDiamond(ctx, x, baseY, TILE_W, TILE_H, COLORS.grassLight, COLORS.grassStroke);
-
-  // Gövde
-  ctx.fillStyle = COLORS.treeTrunk;
-  ctx.fillRect(x - 2, baseY - 22, 4, 14);
-
-  // Kanopi (üçgen/yuvarlak)
+  const cy = y + TILE_H / 2;
+  const hw = TILE_W / 2, hh = TILE_H / 2;
+  drawIsoDiamond(ctx, x, cy, TILE_W + 1, TILE_H + 0.5, renk, null);
+  if (!grid) return;
+  const yolMu = (c, r) => { const t = grid[r] && grid[r][c]; return t === 'path' || t === 'plaza'; };
+  ctx.strokeStyle = COLORS.pathStroke;
+  ctx.lineWidth = 1.1;
+  ctx.lineCap = 'round';
   ctx.beginPath();
-  ctx.arc(x, baseY - 28, 10, 0, Math.PI * 2);
+  if (!yolMu(col, row - 1)) { ctx.moveTo(x, cy - hh); ctx.lineTo(x + hw, cy); }
+  if (!yolMu(col + 1, row)) { ctx.moveTo(x + hw, cy); ctx.lineTo(x, cy + hh); }
+  if (!yolMu(col, row + 1)) { ctx.moveTo(x, cy + hh); ctx.lineTo(x - hw, cy); }
+  if (!yolMu(col - 1, row)) { ctx.moveTo(x - hw, cy); ctx.lineTo(x, cy - hh); }
+  ctx.stroke();
+}
+
+// ── Ağaç ve süsleme görselleri (v0.5.0) ─────────────────────────────────────
+// Yükseklikler dünya pikseli: 2x2 bir binanın zemin plakası 80 piksel genişliktedir.
+const PROP_YUKSEKLIK = {
+  agac_yesil: 24, agac_sonbahar: 24, agac_bahar: 23, agac_selvi: 30, agac_cam: 28,
+  lamba: 16, bank: 7, cicek: 6, calilik: 10, bisiklet: 8, heykel: 14,
+  cardak: 19, ogrenciler: 8, bufe: 14, araba: 8,
+};
+const AGAC_OLAGAN = ['agac_yesil', 'agac_yesil', 'agac_yesil', 'agac_selvi', 'agac_cam'];
+// Karo içinde ağaç kümesi yerleşimi (karo ortasına göre, dünya pikseli)
+const AGAC_KUME = [
+  [[0, 0]],
+  [[-6, -1], [6, 2]],
+  [[0, -4], [-8, 2], [8, 3]],
+];
+
+function _agacAnahtari(col, row, i, mevsim) {
+  const h = _hash(col * 7 + i, row * 13 + i * 3);
+  if (mevsim === 'güz' && h < 0.45) return 'agac_sonbahar';
+  if (mevsim === 'bahar' && h < 0.28) return 'agac_bahar';
+  return AGAC_OLAGAN[Math.floor(_hash(col + 11 * i, row + 5) * AGAC_OLAGAN.length)];
+}
+
+/** Süsleme görselini dayanak noktası (en alt orta) verilen yere oturtur; hafif gölge ekler. */
+function _drawPropAt(ctx, key, px, py, olcek = 1, ayna = false) {
+  const img = _getSprite(key);
+  const m = PROP_SPRITES[key];
+  if (!img || !m) return false;
+  const hedefH = (PROP_YUKSEKLIK[key] || 12) * olcek;
+  const k = hedefH / Math.max(1, m.ay - m.top + 1);
+  const gen = (m.R - m.L + 1) * k;
+  ctx.fillStyle = 'rgba(25, 35, 10, 0.28)';
+  ctx.beginPath();
+  ctx.ellipse(px + gen * 0.08, py, gen * 0.42, gen * 0.17, 0, 0, Math.PI * 2);
+  ctx.fill();
+  if (ayna) {
+    ctx.save();
+    ctx.translate(px, 0);
+    ctx.scale(-1, 1);
+    ctx.drawImage(img, -m.ax * k, py - m.ay * k, m.w * k, m.h * k);
+    ctx.restore();
+  } else {
+    ctx.drawImage(img, px - m.ax * k, py - m.ay * k, m.w * k, m.h * k);
+  }
+  return true;
+}
+
+function drawTree(ctx, col, row, mevsim) {
+  const { x, y } = isoProject(col, row);
+  const cy = y + TILE_H / 2;
+  const kume = AGAC_KUME[Math.floor(_hash(col + 3, row + 9) * AGAC_KUME.length)];
+  let cizildi = false;
+  kume.forEach(([ox, oy], i) => {
+    const olcek = 0.85 + 0.3 * _hash(col * 5 + i, row * 3 + i);
+    const ayna = _hash(col + i, row * 2 + i) < 0.5;
+    if (_drawPropAt(ctx, _agacAnahtari(col, row, i, mevsim), x + ox, cy + oy, olcek, ayna)) cizildi = true;
+  });
+  if (cizildi) return;
+
+  // Görsel henüz yüklenmediyse basit ağaç
+  ctx.fillStyle = COLORS.treeTrunk;
+  ctx.fillRect(x - 1.5, cy - 12, 3, 10);
+  ctx.beginPath();
+  ctx.arc(x, cy - 16, 7, 0, Math.PI * 2);
   ctx.fillStyle = COLORS.treeCanopy;
   ctx.fill();
+}
 
-  // Kanopi highlight
-  ctx.beginPath();
-  ctx.arc(x - 2, baseY - 30, 6, 0, Math.PI * 2);
-  ctx.fillStyle = COLORS.treeCanopyLight;
-  ctx.fill();
+function drawProp(ctx, dec) {
+  const { x, y } = isoProject(dec.col, dec.row);
+  const ayna = _hash(dec.col * 3, dec.row * 5) < 0.5;
+  _drawPropAt(ctx, dec.key, x, y + TILE_H / 2 + 2, 1, ayna);
+}
+
+/** Meydan görseli 3x3 alana oturur (görsel yoksa taş döşeme yeterli). */
+function drawPlaza(ctx, dec) {
+  const img = _getSprite('meydan');
+  const m = BUILDING_SPRITES.meydan;
+  if (!img || !m) return;
+  const w = dec.w || 3, h = dec.h || 3;
+  const { x } = isoProject(dec.col + w / 2, dec.row + h / 2);
+  const baseY = isoProject(dec.col + w, dec.row + h).y;
+  const fpW = (w + h) * TILE_W / 2 * 0.98;
+  const k = fpW / Math.max(1, m.padR - m.padL + 1);
+  ctx.drawImage(img, x - ((m.padL + m.padR) / 2) * k, baseY - m.padB * k, m.w * k, m.h * k);
 }
 
 function drawFountain(ctx, col, row) {
@@ -1157,6 +1317,24 @@ function drawBuilding(ctx, building, state) {
   const deepTile = isoProject(gx + gw - 1, gy + gh - 1);
   const baseY = deepTile.y + TILE_H;
 
+  // v0.5.0: görsel varsa onu çiz; yoksa aşağıdaki kutu çizimine düş
+  const spKey = _spriteKeyFor(building);
+  const spDurum = _spriteDurum(spKey);
+  if (spDurum === 'hazir') {
+    _drawBuildingSprite(ctx, building, _getSprite(spKey), BUILDING_SPRITES[spKey], x, baseY, gw, gh);
+    return;
+  }
+  if (spDurum === 'yukleniyor') {
+    // Görsel gelene kadar yalnız taş zemin (eski kutu çizimi bir an görünüp kaybolmasın)
+    for (let dc = 0; dc < gw; dc++) {
+      for (let dr = 0; dr < gh; dr++) {
+        const { x: tx, y: ty } = isoProject(gx + dc, gy + dr);
+        drawIsoDiamond(ctx, tx, ty + TILE_H / 2, TILE_W + 1, TILE_H + 0.5, COLORS.plaza, null);
+      }
+    }
+    return;
+  }
+
   // Bina genişlik/derinlik (tile sayısı bazlı)
   const buildW = TILE_W * gw * 0.7;
   const buildH = TILE_H * gh * 0.7;
@@ -1354,20 +1532,86 @@ function _drawConstructionOverlay(ctx, x, baseY, buildW, height, progress) {
   ctx.fillRect(x - barW / 2, barY, barW * (progress / 100), 4);
 }
 
-function _drawLevelBadge(ctx, x, y, level) {
-  ctx.beginPath();
-  ctx.arc(x, y, 8, 0, Math.PI * 2);
-  ctx.fillStyle = '#f0c040';
-  ctx.fill();
-  ctx.strokeStyle = '#a08020';
-  ctx.lineWidth = 1;
-  ctx.stroke();
+/**
+ * Bina görselini taban izine oturtur. Ölçek zemin plakasından alınır; plakanın
+ * alt ucu taban izinin alt köşesine, plaka ortası taban izinin ortasına gelir.
+ */
+function _drawBuildingSprite(ctx, b, img, m, x, baseY, gw, gh) {
+  // 1x1 binalar çok küçük kalmasın diye hafifçe büyütülür (taşma çeyrek karoyu geçmez)
+  const fpW  = (gw + gh) * TILE_W / 2 * (gw * gh === 1 ? 1.2 : 0.98);
+  const padW = Math.max(1, m.padR - m.padL + 1);
+  const k    = fpW / padW;
+  const dx   = x - ((m.padL + m.padR) / 2) * k;
+  const dy   = baseY - m.padB * k;
+  const topY = dy + (m.top || 0) * k;
 
-  ctx.fillStyle = '#1a1a2e';
-  ctx.font = 'bold 9px sans-serif';
+  const secili  = !!_selectedBuilding && (_selectedBuilding === b ||
+    (_selectedBuilding.id != null && _selectedBuilding.id === b.id));
+  const uzerinde = _hoveredTile &&
+    _hoveredTile.col >= b.gridX && _hoveredTile.col < b.gridX + gw &&
+    _hoveredTile.row >= b.gridY && _hoveredTile.row < b.gridY + gh;
+
+  ctx.save();
+  ctx.imageSmoothingEnabled = true;
+  ctx.imageSmoothingQuality = 'high';
+  if (secili || uzerinde) {
+    ctx.shadowColor = secili ? 'rgba(78,204,163,0.95)' : 'rgba(255,255,255,0.55)';
+    ctx.shadowBlur  = secili ? 22 : 14;
+  } else {
+    // Işık sol üstten: gölge sağ alta düşer (ofset ve bulanıklık kamera ölçeğiyle)
+    ctx.shadowColor   = 'rgba(20, 28, 8, 0.38)';
+    ctx.shadowBlur    = 6 * _camS;
+    ctx.shadowOffsetX = 3 * _camS;
+    ctx.shadowOffsetY = 1.5 * _camS;
+  }
+  ctx.drawImage(img, dx, dy, m.w * k, m.h * k);
+  ctx.restore();
+
+  // İnşaat ya da yükseltme sürüyorsa ilerleme çubuğu
+  const yukseltme = b.isCompleted && b.status === 'upgrading';
+  if (!b.isCompleted || yukseltme) {
+    _drawProgressBar(ctx, x, topY - 6, Math.min(46, fpW * 0.5), b.constructionProgress || 0,
+      yukseltme ? '#4ecca3' : '#f0c040');
+  }
+
+  // Düzey rozeti (düzey 2 ve üstü)
+  if (b.isCompleted && (b.level || 1) > 1) {
+    // Rozet zemin plakasının sağ köşesinde: binanın üstünü kapatmasın
+    _drawLevelBadge(ctx, x + fpW * 0.40, baseY - fpW * 0.25 + 3, b.level);
+  }
+}
+
+function _drawProgressBar(ctx, cx, y, w, pct, color) {
+  const h = 3;
+  const p = Math.max(0, Math.min(100, pct)) / 100;
+  const yuvarla = (x0, y0, ww, hh, r) => {
+    ctx.beginPath();
+    if (ctx.roundRect) ctx.roundRect(x0, y0, ww, hh, r); else ctx.rect(x0, y0, ww, hh);
+  };
+  ctx.fillStyle = 'rgba(12, 16, 28, 0.78)';
+  yuvarla(cx - w / 2 - 1, y - 1, w + 2, h + 2, 2.5);
+  ctx.fill();
+  if (p > 0) {
+    ctx.fillStyle = color;
+    yuvarla(cx - w / 2, y, Math.max(h, w * p), h, 1.5);
+    ctx.fill();
+  }
+}
+
+function _drawLevelBadge(ctx, x, y, level) {
+  const r = 4.6;
+  ctx.beginPath();
+  ctx.arc(x, y, r, 0, Math.PI * 2);
+  ctx.fillStyle = '#1b2340';
+  ctx.fill();
+  ctx.strokeStyle = '#f0c040';
+  ctx.lineWidth = 1.1;
+  ctx.stroke();
+  ctx.fillStyle = '#ffd866';
+  ctx.font = 'bold 6.2px "Segoe UI", system-ui, sans-serif';
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
-  ctx.fillText(level, x, y);
+  ctx.fillText(level, x, y + 0.3);
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -1391,33 +1635,99 @@ function _drawBuildingHighlight(ctx, building) {
 // ANA RENDER FONKSİYONU
 // ─────────────────────────────────────────────────────────────────────────────
 
+/**
+ * Kamera: binaların kapladığı bölgeyi (yükseklik payı dahil) tuvale sığdırır.
+ * Erken oyunda az bina yakından görünür, kampüs büyüdükçe kamera uzaklaşır.
+ */
+function _computeCamera(state) {
+  let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
+  const ekle = (px, py) => {
+    if (px < minX) minX = px; if (px > maxX) maxX = px;
+    if (py < minY) minY = py; if (py > maxY) maxY = py;
+  };
+  for (const b of (state.buildings || [])) {
+    if (b.gridX == null || b.gridY == null) continue;
+    const gw = b.gridW || 1, gh = b.gridH || 1;
+    const ust = isoProject(b.gridX, b.gridY);
+    const sag = isoProject(b.gridX + gw, b.gridY);
+    const alt = isoProject(b.gridX + gw, b.gridY + gh);
+    const sol = isoProject(b.gridX, b.gridY + gh);
+    ekle(sol.x, sol.y); ekle(sag.x, sag.y); ekle(alt.x, alt.y);
+    ekle(ust.x, ust.y - (gw + gh) * TILE_W / 2 * 0.8);   // bina yüksekliği payı
+  }
+  if (!isFinite(minX)) {
+    const c = isoProject(GRID_SIZE / 2, GRID_SIZE / 2);
+    minX = c.x - 200; maxX = c.x + 200; minY = c.y - 160; maxY = c.y + 100;
+  }
+  minX -= TILE_W * 1.5; maxX += TILE_W * 1.5;
+  minY -= TILE_H * 1.5; maxY += TILE_H * 2.0;
+  // Aşırı yakınlaşmayı önle: en az ~10 karo genişliğinde alan
+  const enAzW = TILE_W * 10;
+  if (maxX - minX < enAzW) { const o = (minX + maxX) / 2; minX = o - enAzW / 2; maxX = o + enAzW / 2; }
+  const enAzH = enAzW * VIEW_H / VIEW_W;
+  if (maxY - minY < enAzH) { const o = (minY + maxY) / 2; minY = o - enAzH / 2; maxY = o + enAzH / 2; }
+  let s = Math.min(VIEW_W / (maxX - minX), VIEW_H / (maxY - minY));
+  const sMin = Math.min(VIEW_W / CANVAS_W, VIEW_H / CANVAS_H);   // bütün dünya
+  s = Math.max(sMin, Math.min(s, 4.2));
+  return { s, tx: VIEW_W / 2 - s * (minX + maxX) / 2, ty: VIEW_H / 2 - s * (minY + maxY) / 2 };
+}
+
 export function renderCampusMap(canvas, state) {
   if (!canvas) return;
   const ctx = canvas.getContext('2d');
   if (!ctx) return;
 
-  canvas.width = CANVAS_W;
-  canvas.height = CANVAS_H;
+  canvas.width = VIEW_W;
+  canvas.height = VIEW_H;
+  _liveCanvases.set(canvas, state);
 
-  // Arkaplan
-  ctx.fillStyle = '#0a1f12';
-  ctx.fillRect(0, 0, CANVAS_W, CANVAS_H);
+  // Arkaplan (fiziksel tuval): kampüsün çevresi koyu çayır
+  const bg = ctx.createRadialGradient(VIEW_W / 2, VIEW_H * 0.5, 60, VIEW_W / 2, VIEW_H * 0.5, VIEW_W * 0.8);
+  bg.addColorStop(0, '#3f5a24');
+  bg.addColorStop(1, '#1b2811');
+  ctx.fillStyle = bg;
+  ctx.fillRect(0, 0, VIEW_W, VIEW_H);
 
   const campus = state.campus;
   if (!campus || !campus.grid) return;
+
+  // Kamera: dolu bölgeye odaklan, dünyayı tuvale ölçekle
+  const cam = _computeCamera(state);
+  _cameras.set(canvas, cam);
+  _camS = cam.s;
+  ctx.setTransform(cam.s, 0, 0, cam.s, cam.tx, cam.ty);
+  const mevsim = state.meta?.semester || 'güz';
 
   const grid = campus.grid;
   const size = grid.length;
   const buildings = state.buildings || [];
   const decorations = campus.decorations || [];
 
+  // 0. Kampüs adası: ızgaranın ön iki yüzüne toprak kalınlığı (diorama görünümü)
+  {
+    const sol = isoProject(0, size), alt = isoProject(size, size), sag = isoProject(size, 0);
+    const kal = TILE_H * 0.9;
+    ctx.fillStyle = COLORS.soilLeft;
+    ctx.beginPath();
+    ctx.moveTo(sol.x, sol.y); ctx.lineTo(alt.x, alt.y);
+    ctx.lineTo(alt.x, alt.y + kal); ctx.lineTo(sol.x, sol.y + kal);
+    ctx.closePath(); ctx.fill();
+    ctx.fillStyle = COLORS.soilRight;
+    ctx.beginPath();
+    ctx.moveTo(alt.x, alt.y); ctx.lineTo(sag.x, sag.y);
+    ctx.lineTo(sag.x, sag.y + kal); ctx.lineTo(alt.x, alt.y + kal);
+    ctx.closePath(); ctx.fill();
+  }
+
   // Painter's algorithm: col + row sırasıyla çiz
-  // 1. Önce tüm zemin tile'ları
+  // 1. Önce tüm zemin karoları
   for (let row = 0; row < size; row++) {
     for (let col = 0; col < size; col++) {
       const tile = grid[row][col];
       if (tile === 'path') {
-        drawPathTile(ctx, col, row);
+        drawPathTile(ctx, col, row, grid);
+      } else if (tile === 'plaza') {
+        drawPathTile(ctx, col, row, grid, COLORS.plaza);
       } else {
         drawGrassTile(ctx, col, row);
       }
@@ -1437,10 +1747,13 @@ export function renderCampusMap(canvas, state) {
   // 4. Dekorasyonlar ve binalar — derinlik sırasıyla
   const renderables = [];
 
-  // Dekorasyonlar (tree, fountain)
+  // Derinlik: nesnenin alt köşesinin (col + row) toplamı; eşitlikte önce zemine yakın olan
+  const SIRA = { plaza: 0, fountain: 0, building: 1, tree: 2, prop: 2 };
   for (const dec of decorations) {
-    if (dec.type === 'tree' || dec.type === 'fountain') {
-      renderables.push({ type: dec.type, col: dec.col, row: dec.row, depth: dec.col + dec.row, data: dec });
+    if (dec.type === 'tree' || dec.type === 'prop') {
+      renderables.push({ type: dec.type, col: dec.col, row: dec.row, depth: dec.col + dec.row + 2, data: dec });
+    } else if (dec.type === 'fountain' || dec.type === 'plaza') {
+      renderables.push({ type: dec.type, col: dec.col, row: dec.row, depth: dec.col + dec.row + (dec.w || 2) + (dec.h || 2), data: dec });
     }
   }
 
@@ -1450,12 +1763,15 @@ export function renderCampusMap(canvas, state) {
     renderables.push({ type: 'building', col: b.gridX, row: b.gridY, depth: b.gridX + b.gridY + (b.gridW || 1) + (b.gridH || 1), data: b });
   }
 
-  // Derinlik sırasıyla çiz
-  renderables.sort((a, b) => a.depth - b.depth);
+  renderables.sort((a, b) => (a.depth - b.depth) || (SIRA[a.type] - SIRA[b.type]) || (a.row - b.row));
 
   for (const r of renderables) {
     if (r.type === 'tree') {
-      drawTree(ctx, r.col, r.row);
+      drawTree(ctx, r.col, r.row, mevsim);
+    } else if (r.type === 'prop') {
+      drawProp(ctx, r.data);
+    } else if (r.type === 'plaza') {
+      drawPlaza(ctx, r.data);
     } else if (r.type === 'fountain') {
       drawFountain(ctx, r.col, r.row);
     } else if (r.type === 'building') {
@@ -1463,15 +1779,34 @@ export function renderCampusMap(canvas, state) {
     }
   }
 
-  // 5. Kampüs etiketi
-  ctx.fillStyle = 'rgba(255,255,255,0.4)';
-  ctx.font = '11px sans-serif';
-  ctx.textAlign = 'left';
-  ctx.fillText(`${state.university?.name || 'Üniversite'} Yerleşkesi`, 12, CANVAS_H - 12);
-
+  // 5. Kampüs etiketleri (fiziksel tuval koordinatlarında, yarı saydam hap içinde)
+  ctx.setTransform(1, 0, 0, 1, 0, 0);
   const totalArea = buildings.reduce((s, b) => s + (b.isCompleted ? (b.area || 0) : 0), 0);
-  ctx.textAlign = 'right';
-  ctx.fillText(`${buildings.filter(b => b.isCompleted).length} bina · ${totalArea.toLocaleString('tr-TR')} m²`, CANVAS_W - 12, CANVAS_H - 12);
+  // Tuval ekranda küçük gösteriliyorsa (telefon) yazı en az ~11 CSS pikseli kalsın
+  const gorunen = canvas.clientWidth || VIEW_W;
+  const kz = Math.max(1, Math.min(2.6, 11 / (24 * gorunen / VIEW_W)));
+  const pay = 24 * kz;
+  _drawPill(ctx, `${state.university?.name || 'Üniversite'} Yerleşkesi`, pay, VIEW_H - pay, 'left', true, kz);
+  if (kz < 1.6) {
+    _drawPill(ctx, `${buildings.filter(b => b.isCompleted).length} bina · ${totalArea.toLocaleString('tr-TR')} m²`,
+      VIEW_W - pay, VIEW_H - pay, 'right', false, kz);
+  }
+}
+
+function _drawPill(ctx, metin, x, y, hiza, kalin, kz = 1) {
+  ctx.font = `${kalin ? '700' : '600'} ${24 * kz}px "Segoe UI", system-ui, sans-serif`;
+  const w = ctx.measureText(metin).width + 36 * kz;
+  const h = 44 * kz;
+  const x0 = hiza === 'left' ? x : x - w;
+  const y0 = y - h;
+  ctx.fillStyle = 'rgba(12, 18, 8, 0.62)';
+  ctx.beginPath();
+  if (ctx.roundRect) ctx.roundRect(x0, y0, w, h, h / 2); else ctx.rect(x0, y0, w, h);
+  ctx.fill();
+  ctx.fillStyle = kalin ? '#fff4dc' : 'rgba(255, 244, 220, 0.85)';
+  ctx.textAlign = 'left';
+  ctx.textBaseline = 'middle';
+  ctx.fillText(metin, x0 + 18 * kz, y0 + h / 2 + 1);
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

@@ -44,8 +44,33 @@ export const BUILDING_ZONES = {
   ulasim_merkezi:    'edge',
 };
 
-const ZONE_RADIUS = { center: 4, inner: 7, outer: 11, edge: 11 };
+
 const CENTER = Math.floor(GRID_SIZE / 2);
+
+// ─────────────────────────────────────────────────────────────────────────────
+// YERLEŞİM DÜZENİ 2 (v0.5.0)
+// Artı biçimli iki ana yol, kesiştikleri yerde 3x3 meydan. Binalar arasında
+// en az bir karo boşluk kalır; her bölge meydana belli bir uzaklık bandında
+// yerleşir (akademik çekirdek ortada, yurt ve teknokent dışta).
+// ─────────────────────────────────────────────────────────────────────────────
+
+export const LAYOUT_VERSION = 2;
+
+/** Meydan: ana yolların kesiştiği 3x3 alan */
+export const PLAZA = { col: CENTER - 1, row: CENTER - 1, w: 3, h: 3 };
+
+/** Bölge → meydan merkezine uzaklık bandı (karo, Chebyshev) */
+const ZONE_BAND = {
+  core:   [0, 5],
+  center: [0, 6],
+  inner:  [3, 9],
+  outer:  [5, 12],
+  edge:   [6, 12],
+};
+const ZONE_ORDER = { core: 0, center: 1, inner: 2, outer: 3, edge: 4 };
+
+/** Süsleme hücre türleri: yeni bina gelince hepsi silinip yeniden üretilir */
+const DECOR_CELLS = ['tree', 'path', 'fountain', 'plaza', 'prop'];
 
 // ─────────────────────────────────────────────────────────────────────────────
 // GRID OLUŞTURMA
@@ -56,48 +81,85 @@ export function createEmptyGrid(size = GRID_SIZE) {
   return Array.from({ length: size }, () => Array(size).fill('empty'));
 }
 
+/** Ana yollar ve meydan: bina konmaz */
+function _isReserved(col, row) {
+  if (col === CENTER || row === CENTER) return true;
+  return col >= PLAZA.col && col < PLAZA.col + PLAZA.w &&
+         row >= PLAZA.row && row < PLAZA.row + PLAZA.h;
+}
+
+function _zoneOf(buildingType) {
+  const fp = BUILDING_FOOTPRINTS[buildingType];
+  if (fp && fp.zone) return fp.zone;
+  return BUILDING_ZONES[buildingType] || 'inner';
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // YERLEŞTİRME ALGORİTMASI
 // ─────────────────────────────────────────────────────────────────────────────
 
 /**
  * Verilen bina tipi için grid üzerinde uygun yer bul.
- * Zone bazlı spiral arama: merkezden dışa doğru.
+ * Önce bölge bandında, bir karo boşlukla; bulunamazsa band dışında;
+ * o da olmazsa boşluksuz (kalabalık kampüs) aranır.
  * @returns {{ col: number, row: number, gridW: number, gridH: number } | null}
  */
 export function findPlacement(grid, buildingType) {
   const fp = BUILDING_FOOTPRINTS[buildingType] || { w: 1, h: 1 };
-  const zone = BUILDING_ZONES[buildingType] || 'inner';
-  const radius = ZONE_RADIUS[zone] || 7;
-
-  // Spiral arama: ring 0'dan dışa doğru
-  for (let r = 0; r <= radius + 6; r++) {
-    for (let dc = -r; dc <= r; dc++) {
-      for (let dr = -r; dr <= r; dr++) {
-        // Sadece ring kenarını tara (verim için)
-        if (r > 0 && Math.abs(dc) !== r && Math.abs(dr) !== r) continue;
-        const col = CENTER + dc;
-        const row = CENTER + dr;
-        if (_canPlace(grid, col, row, fp.w, fp.h)) {
-          return { col, row, gridW: fp.w, gridH: fp.h };
-        }
-      }
-    }
+  const [dMin, dMax] = ZONE_BAND[_zoneOf(buildingType)] || ZONE_BAND.inner;
+  const denemeler = [
+    { gap: 1, band: true },
+    { gap: 1, band: false },
+    { gap: 0, band: false },
+  ];
+  for (const d of denemeler) {
+    const yer = _bestSpot(grid, fp.w, fp.h, d.gap, d.band ? dMin : 0, d.band ? dMax : Infinity);
+    if (yer) return { col: yer.col, row: yer.row, gridW: fp.w, gridH: fp.h };
   }
   return null;
 }
 
-/** Grid'de belirli bir alana yerleştirilebilir mi? */
-function _canPlace(grid, col, row, w, h) {
+/** Meydana en yakın uygun yer (eşitlikte satır, sonra sütun sırası: belirlenimci) */
+function _bestSpot(grid, w, h, gap, dMin, dMax) {
+  const size = grid.length;
+  const merkez = CENTER + 0.5;
+  let enIyi = null;
+  let enIyiSkor = Infinity;
+  for (let row = 1; row < size - 1; row++) {
+    for (let col = 1; col < size - 1; col++) {
+      const fx = col + w / 2;
+      const fy = row + h / 2;
+      const d = Math.max(Math.abs(fx - merkez), Math.abs(fy - merkez));
+      if (d < dMin || d > dMax) continue;
+      if (!_canPlace(grid, col, row, w, h, gap)) continue;
+      const skor = Math.hypot(fx - merkez, fy - merkez);
+      if (skor < enIyiSkor - 1e-9) {
+        enIyiSkor = skor;
+        enIyi = { col, row };
+      }
+    }
+  }
+  return enIyi;
+}
+
+/** Grid'de belirli bir alana yerleştirilebilir mi? (gap: çevrede bina olmayacak karo sayısı) */
+function _canPlace(grid, col, row, w, h, gap = 1) {
   const size = grid.length;
   if (col < 1 || row < 1 || col + w >= size - 1 || row + h >= size - 1) return false;
   for (let dc = 0; dc < w; dc++) {
     for (let dr = 0; dr < h; dr++) {
-      if (grid[row + dr][col + dc] !== 'empty') return false;
+      if (grid[row + dr][col + dc] === 'building') return false;
+      if (_isReserved(col + dc, row + dr)) return false;
     }
   }
-  // Binaların birbirine yapışmaması için 1 tile boşluk bırak (en az bir kenarı boş)
-  // Basit kontrol: footprint etrafında en az 1 empty tile var mı
+  if (gap > 0) {
+    for (let r = row - gap; r < row + h + gap; r++) {
+      for (let c = col - gap; c < col + w + gap; c++) {
+        if (r < 0 || c < 0 || r >= size || c >= size) continue;
+        if (grid[r][c] === 'building') return false;
+      }
+    }
+  }
   return true;
 }
 
@@ -120,49 +182,43 @@ export function placeBuildingOnGrid(grid, building) {
   }
 }
 
+/** Süsleme hücrelerini boşalt (binalar yerinde kalır) */
+function _clearDecorations(grid) {
+  for (let r = 0; r < grid.length; r++) {
+    for (let c = 0; c < grid[r].length; c++) {
+      if (DECOR_CELLS.includes(grid[r][c])) grid[r][c] = 'empty';
+    }
+  }
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // DEKORASYON ÜRETİMİ
 // ─────────────────────────────────────────────────────────────────────────────
 
 /**
- * Kampüs dekorasyonlarını oluştur: çeşme, yollar, ağaçlar.
- * Grid'i doğrudan mutate eder ve dekorasyon listesi döner.
+ * Kampüs dekorasyonlarını oluştur: meydan, ana yollar, bina bağlantı yolları,
+ * ağaçlar ve süs nesneleri. Grid'i doğrudan değiştirir ve dekorasyon listesi döner.
  */
 export function generateDecorations(grid, buildings) {
   const decorations = [];
   const size = grid.length;
 
-  // 1. Merkez çeşme (2x2 alan, grid merkezinde)
-  const fc = CENTER - 1;
-  const fr = CENTER - 1;
-  let fountainPlaced = false;
-  if (fc >= 0 && fr >= 0 && fc + 1 < size && fr + 1 < size) {
-    let canFountain = true;
-    for (let dc = 0; dc < 2; dc++) {
-      for (let dr = 0; dr < 2; dr++) {
-        if (grid[fr + dr][fc + dc] !== 'empty') canFountain = false;
-      }
-    }
-    if (canFountain) {
-      for (let dc = 0; dc < 2; dc++) {
-        for (let dr = 0; dr < 2; dr++) {
-          grid[fr + dr][fc + dc] = 'fountain';
-        }
-      }
-      decorations.push({ type: 'fountain', col: fc, row: fr, w: 2, h: 2 });
-      fountainPlaced = true;
+  // 1. Meydan (3x3, ana yolların kesişiminde)
+  let meydanBos = true;
+  for (let dr = 0; dr < PLAZA.h; dr++) {
+    for (let dc = 0; dc < PLAZA.w; dc++) {
+      if (grid[PLAZA.row + dr][PLAZA.col + dc] !== 'empty') meydanBos = false;
     }
   }
-
-  // 2. Yollar: Her binadan merkeze doğru yol çiz
-  const pathTarget = { col: CENTER, row: CENTER };
-  for (const b of buildings) {
-    if (b.gridX == null || b.gridY == null) continue;
-    _tracePath(grid, b, pathTarget, decorations);
+  if (meydanBos) {
+    for (let dr = 0; dr < PLAZA.h; dr++) {
+      for (let dc = 0; dc < PLAZA.w; dc++) grid[PLAZA.row + dr][PLAZA.col + dc] = 'plaza';
+    }
+    decorations.push({ type: 'plaza', col: PLAZA.col, row: PLAZA.row, w: PLAZA.w, h: PLAZA.h });
   }
 
-  // 3. Ana yol aksları (merkez artı şekli)
-  for (let i = 2; i < size - 2; i++) {
+  // 2. Ana yollar (artı biçimi)
+  for (let i = 1; i < size - 1; i++) {
     if (grid[CENTER][i] === 'empty') {
       grid[CENTER][i] = 'path';
       decorations.push({ type: 'path', col: i, row: CENTER });
@@ -173,21 +229,47 @@ export function generateDecorations(grid, buildings) {
     }
   }
 
-  // 4. Ağaçlar: bina/yol bitişiğindeki boş hücrelere %30 ihtimalle
-  // Sabit seed (her çağrıda aynı sonuç) için basit PRNG
+  // 3. Her binayı en yakın yola bağla (içten dışa; dıştakiler içtekilerin yoluna bağlanır)
+  const merkez = CENTER + 0.5;
+  const sirali = buildings
+    .filter(b => b.gridX != null && b.gridY != null)
+    .map(b => ({ b, d: Math.hypot(b.gridX + (b.gridW || 1) / 2 - merkez, b.gridY + (b.gridH || 1) / 2 - merkez) }))
+    .sort((a, b) => a.d - b.d);
+  for (const { b } of sirali) _connectToPath(grid, b, decorations);
+
+  // 4. Ağaçlar ve süs nesneleri (sabit tohum: her çağrıda aynı sonuç)
   let seed = 42;
-  const pseudoRandom = () => {
-    seed = (seed * 16807 + 0) % 2147483647;
+  const rnd = () => {
+    seed = (seed * 16807) % 2147483647;
     return (seed & 0x7fffffff) / 2147483647;
   };
 
   for (let row = 1; row < size - 1; row++) {
     for (let col = 1; col < size - 1; col++) {
       if (grid[row][col] !== 'empty') continue;
-      if (!_hasAdjacentType(grid, col, row, ['building', 'path', 'fountain'])) continue;
-      if (pseudoRandom() < 0.30) {
-        grid[row][col] = 'tree';
-        decorations.push({ type: 'tree', col, row });
+      // Binaların çevresi açık kalsın (görseller taban izinden biraz taşabiliyor)
+      if (_hasNeighbor8(grid, col, row, ['building'])) continue;
+      const yolKenari = _hasAdjacentType(grid, col, row, ['path', 'plaza']);
+      const r = rnd();
+      let dec = null;
+      if (yolKenari) {
+        if (r < 0.20)       dec = { type: 'tree' };
+        else if (r < 0.26)  dec = { type: 'prop', key: 'lamba' };
+        else if (r < 0.29)  dec = { type: 'prop', key: 'bank' };
+        else if (r < 0.31)  dec = { type: 'prop', key: 'cicek' };
+        else if (r < 0.325) dec = { type: 'prop', key: 'ogrenciler' };
+        else if (r < 0.335) dec = { type: 'prop', key: 'bisiklet' };
+        else if (r < 0.342) dec = { type: 'prop', key: 'bufe' };
+        else if (r < 0.348) dec = { type: 'prop', key: 'heykel' };
+      } else {
+        if (r < 0.11)       dec = { type: 'tree' };
+        else if (r < 0.145) dec = { type: 'prop', key: 'calilik' };
+        else if (r < 0.16)  dec = { type: 'prop', key: 'cicek' };
+        else if (r < 0.165) dec = { type: 'prop', key: 'cardak' };
+      }
+      if (dec) {
+        grid[row][col] = dec.type;
+        decorations.push({ ...dec, col, row });
       }
     }
   }
@@ -195,7 +277,7 @@ export function generateDecorations(grid, buildings) {
   // 5. Dış kenar ağaçları (kampüs çevresi)
   for (let i = 0; i < size; i++) {
     for (const [r, c] of [[0, i], [size - 1, i], [i, 0], [i, size - 1]]) {
-      if (r < size && c < size && grid[r][c] === 'empty' && pseudoRandom() < 0.6) {
+      if (grid[r][c] === 'empty' && rnd() < 0.6) {
         grid[r][c] = 'tree';
         decorations.push({ type: 'tree', col: c, row: r });
       }
@@ -205,53 +287,83 @@ export function generateDecorations(grid, buildings) {
   return decorations;
 }
 
-/** Binadan hedef noktaya L-şeklinde yol çiz */
-function _tracePath(grid, building, target, decorations) {
-  // Binanın kenar noktası
-  const bCol = building.gridX + Math.floor((building.gridW || 1) / 2);
-  const bRow = building.gridY + (building.gridH || 1); // alt kenar
+/**
+ * Binanın çevresinden en yakın yol ya da meydan hücresine en kısa yolu aç (BFS).
+ * Bina zaten bir yola bitişikse bir şey yapmaz. Ön cephe (sol alt yüz) önce denenir.
+ */
+function _connectToPath(grid, b, decorations) {
+  const size = grid.length;
+  const gx = b.gridX, gy = b.gridY, gw = b.gridW || 1, gh = b.gridH || 1;
+  const icerde = (c, r) => c >= 0 && r >= 0 && c < size && r < size;
+  const hedef = t => t === 'path' || t === 'plaza';
 
-  let col = bCol;
-  let row = bRow;
+  const baslangic = [];
+  for (let c = gx; c < gx + gw; c++) baslangic.push([c, gy + gh]);
+  for (let r = gy; r < gy + gh; r++) baslangic.push([gx + gw, r]);
+  for (let c = gx; c < gx + gw; c++) baslangic.push([c, gy - 1]);
+  for (let r = gy; r < gy + gh; r++) baslangic.push([gx - 1, r]);
 
-  // Önce dikey, sonra yatay (veya tam tersi — daha kısa olan)
-  const dCol = Math.sign(target.col - col);
-  const dRow = Math.sign(target.row - row);
-
-  // Dikey yürü
-  while (row !== target.row) {
-    if (row >= 0 && row < grid.length && col >= 0 && col < grid[0].length) {
-      if (grid[row][col] === 'empty') {
-        grid[row][col] = 'path';
-        decorations.push({ type: 'path', col, row });
-      }
-    }
-    row += dRow || 1;
-    if (row < 0 || row >= grid.length) break;
+  for (const [c, r] of baslangic) {
+    if (icerde(c, r) && hedef(grid[r][c])) return;
   }
 
-  // Yatay yürü
-  while (col !== target.col) {
-    if (row >= 0 && row < grid.length && col >= 0 && col < grid[0].length) {
-      if (grid[row][col] === 'empty') {
-        grid[row][col] = 'path';
-        decorations.push({ type: 'path', col, row });
+  const onceki = new Map();
+  const kuyruk = [];
+  for (const [c, r] of baslangic) {
+    if (!icerde(c, r) || grid[r][c] !== 'empty') continue;
+    const k = r * size + c;
+    if (onceki.has(k)) continue;
+    onceki.set(k, -1);
+    kuyruk.push(k);
+  }
+  for (let i = 0; i < kuyruk.length; i++) {
+    const k = kuyruk[i];
+    const c = k % size, r = (k - c) / size;
+    for (const [dc, dr] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+      const nc = c + dc, nr = r + dr;
+      if (!icerde(nc, nr)) continue;
+      const nk = nr * size + nc;
+      if (onceki.has(nk)) continue;
+      const t = grid[nr][nc];
+      if (hedef(t)) {
+        // Geriye doğru yolu işaretle
+        let cur = k;
+        while (cur !== -1) {
+          const cc = cur % size, rr = (cur - cc) / size;
+          if (grid[rr][cc] === 'empty') {
+            grid[rr][cc] = 'path';
+            decorations.push({ type: 'path', col: cc, row: rr });
+          }
+          cur = onceki.get(cur);
+        }
+        return;
       }
+      if (t !== 'empty') continue;
+      onceki.set(nk, k);
+      kuyruk.push(nk);
     }
-    col += dCol || 1;
-    if (col < 0 || col >= grid[0].length) break;
   }
 }
 
-/** Bitişik hücrelerde belirtilen tiplerden biri var mı? */
+/** Bitişik (4 yön) hücrelerde belirtilen tiplerden biri var mı? */
 function _hasAdjacentType(grid, col, row, types) {
   const size = grid.length;
-  const offsets = [[-1, 0], [1, 0], [0, -1], [0, 1]];
-  for (const [dc, dr] of offsets) {
+  for (const [dc, dr] of [[-1, 0], [1, 0], [0, -1], [0, 1]]) {
     const nc = col + dc;
     const nr = row + dr;
-    if (nc >= 0 && nc < size && nr >= 0 && nr < size) {
-      if (types.includes(grid[nr][nc])) return true;
+    if (nc >= 0 && nc < size && nr >= 0 && nr < size && types.includes(grid[nr][nc])) return true;
+  }
+  return false;
+}
+
+/** Çevredeki 8 hücrede belirtilen tiplerden biri var mı? */
+function _hasNeighbor8(grid, col, row, types) {
+  const size = grid.length;
+  for (let dr = -1; dr <= 1; dr++) {
+    for (let dc = -1; dc <= 1; dc++) {
+      if (!dr && !dc) continue;
+      const nc = col + dc, nr = row + dr;
+      if (nc >= 0 && nc < size && nr >= 0 && nr < size && types.includes(grid[nr][nc])) return true;
     }
   }
   return false;
@@ -264,50 +376,48 @@ function _hasAdjacentType(grid, col, row, types) {
 /**
  * Kampüs state'ini başlat veya mevcut binalara göre yeniden oluştur.
  * @param {object} state — Oyun state'i
+ * @param {{ relayout?: boolean }} [opts] relayout: bütün binalar yeni düzene göre yeniden yerleşir
  */
-export function initCampusState(state) {
+export function initCampusState(state, { relayout = false } = {}) {
   state.campus = {
     grid: createEmptyGrid(GRID_SIZE),
     decorations: [],
     size: GRID_SIZE,
+    layoutVersion: LAYOUT_VERSION,
   };
-
-  // Mevcut binaları yerleştir (eski kayıt migration veya yeni başlatma)
+  const grid = state.campus.grid;
   const buildings = state.buildings || [];
-  for (const b of buildings) {
-    if (b.gridX == null || b.gridY == null) {
-      // Pozisyonu olmayan bina — otomatik yerleştir
-      const fp = BUILDING_FOOTPRINTS[b.type] || { w: 1, h: 1 };
-      const placement = findPlacement(state.campus.grid, b.type);
-      if (placement) {
-        b.gridX = placement.col;
-        b.gridY = placement.row;
-        b.gridW = placement.gridW;
-        b.gridH = placement.gridH;
-      } else {
-        b.gridX = 0;
-        b.gridY = 0;
-        b.gridW = fp.w;
-        b.gridH = fp.h;
-      }
-    }
-    placeBuildingOnGrid(state.campus.grid, b);
+
+  if (relayout) {
+    for (const b of buildings) { b.gridX = null; b.gridY = null; }
   }
 
-  // Dekorasyonları oluştur
-  state.campus.decorations = generateDecorations(state.campus.grid, buildings);
+  // Konumu olan binalar yerinde kalır
+  for (const b of buildings) {
+    if (b.gridX != null && b.gridY != null) placeBuildingOnGrid(grid, b);
+  }
+
+  // Konumu olmayanlar: idari bina önce, sonra bölge sırasıyla (içten dışa)
+  const yersiz = buildings
+    .filter(b => b.gridX == null || b.gridY == null)
+    .sort((a, b) => (ZONE_ORDER[_zoneOf(a.type)] ?? 2) - (ZONE_ORDER[_zoneOf(b.type)] ?? 2));
+  for (const b of yersiz) _assign(grid, b);
+
+  state.campus.decorations = generateDecorations(grid, buildings);
 }
 
-/**
- * Yeni bina için pozisyon bul ve grid'e yerleştir.
- * Dekorasyonları yenile.
- */
-export function assignBuildingPosition(state, building) {
-  if (!state.campus) initCampusState(state);
+/** Eski düzendeki kayıtları bir kez yeni düzene taşır; güncel kayıtta bir şey yapmaz. */
+export function ensureCampusLayout(state) {
+  if (!state.campus || !state.campus.grid) {
+    initCampusState(state);
+  } else if (state.campus.layoutVersion !== LAYOUT_VERSION) {
+    initCampusState(state, { relayout: true });
+  }
+}
 
+function _assign(grid, building) {
   const fp = BUILDING_FOOTPRINTS[building.type] || { w: 1, h: 1 };
-  const placement = findPlacement(state.campus.grid, building.type);
-
+  const placement = findPlacement(grid, building.type);
   if (placement) {
     building.gridX = placement.col;
     building.gridY = placement.row;
@@ -319,18 +429,24 @@ export function assignBuildingPosition(state, building) {
     building.gridW = fp.w;
     building.gridH = fp.h;
   }
+  placeBuildingOnGrid(grid, building);
+}
 
-  placeBuildingOnGrid(state.campus.grid, building);
-
-  // Dekorasyonları yeniden oluştur (yollar/ağaçlar güncellenir)
-  // Önce grid'den eski dekorasyonları temizle
-  const grid = state.campus.grid;
-  for (let r = 0; r < grid.length; r++) {
-    for (let c = 0; c < grid[r].length; c++) {
-      if (grid[r][c] === 'tree' || grid[r][c] === 'path' || grid[r][c] === 'fountain') {
-        grid[r][c] = 'empty';
-      }
-    }
+/**
+ * Yeni bina için pozisyon bul ve grid'e yerleştir.
+ * Dekorasyonları yenile.
+ */
+export function assignBuildingPosition(state, building) {
+  if (!state.campus) initCampusState(state);
+  ensureCampusLayout(state);
+  // initCampusState bu binayı zaten yerleştirmiş olabilir
+  if (building.gridX != null && building.gridY != null &&
+      state.campus.grid[building.gridY]?.[building.gridX] === 'building') {
+    return;
   }
+
+  const grid = state.campus.grid;
+  _clearDecorations(grid);
+  _assign(grid, building);
   state.campus.decorations = generateDecorations(grid, state.buildings || []);
 }

@@ -8,7 +8,7 @@ console.log('[main] main.js modülü yükleniyor...');
 // IMPORT
 // ─────────────────────────────────────────────────────────────────────────────
 
-import { initGame, nextTurn, getState, setState, applyDecision, assignCourses, applyQuotas, assignDeptHead, reassignFacultyToDept, generateAdminCandidates, hireAdminStaff, upgradeAdminUnit, promoteAdminStaff, fireAdminStaff, updateAdminStaffSalary, assignUnitManager, RANDOM_EVENTS, ACHIEVEMENTS, getAchievementStats, organizeAlumniEvent, applyRandomEventChoice, ACCREDITATION_BODIES, applyForAccreditation, checkAccreditationRequirements, establishTTO, upgradeTTO, acceptDeal, rejectDeal, foundClub, upgradeClub, dissolveClub, CLUB_TYPES, CLUB_CATEGORIES, SPORTS, foundTeam, upgradeTeam, dissolveTeam, setCourseDifficulty, getUnitTitles, getUnitTitleSalary, isUnitManagerTitle, enableFreeMode } from './game.js?v=0.4.60';
+import { initGame, nextTurn, getState, setState, applyDecision, assignCourses, applyQuotas, assignDeptHead, reassignFacultyToDept, generateAdminCandidates, hireAdminStaff, upgradeAdminUnit, promoteAdminStaff, fireAdminStaff, updateAdminStaffSalary, assignUnitManager, RANDOM_EVENTS, ACHIEVEMENTS, getAchievementStats, organizeAlumniEvent, applyRandomEventChoice, ACCREDITATION_BODIES, applyForAccreditation, checkAccreditationRequirements, establishTTO, upgradeTTO, acceptDeal, rejectDeal, foundClub, upgradeClub, dissolveClub, CLUB_TYPES, CLUB_CATEGORIES, SPORTS, foundTeam, upgradeTeam, dissolveTeam, setCourseDifficulty, getUnitTitles, getUnitTitleSalary, isUnitManagerTitle, enableFreeMode } from './game.js?v=0.5.0';
 import { ADMIN_TITLES } from './data.js?v=0.4.53';
 
 import {
@@ -50,16 +50,16 @@ import {
   showGameWonModal,
   el,
   on,
-} from './ui.js?v=0.4.63';
+} from './ui.js?v=0.5.0';
 
-import { CHANGELOG, hasUnseenChanges, setLastSeenVersion } from './changelog.js?v=0.4.63';
+import { CHANGELOG, hasUnseenChanges, setLastSeenVersion } from './changelog.js?v=0.5.0';
 
 import { saveGame, loadGame, autoSave, getSaveSlots, deleteSave, exportSave, importSave, sanitizeForSave } from './save.js?v=0.4.63';
 import { calculateScore, scoreBreakdown, submitScore, getTopScores, initFirebase, isLeaderboardUnavailable, saveLocalScore, getLocalScores } from './leaderboard.js?v=0.4.45';
 import { showTutorialIfNeeded, replayTutorial } from './tutorial.js?v=0.4.55';
 import { initAudio, playSound, toggleMute, isMuted, startMusic, stopMusic, setMusicVolume, setSFXVolume, getAudioSettings } from './audio.js?v=0.4.24';
 
-import { generateTransferMarket, renderFacultyAvatar, calculateOverallRating, getFacultyRatingTrend } from './faculty.js?v=0.4.39';
+import { generateTransferMarket, renderFacultyAvatar, renderFacultyPortrait, calculateOverallRating, getFacultyRatingTrend } from './faculty.js?v=0.5.0';
 import { resolveDecision } from './events.js?v=0.4.24';
 
 // Uluslararası sıralama modülleri
@@ -136,13 +136,14 @@ function init() {
   window._onToggleMute = () => {
     const muted = toggleMute();
     const btn = document.getElementById('btn-toggle-mute');
-    if (btn) btn.textContent = muted ? '🔇' : '🔊';
+    if (btn) btn.classList.toggle('is-muted', muted);   // v0.5.0: ikon sabit, üstü çizilir
     if (!muted) startMusic();
   };
   window._onMusicVolChange = (val) => setMusicVolume(Number(val) / 100);
   window._onSFXVolChange   = (val) => setSFXVolume(Number(val) / 100);
   // Durum sorgulama (ui.js settings modal için)
   window.isMuted          = isMuted;
+  document.getElementById('btn-toggle-mute')?.classList.toggle('is-muted', !!isMuted());
   window.getAudioSettings = getAudioSettings;
 
   showScreen('screen-menu');
@@ -204,30 +205,32 @@ function init() {
 }
 
 /**
- * Açılış ekranı sahnesi: rastgele yıldızlar + fare ile paralaks.
- * Hareket azaltma tercihi açıksa paralaks devre dışı kalır.
+ * Açılış ekranı sahnesi (v0.5.0): yerleşke tablosunun önünde süzülen ışık
+ * zerrecikleri ve fareyle hafif paralaks. Hareket azaltma tercihi açıksa
+ * zerrecikler durağan kalır, paralaks çalışmaz.
  */
 function _initMenuScene() {
-  const starBox = el('menu-stars');
-  if (starBox && !starBox.childElementCount) {
+  const kutu = el('menu-stars');
+  if (kutu && !kutu.childElementCount) {
     const frag = document.createDocumentFragment();
-    for (let i = 0; i < 48; i++) {
-      const s = document.createElement('i');
-      s.textContent = '✦';
-      s.style.left = (Math.random() * 100) + '%';
-      s.style.top  = (Math.random() * 62) + '%';
-      s.style.fontSize = (4 + Math.random() * 7) + 'px';
-      s.style.animationDelay = (Math.random() * 4) + 's';
-      frag.appendChild(s);
+    for (let i = 0; i < 26; i++) {
+      const z = document.createElement('i');
+      const boy = 2 + Math.random() * 3.5;
+      z.style.left = (Math.random() * 100) + '%';
+      z.style.top  = (38 + Math.random() * 62) + '%';
+      z.style.width = z.style.height = boy.toFixed(1) + 'px';
+      z.style.animationDuration = (11 + Math.random() * 12).toFixed(1) + 's';
+      z.style.animationDelay = (-Math.random() * 22).toFixed(1) + 's';
+      frag.appendChild(z);
     }
-    starBox.appendChild(frag);
+    kutu.appendChild(frag);
   }
 
   const reduce = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
   if (reduce) return;
 
-  const layers = Array.from(document.querySelectorAll('.menu-layer'));
-  if (layers.length === 0) return;
+  const sanat = document.querySelector('.menu-art');
+  if (!sanat) return;
   let ticking = false;
   window.addEventListener('mousemove', (e) => {
     if (ticking) return;
@@ -235,10 +238,7 @@ function _initMenuScene() {
     requestAnimationFrame(() => {
       const dx = (e.clientX / window.innerWidth) - 0.5;
       const dy = (e.clientY / window.innerHeight) - 0.5;
-      for (const l of layers) {
-        const d = Number(l.dataset.depth) || 0;
-        l.style.transform = `translate(${dx * d}px, ${dy * d * 0.35}px)`;
-      }
+      sanat.style.transform = `translate(${(-dx * 18).toFixed(1)}px, ${(-dy * 10).toFixed(1)}px)`;
       ticking = false;
     });
   }, { passive: true });
@@ -257,7 +257,7 @@ function _checkSaveOnLoad() {
   const loadBtn = el('btn-load-game');
   if (loadBtn) {
     loadBtn.classList.add('btn-has-save');
-    loadBtn.innerHTML = '<span class="btn-icon">💾</span> Kayıtlı Oyunu Yükle';
+    loadBtn.textContent = 'Kayıtlı Oyunu Yükle';
   }
 
   // Açılış ekranında son kaydı göster (gerçek veri; kayıt yoksa gizli kalır)
@@ -269,7 +269,7 @@ function _checkSaveOnLoad() {
     const uni  = newest.uniName || '—';
     const yr   = newest.year ?? '—';
     const trn  = newest.turn ?? '—';
-    strip.innerHTML = `💾 Son kayıt: <b>${uni}</b>`
+    strip.innerHTML = `Son kayıt <b>${uni}</b>`
       + `<span class="ls-sep">·</span>${yr}. yıl`
       + `<span class="ls-sep">·</span>${trn}. dönem`;
     strip.classList.remove('hidden');
@@ -1625,7 +1625,7 @@ function _onFacultyDetail(facultyId) {
 
   const body = `
     <div style="display:flex;gap:16px;align-items:center;margin-bottom:18px;">
-      <div style="flex-shrink:0;">${renderFacultyAvatar(f.avatar, 64)}</div>
+      <div style="flex-shrink:0;">${renderFacultyPortrait(f, 120)}</div>
       <div style="flex:1;min-width:0;">
         <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
           <span style="font-size:17px;font-weight:700">${f.name || '—'}</span>

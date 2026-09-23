@@ -5,10 +5,10 @@
  */
 
 import { DEPARTMENTS, DEPARTMENT_CURRICULA, UNIVERSITY_TYPES, UNIVERSITY_MODELS, USD_TO_TL, DIFFICULTY_SETTINGS, BUILDINGS, SEMESTER_MONTHS, FACULTIES, DEPT_TO_FACULTY, SALARY_SCALES, ADMIN_UNITS, ADMIN_TITLES, ADMIN_UNIT_BUILDINGS, ACCREDITATION_BODIES, SCENARIOS, BANKS } from './data.js?v=0.4.53';
-import { DEPARTMENT_FIELDS, getSalaryRange, renderFacultyAvatar, calculateOverallRating, getFacultyRatingTrend } from './faculty.js?v=0.4.39';
-import { AVAILABLE_NEW_DEPARTMENTS, getCourseEffectiveDifficulty, getUnitTitles, getUnitTitleSalary, calculateCampusUsageSummary } from './game.js?v=0.4.60';
+import { DEPARTMENT_FIELDS, getSalaryRange, renderFacultyAvatar, renderFacultyPortrait, calculateOverallRating, getFacultyRatingTrend } from './faculty.js?v=0.5.0';
+import { AVAILABLE_NEW_DEPARTMENTS, getCourseEffectiveDifficulty, getUnitTitles, getUnitTitleSalary, calculateCampusUsageSummary } from './game.js?v=0.5.0';
 import { calculateIncome, calculateExpenses, calculateLoanPayment } from './economy.js?v=0.4.24';
-import { renderCampusMap, handleCampusClick, handleCampusHover, clearHover } from './campus-renderer.js?v=0.4.24';
+import { renderCampusMap, handleCampusClick, handleCampusHover, clearHover } from './campus-renderer.js?v=0.5.0';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // DOM YARDIMCILARI
@@ -911,7 +911,7 @@ export function updateTopBar(state) {
   const rankEl = qs('#stat-ranking .top-stat-value');
   if (rankEl) {
     const intlR = state.university?.intlRanking;
-    rankEl.textContent = intlR ? `🌍 #${intlR}` : '—';
+    rankEl.textContent = intlR ? `#${intlR}` : '—';
   }
 
   // Öğrenci sayısı
@@ -1021,96 +1021,109 @@ export function renderDashboard(state) {
 
   // Uyarılar
   const warnings = _getWarnings(state);
+  const donem = meta.semester === 'güz' ? 'Güz' : 'Bahar';
+
+  // v0.5.0: ikonlu kaynak kartı
+  const kart = (ikon, etiket, deger, alt, altSinif, vurgu) => `
+    <div class="gb-card" style="--gb-accent:${vurgu};">
+      <div class="gb-card-icon"><i class="ikon ikon--${ikon}"></i></div>
+      <div class="gb-card-body">
+        <div class="gb-card-label">${etiket}</div>
+        <div class="gb-card-value">${deger}</div>
+        <div class="gb-card-sub ${altSinif || ''}">${alt}</div>
+      </div>
+    </div>`;
+
+  const kalite = (v) => {
+    const renk = v >= 70 ? 'var(--teal)' : v >= 45 ? 'var(--gold-soft)' : '#ff8a9d';
+    return `<span class="gb-quality">
+      <span class="gb-quality-track"><span class="gb-quality-fill" style="width:${Math.max(0, Math.min(100, v))}%;background:${renk};"></span></span>
+      <span class="gb-quality-num" style="color:${renk};">${Math.round(v)}</span>
+    </span>`;
+  };
 
   panel.innerHTML = `
-    <div class="panel-header">
-      <div>
-        <div class="panel-title">${uni.name}</div>
-        <div class="panel-subtitle">
-          ${meta.year}. Yıl — ${meta.semester === 'güz' ? 'Güz' : 'Bahar'} Dönemi
-        </div>
-      </div>
-      <div class="flex gap-md items-center">
-        ${createProgressRing(Math.round(uni.prestige), 100, 'Saygınlık', 80)}
-      </div>
-    </div>
-
-    ${warnings.length > 0 ? `
-      <div class="mb-md">
-        ${warnings.map(w => `
-          <div class="notification ${w.type}" style="max-width:100%;margin-bottom:6px;">
-            <span class="notification-icon">${w.icon}</span>
-            <span class="notification-text">${w.message}</span>
+    <div class="gb-hero">
+      <div class="gb-welcome">
+        <div class="gb-welcome-top">
+          <div class="gb-crest"><i class="ikon ikon--yerleske"></i></div>
+          <div>
+            <div class="gb-uni">${uni.name}</div>
+            <div class="gb-term"><i class="ikon ikon--donem"></i>${meta.year}. Yıl · ${donem} Dönemi</div>
           </div>
-        `).join('')}
+        </div>
+        <div class="gb-prestige">
+          ${createProgressRing(Math.round(uni.prestige), 100, 'Saygınlık', 76)}
+          <div class="gb-prestige-text">
+            <span class="gb-prestige-label">Saygınlık</span>
+            <span class="gb-prestige-value">${Math.round(uni.prestige)} / 100</span>
+            <span class="gb-prestige-sub">${uni.intlRanking ? `Dünya sıralamasında #${uni.intlRanking}` : 'Henüz dünya sıralamasında değil'}</span>
+          </div>
+        </div>
+        <div class="gb-forecast">
+          <div class="gb-forecast-title"><i class="ikon ikon--butce"></i>Bu Dönem Tahmini</div>
+          <div class="gb-forecast-row"><span>Harç geliri</span><b class="positive">${formatMoney(semesterRevenue * 0.7)}</b></div>
+          <div class="gb-forecast-row"><span>Diğer gelirler</span><b class="positive">${formatMoney(semesterRevenue * 0.3)}</b></div>
+          <div class="gb-forecast-row"><span>Hoca maaşları</span><b class="negative">-${formatMoney(semesterCost * 0.5)}</b></div>
+          <div class="gb-forecast-row"><span>Diğer giderler</span><b class="negative">-${formatMoney(semesterCost * 0.5)}</b></div>
+          <div class="gb-forecast-row gb-forecast-net"><span>Net</span><b class="${netBalance >= 0 ? 'positive' : 'negative'}">${netBalance >= 0 ? '+' : ''}${formatMoney(netBalance)}</b></div>
+        </div>
+        ${warnings.length > 0 ? `
+          <div class="gb-warnings">
+            ${warnings.map(w => `
+              <div class="notification ${w.type}" style="max-width:100%;">
+                <span class="notification-icon">${w.icon}</span>
+                <span class="notification-text">${w.message}</span>
+              </div>
+            `).join('')}
+          </div>
+        ` : ''}
       </div>
-    ` : ''}
-
-    <div class="dashboard-grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:12px;margin-bottom:24px;">
-      ${_statCardHtml('Kasa', formatMoney(uni.budget), netBalance >= 0 ? 'positive' : 'negative',
-        netBalance >= 0 ? `+${formatMoney(netBalance)} bu dönem` : `${formatMoney(netBalance)} bu dönem`)}
-      ${_statCardHtml('Saygınlık', Math.round(uni.prestige), null, uni.intlRanking ? `Dünya #${uni.intlRanking}` : 'Dünya —')}
-      ${_statCardHtml('Öğrenci', formatNumber(state.students?.totalEnrolled ?? 0), null,
-        `${state.students?.starStudents?.length ?? 0} yıldız öğrenci`)}
-      ${_statCardHtml('Kadro', formatNumber(state.faculty?.length ?? 0), null,
-        `${state.departments?.length ?? 0} bölüm`)}
-      ${_statCardHtml('Yayın', formatNumber(state.research?.publications ?? 0), null,
-        `${state.research?.patents ?? 0} patent`)}
-      ${_statCardHtml('Mezun', formatNumber(state.alumniData?.totalGraduates ?? 0), null,
-        'Toplam mezun')}
+      <div class="gb-campus" id="gb-campus" title="Yerleşkeye git" role="button" tabindex="0">
+        <canvas id="dashboard-campus-canvas" width="1600" height="1000"></canvas>
+        <span class="btn btn-secondary btn-sm gb-campus-cta"><i class="ikon ikon--yerleske"></i> Yerleşkeye git</span>
+      </div>
     </div>
 
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;">
+    <div class="gb-cards">
+      ${kart('kasa', 'Kasa', formatMoney(uni.budget),
+        netBalance >= 0 ? `+${formatMoney(netBalance)}/dönem` : `${formatMoney(netBalance)}/dönem`,
+        netBalance >= 0 ? 'positive' : 'negative', '#f0c040')}
+      ${kart('sayginlik', 'Saygınlık', Math.round(uni.prestige),
+        uni.intlRanking ? `Dünya #${uni.intlRanking}` : 'Dünya —', '', '#ffd866')}
+      ${kart('ogrenci', 'Öğrenci', formatNumber(state.students?.totalEnrolled ?? 0),
+        `${state.students?.starStudents?.length ?? 0} yıldız öğrenci`, '', '#4fa3e0')}
+      ${kart('kadro', 'Kadro', formatNumber(state.faculty?.length ?? 0),
+        `${state.departments?.length ?? 0} bölüm`, '', '#4ecca3')}
+      ${kart('arastirma', 'Yayın', formatNumber(state.research?.publications ?? 0),
+        `${state.research?.patents ?? 0} patent`, '', '#b38be8')}
+      ${kart('mezunlar', 'Mezun', formatNumber(state.alumniData?.totalGraduates ?? 0),
+        'Toplam mezun', '', '#e94560')}
+    </div>
+
+    <div class="gb-columns">
 
       <div>
-        <div class="section-title">Bölüm Durumu</div>
+        <div class="section-title"><i class="ikon ikon--bolumler"></i>Bölüm Durumu</div>
         <div class="card" style="padding:0;">
-          <div class="dept-list-header" style="grid-template-columns:32px 1fr 70px 70px;padding:8px 12px;">
+          <div class="gb-dept-row gb-dept-head">
             <span></span>
             <span>Bölüm</span>
             <span style="text-align:right">Öğrenci</span>
-            <span style="text-align:right">Kalite</span>
+            <span>Kalite</span>
           </div>
           ${(state.departments || []).map(d => `
-            <div class="department-row" style="grid-template-columns:32px 1fr 70px 70px;cursor:default;">
-              <span class="dept-row-icon">${d.icon || '🏫'}</span>
-              <div class="dept-row-info">
-                <div class="dept-row-name">${d.shortName || d.name}</div>
-              </div>
-              <div class="dept-row-stat text-right">${formatNumber(d.enrolledStudents ?? 0)}</div>
-              <div class="dept-row-stat text-right">${_qualityBar(d.educationQuality ?? 50)}</div>
+            <div class="gb-dept-row">
+              <span class="gb-dept-icon">${d.icon || '🏫'}</span>
+              <span class="gb-dept-name" title="${d.name}">${d.shortName || d.name}</span>
+              <span class="gb-dept-num">${formatNumber(d.enrolledStudents ?? 0)}</span>
+              ${kalite(d.educationQuality ?? 50)}
             </div>
           `).join('')}
         </div>
       </div>
 
       <div>
-        <div class="section-title">Dönem Tahmini</div>
-        <div class="card">
-          <div class="summary-row">
-            <span class="summary-row-label">Harç Geliri</span>
-            <span class="summary-row-value positive">${formatMoney(semesterRevenue * 0.7)}</span>
-          </div>
-          <div class="summary-row">
-            <span class="summary-row-label">Diğer Gelirler</span>
-            <span class="summary-row-value positive">${formatMoney(semesterRevenue * 0.3)}</span>
-          </div>
-          <div class="summary-row">
-            <span class="summary-row-label">Hoca Maaşları</span>
-            <span class="summary-row-value negative">-${formatMoney(semesterCost * 0.5)}</span>
-          </div>
-          <div class="summary-row">
-            <span class="summary-row-label">Diğer Giderler</span>
-            <span class="summary-row-value negative">-${formatMoney(semesterCost * 0.5)}</span>
-          </div>
-          <div class="summary-row summary-total-row">
-            <span class="summary-row-label">Net Tahmini</span>
-            <span class="summary-row-value ${netBalance >= 0 ? 'positive' : 'negative'}">
-              ${netBalance >= 0 ? '+' : ''}${formatMoney(netBalance)}
-            </span>
-          </div>
-        </div>
-
         ${(() => {
           const activeProjs = state.research?.activeResearchProjects || [];
           if (activeProjs.length === 0) return '';
@@ -1123,7 +1136,7 @@ export function renderDashboard(state) {
           const patRoy = Math.round((state.research?.patentRoyalties ?? 0) / 2);
           const total = Math.round(ohIncome) + patRoy;
           return `
-            <div class="section-title mt-md">Proje Gelirleri</div>
+            <div class="section-title mt-md"><i class="ikon ikon--arastirma"></i>Proje Gelirleri</div>
             <div class="card" style="padding:10px 14px;">
               <div class="summary-row">
                 <span class="summary-row-label">Aktif proje sayısı</span>
@@ -1146,15 +1159,16 @@ export function renderDashboard(state) {
           `;
         })()}
 
-        <div class="section-title mt-md">Son Olaylar</div>
-        <div class="card" style="padding:8px 0;">
+        <div class="section-title mt-md"><i class="ikon ikon--bildirim"></i>Son Olaylar</div>
+        <div class="card" style="padding:4px 0;">
           ${(state.events?.history?.slice(-5).reverse() || []).map(ev => `
-            <div style="padding:6px 12px;border-bottom:1px solid var(--border);font-size:12px;color:var(--text-muted);">
-              ${ev.description || ev.title || 'Geçmiş olay'}
+            <div class="gb-event">
+              <i class="ikon ikon--bildirim"></i>
+              <span>${ev.description || ev.title || 'Geçmiş olay'}</span>
             </div>
           `).join('') || `
             <div class="empty-state" style="padding:16px;">
-              <div style="font-size:12px;color:var(--text-faint);">Henüz olay yok.</div>
+              <div style="font-size:12.5px;color:#7f8bb0;">Henüz olay yok.</div>
             </div>
           `}
         </div>
@@ -1162,6 +1176,18 @@ export function renderDashboard(state) {
 
     </div>
   `;
+
+  // Canlı yerleşke görünümü; tıklayınca Yerleşke sekmesi açılır
+  const cv = el('dashboard-campus-canvas');
+  if (cv) {
+    try { renderCampusMap(cv, state); } catch (e) { console.warn('[ui] Genel Bakış haritası çizilemedi:', e); }
+  }
+  const kutu = el('gb-campus');
+  if (kutu) {
+    const git = () => qs('.sidebar-tab[data-tab="campus"]')?.click();
+    kutu.addEventListener('click', git);
+    kutu.addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); git(); } });
+  }
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -1588,7 +1614,7 @@ export function renderFacultyPanel(state, onTransferMarket, onFacultyDetail, onO
 
               <!-- Başlık: avatar + isim + unvan + bölüm + genel puan badge -->
               <div style="display:flex;align-items:center;gap:10px;padding:10px 12px;border-bottom:1px solid var(--border);">
-                <div class="faculty-avatar" style="width:38px;height:38px;font-size:13px;flex-shrink:0;">${initials}</div>
+                ${app.gender ? renderFacultyPortrait(app, 52) : `<div class="faculty-avatar" style="width:38px;height:38px;font-size:13px;flex-shrink:0;">${initials}</div>`}
                 <div style="flex:1;min-width:0;">
                   <div style="font-size:13px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${app.name || 'İsimsiz'}</div>
                   <div style="font-size:11px;color:var(--text-muted);">
@@ -1748,7 +1774,7 @@ export function renderFacultyPanel(state, onTransferMarket, onFacultyDetail, onO
           return `
             <div style="background:var(--bg-secondary);border-radius:8px;border:1px solid rgba(128,90,213,0.2);overflow:hidden;">
               <div style="display:flex;align-items:center;gap:10px;padding:10px 12px;border-bottom:1px solid var(--border);">
-                <div class="faculty-avatar" style="width:38px;height:38px;font-size:13px;flex-shrink:0;background:rgba(128,90,213,0.3);">${initials}</div>
+                ${app.gender ? renderFacultyPortrait(app, 52) : `<div class="faculty-avatar" style="width:38px;height:38px;font-size:13px;flex-shrink:0;background:rgba(128,90,213,0.3);">${initials}</div>`}
                 <div style="flex:1;min-width:0;">
                   <div style="font-size:13px;font-weight:700;">${app.name || 'İsimsiz'}</div>
                   <div style="font-size:11px;color:var(--text-muted);">
@@ -2000,7 +2026,7 @@ export function renderFacultyPanel(state, onTransferMarket, onFacultyDetail, onO
                   style="border-bottom:1px solid var(--border);cursor:pointer;transition:background .15s;"
                   onmouseover="this.style.background='var(--bg-secondary)'" onmouseout="this.style.background=''">
                   <td style="padding:6px 8px;color:var(--text-muted);">${idx + 1}</td>
-                  <td style="padding:6px 8px;font-weight:600;">${renderFacultyAvatar(f)} ${f.name}</td>
+                  <td style="padding:6px 8px;font-weight:600;white-space:nowrap;">${renderFacultyPortrait(f, 30, 'portre--yuvarlak')} <span style="vertical-align:middle;margin-left:6px;">${f.name}</span></td>
                   <td style="padding:6px 8px;color:var(--text-muted);">${titleMapDisp[f.title] || f.title}</td>
                   <td style="padding:6px 8px;">${dept?.shortName || f.department || '—'}</td>
                   <td style="padding:6px 8px;font-weight:700;color:${ratingColor(r)};">${r}</td>
@@ -2216,20 +2242,13 @@ export function renderFacultyCard(f, depts = []) {
   const titleMap  = { argö: 'ArGö', dr_ogr_uyesi: 'Dr.Öğr.Üyesi', docent: 'Doçent', profesor: 'Prof.' };
   const titleKey  = f.title || 'dr_ogr_uyesi';
   const titleDisp = titleMap[titleKey] || f.title;
-  const initials  = (f.name || '').split(' ').map(n => n[0]).slice(0, 2).join('').toUpperCase();
   const happiness = f.happiness ?? 60;
   const happClass = happiness >= 70 ? 'high' : happiness >= 45 ? 'mid' : 'low';
 
-  // Feature 3: Genel puan ve trend
+  // Genel puan ve eğilim
   const overallRating = f.overallRating || calculateOverallRating(f);
   const ratingTrend   = getFacultyRatingTrend(f);
-  const ratingColor   = overallRating >= 85 ? '#d4af37' : overallRating >= 70 ? '#38a169' : overallRating >= 55 ? '#f5a623' : '#e53e3e';
-  const ratingBg      = overallRating >= 85 ? 'rgba(212,175,55,0.12)' : overallRating >= 70 ? 'rgba(56,161,105,0.12)' : overallRating >= 55 ? 'rgba(245,166,35,0.12)' : 'rgba(229,62,62,0.12)';
-
-  // Feature 5: Avatar
-  const avatarHtml = f.avatar
-    ? renderFacultyAvatar(f.avatar, 48)
-    : `<div class="faculty-avatar">${initials}</div>`;
+  const ratingColor   = overallRating >= 85 ? '#f0c040' : overallRating >= 70 ? '#4ecca3' : overallRating >= 55 ? '#f5a623' : '#ff6b81';
 
   const stats = f.stats || {};
   const statDefs = [
@@ -2244,104 +2263,80 @@ export function renderFacultyCard(f, depts = []) {
 
   // Belirsizlik kontrolü (henüz kesinleşmemiş statlar)
   const revealed = f.revealed || {};
+  const maasBin  = Math.round((f.salary || 0) / 1000);
+  const maasAralik = f.salaryRange ? `Aralık: ${formatMoney(f.salaryRange.min)} - ${formatMoney(f.salaryRange.max)}` : '';
+  const courses  = f.currentLoad?.assignedCourses || [];
+  const altBilgi = [f.age ? `${f.age} yaş` : '', f.field || ''].filter(Boolean).join(' · ');
 
   return `
-    <div class="faculty-card" data-faculty-id="${f.id}" style="cursor:pointer;">
-      <div class="faculty-card-header">
-        <div style="flex-shrink:0;border-radius:50%;overflow:hidden;width:48px;height:48px;">${avatarHtml}</div>
-        <div class="faculty-card-info" style="flex:1;min-width:0;">
-          <div class="faculty-name">${f.name || 'İsimsiz'}</div>
-          <div class="faculty-meta">
+    <div class="faculty-card fc2" data-faculty-id="${f.id}" style="cursor:pointer;">
+      <div class="fc2-top">
+        <div class="fc2-photo">
+          ${renderFacultyPortrait(f, 96)}
+          <div class="fc2-rating" style="--rc:${ratingColor};" title="Genel puan">
+            <b>${overallRating}</b><i style="color:${ratingTrend.color};">${ratingTrend.arrow}</i>
+          </div>
+        </div>
+        <div class="fc2-id">
+          <div class="fc2-name" title="${f.name || ''}">${f.name || 'İsimsiz'}</div>
+          <div class="fc2-line">
             <span class="badge badge-${titleKey}">${titleDisp}</span>
-            <span class="faculty-dept">${deptName}</span>
-            <span class="faculty-age">${f.age ? f.age + ' yaş' : ''}</span>
+            <span>${deptName}</span>
           </div>
-          <div class="faculty-meta" style="margin-top:3px;">
-            <span class="badge badge-default">${f.archetype || '—'}</span>
-            ${f.field ? `<span class="faculty-field">${f.field}</span>` : ''}
-          </div>
+          ${altBilgi ? `<div class="fc2-sub">${altBilgi}</div>` : ''}
+          ${f.archetype ? `<span class="fc2-chip">${f.archetype}</span>` : ''}
         </div>
-        <!-- Feature 3: Genel Puan -->
-        <div style="text-align:center;padding:4px 8px;border-radius:8px;background:${ratingBg};flex-shrink:0;">
-          <div style="font-size:18px;font-weight:800;color:${ratingColor};line-height:1;">${overallRating}</div>
-          <div style="font-size:11px;font-weight:700;color:${ratingTrend.color};">${ratingTrend.arrow}</div>
-          <div style="font-size:9px;color:var(--text-muted);">Puan</div>
-        </div>
+      </div>
+
+      <div class="fc2-boxes">
+        <div class="fc2-box"><span class="fc2-box-v">${f.publications ?? 0}</span><span class="fc2-box-l">Yayın</span></div>
+        <div class="fc2-box"><span class="fc2-box-v">${f.hIndex ?? '—'}</span><span class="fc2-box-l">h-indeksi</span></div>
+        <div class="fc2-box" title="${maasAralik}"><span class="fc2-box-v">${maasBin} bin</span><span class="fc2-box-l">₺ / ay</span></div>
+        <div class="fc2-box fc2-box--${happClass}" title="Mutluluk: ${happiness}/100"><span class="fc2-box-v">${happiness}</span><span class="fc2-box-l">Mutluluk</span></div>
       </div>
 
       <div class="faculty-card-stats">
-        ${statDefs.map(s => {
-          const val = stats[s.key] ?? 50;
-          // Research ve teaching için belirsizlik aralığı
-          const isUncertain = (s.key === 'research' || s.key === 'teaching') &&
-                              revealed[s.key] && !revealed[s.key].exact;
+        ${statDefs.map(sd => {
+          const val = stats[sd.key] ?? 50;
+          // Araştırma ve eğitimde belirsizlik aralığı
+          const isUncertain = (sd.key === 'research' || sd.key === 'teaching') &&
+                              revealed[sd.key] && !revealed[sd.key].exact;
           const displayVal = isUncertain
-            ? `${revealed[s.key].min}-${revealed[s.key].max}`
+            ? `${revealed[sd.key].min}-${revealed[sd.key].max}`
             : val;
-          return createStatBar(s.label, val, 100, _statColor(val), isUncertain, displayVal);
+          return createStatBar(sd.label, val, 100, _statColor(val), isUncertain, displayVal);
         }).join('')}
       </div>
 
-      <!-- Uzmanlık alanları -->
       ${(f.specializations && f.specializations.length > 0) ? `
-        <div style="padding:6px 12px;display:flex;flex-wrap:wrap;gap:4px;border-top:1px solid var(--border);">
-          ${f.specializations.map(s => `
-            <span style="font-size:10px;padding:2px 6px;border-radius:10px;
-                  background:var(--bg-secondary);color:var(--text-muted);border:1px solid var(--border);">
-              ${s}
-            </span>
-          `).join('')}
+        <div class="fc2-tags">
+          ${f.specializations.map(sp => `<span class="fc2-tag">${sp}</span>`).join('')}
         </div>
       ` : ''}
 
-      <!-- Atanmış dersler -->
-      ${(() => {
-        const courses = (f.currentLoad?.assignedCourses || []);
-        if (courses.length === 0) {
-          return `<div style="padding:6px 12px;font-size:11px;color:var(--text-faint);border-top:1px solid var(--border);">
-            Atanmış ders yok
-          </div>`;
-        }
-        return `<div style="padding:6px 12px;border-top:1px solid var(--border);">
-          <div style="font-size:10px;font-weight:700;text-transform:uppercase;color:var(--text-muted);margin-bottom:4px;">
-            Dersler (${courses.length})
-          </div>
-          ${courses.map(c => {
-            const matchColor = c.matchQuality === 2 ? 'var(--accent-green)' : c.matchQuality === 1 ? 'var(--accent-yellow, #f5a623)' : 'var(--accent-red, #e53e3e)';
-            const matchIcon  = c.matchQuality === 2 ? '✓' : c.matchQuality === 1 ? '~' : '✗';
-            return `<div style="font-size:11px;display:flex;align-items:center;gap:4px;margin-bottom:2px;">
-              <span style="color:${matchColor};font-weight:700;">${matchIcon}</span>
-              <span style="color:var(--text-primary);">${c.courseName}</span>
-              <span style="margin-left:auto;font-size:10px;color:var(--text-faint);">${c.type === 'zorunlu' ? 'Z' : 'S'}</span>
-            </div>`;
-          }).join('')}
-        </div>`;
-      })()}
+      <div class="fc2-courses">
+        ${courses.length === 0
+          ? '<div class="fc2-course-none">Atanmış ders yok</div>'
+          : `<div class="fc2-courses-title">Dersler (${courses.length})</div>
+             ${courses.map(c => {
+               const matchColor = c.matchQuality === 2 ? 'var(--accent-green)' : c.matchQuality === 1 ? 'var(--accent-yellow, #f5a623)' : 'var(--accent-red, #e53e3e)';
+               const matchIcon  = c.matchQuality === 2 ? '✓' : c.matchQuality === 1 ? '~' : '✗';
+               return `<div class="fc2-course">
+                 <span style="color:${matchColor};font-weight:800;">${matchIcon}</span>
+                 <span>${c.courseName}</span>
+                 <span style="margin-left:auto;font-size:11px;color:#7f8bb0;">${c.type === 'zorunlu' ? 'Z' : 'S'}</span>
+               </div>`;
+             }).join('')}`}
+      </div>
 
-      <!-- Maaş uyarısı & Yükseltme rozeti -->
-      ${(f._salaryUnhappy || f.promotionEligible || (f.activeAwards && f.activeAwards.length > 0)) ? `
-      <div style="padding:4px 12px;border-top:1px solid var(--border);display:flex;flex-wrap:wrap;gap:4px;">
-        ${f._salaryUnhappy ? `<span style="font-size:10px;padding:2px 6px;border-radius:6px;background:rgba(229,62,62,0.12);color:#e53e3e;border:1px solid rgba(229,62,62,0.3);">⚠ Maaş memnuniyetsizliği</span>` : ''}
-        ${f.promotionEligible ? `<span style="font-size:10px;padding:2px 6px;border-radius:6px;background:rgba(56,161,105,0.12);color:#38a169;border:1px solid rgba(56,161,105,0.3);">🎓 Yükseltme Uygun!</span>` : ''}
-        ${f._promotionAnxiety ? `<span style="font-size:10px;padding:2px 6px;border-radius:6px;background:rgba(245,166,35,0.12);color:#f5a623;border:1px solid rgba(245,166,35,0.3);">⏳ Yükseltme bekliyor</span>` : ''}
-        ${(f.activeAwards || []).map(a => `<span style="font-size:10px;padding:2px 6px;border-radius:6px;background:rgba(128,90,213,0.12);color:#805ad5;border:1px solid rgba(128,90,213,0.3);">🏆 ${a.label}</span>`).join('')}
+      ${(f._salaryUnhappy || f.promotionEligible || f._promotionAnxiety || (f.activeAwards && f.activeAwards.length > 0)) ? `
+      <div class="fc2-flags">
+        ${f._salaryUnhappy ? `<span style="font-size:11px;padding:2px 8px;border-radius:999px;background:rgba(229,62,62,0.14);color:#ff8a9d;border:1px solid rgba(229,62,62,0.35);">⚠ Maaş memnuniyetsizliği</span>` : ''}
+        ${f.promotionEligible ? `<span style="font-size:11px;padding:2px 8px;border-radius:999px;background:rgba(78,204,163,0.14);color:#4ecca3;border:1px solid rgba(78,204,163,0.35);">🎓 Yükseltme Uygun!</span>` : ''}
+        ${f._promotionAnxiety ? `<span style="font-size:11px;padding:2px 8px;border-radius:999px;background:rgba(245,166,35,0.14);color:#f5a623;border:1px solid rgba(245,166,35,0.35);">⏳ Yükseltme bekliyor</span>` : ''}
+        ${(f.activeAwards || []).map(a => `<span style="font-size:11px;padding:2px 8px;border-radius:999px;background:rgba(160,120,230,0.14);color:#c3a6f2;border:1px solid rgba(160,120,230,0.35);">🏆 ${a.label}</span>`).join('')}
       </div>
       ` : ''}
-
-      <div class="faculty-card-footer">
-        <div class="faculty-salary">
-          Maaş: <strong>${formatMoney(f.salary)}/ay</strong>
-          ${f.salaryRange ? `<span style="font-size:9px;color:var(--text-muted);margin-left:4px;">(${formatMoney(f.salaryRange.min)}-${formatMoney(f.salaryRange.max)})</span>` : ''}
-        </div>
-        <div class="faculty-pubs">
-          📄 ${f.publications ?? 0}
-          ${f.hIndex ? `&nbsp;H:${f.hIndex}` : ''}
-        </div>
-        <div class="tooltip-host">
-          <div class="happiness-dot ${happClass}"></div>
-          <div class="tooltip">Mutluluk: ${happiness}/100</div>
-        </div>
-      </div>
     </div>
   `;
 }
@@ -3524,6 +3519,18 @@ function _campusSummaryCard(icon, label, value) {
  * @param {Function} onBuildStart   — İnşaat başlat callback (buildingType alır)
  * @param {Function} onDecision     — Karar callback (upgrade_building, assign_department_to_building vb.)
  */
+/**
+ * v0.5.0: binanın görseli (assets/buildings). Düzey üst sınırı aşılırsa sınıra çekilir;
+ * inşaat sürüyorsa ilerlemeye göre inşaat aşaması gösterilir.
+ */
+function _binaGorseli(tur, duzey, boyut = 64, insaatYuzde = null) {
+  const anahtar = insaatYuzde != null
+    ? `insaat_${insaatYuzde < 34 ? 1 : insaatYuzde < 67 ? 2 : 3}`
+    : `${tur}_${Math.max(1, Math.floor(duzey || 1))}`;
+  return `<img class="bina-gorsel" src="assets/buildings/${anahtar}.webp?v=0.5.0" alt=""
+    width="${boyut}" height="${boyut}" loading="lazy" onerror="this.style.visibility='hidden'">`;
+}
+
 export function renderCampusPanel(state, onBuildStart, onDecision) {
   const panel = el('tab-campus');
   if (!panel) return;
@@ -3568,6 +3575,13 @@ export function renderCampusPanel(state, onBuildStart, onDecision) {
       <!-- SOL: Özet + Binalar -->
       <div class="campus-main">
 
+    <!-- Kampüs haritası: Yerleşke'nin ana görünümü (v0.5.0) -->
+    <div class="campus-hero">
+      <canvas id="campus-canvas" width="1600" height="1000"></canvas>
+      <div id="campus-tooltip" class="campus-tooltip" style="display:none;"></div>
+      <button class="campus-hero-expand" id="campus-map-expand" type="button" title="Haritayı büyüt">⛶ Büyüt</button>
+    </div>
+
     <!-- Yerleşke Özeti -->
     <div class="section-title">Yerleşke Özeti</div>
     <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:10px;margin-bottom:20px;">
@@ -3601,7 +3615,9 @@ export function renderCampusPanel(state, onBuildStart, onDecision) {
             // Yapım / Yükseltme aşamasındaki kart
             return `
               <div class="building-card under-construction">
-                <div class="building-icon">${cat.icon || '🏗️'}</div>
+                <div class="building-icon">${isUpg
+                  ? _binaGorseli(b.type, Math.min(b.level || 1, maxLvl), 64)
+                  : _binaGorseli(b.type, 1, 64, pct)}</div>
                 <div class="building-info">
                   <div class="building-name">${b.name || cat.name || b.type}
                     ${isUpg ? ` <span style="font-size:10px;color:#f59e0b;">Düzey ${(b._pendingLevel ?? b.level + 1)} yükseltiliyor</span>` : ''}
@@ -3844,7 +3860,7 @@ export function renderCampusPanel(state, onBuildStart, onDecision) {
           return `
             <div class="building-card" style="padding:14px;flex-direction:column;align-items:stretch;">
               <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px;">
-                <span style="font-size:24px;">${cat.icon || '🏛️'}</span>
+                ${_binaGorseli(b.type, Math.min(b.level || 1, maxLvl), 64)}
                 <div style="flex:1;min-width:0;">
                   <div class="building-name" style="margin:0;">
                     <span class="building-name-text" data-building-id="${b.id}">${b.name || cat.name} <span class="btn-rename" data-building-id="${b.id}" title="Yeniden adlandır" style="cursor:pointer;font-size:13px;opacity:0.6;">✏️</span></span>
@@ -3902,7 +3918,7 @@ export function renderCampusPanel(state, onBuildStart, onDecision) {
           <div class="building-card available"
                style="${disabled ? 'opacity:0.5;cursor:default;' : 'cursor:pointer;'}"
                data-build-type="${b.type}">
-            <div class="building-icon">${b.icon}</div>
+            <div class="building-icon">${_binaGorseli(b.type, 1, 64)}</div>
             <div class="building-info">
               <div class="building-name">${b.name}${b.canHaveMultiple ? ' <span style="font-size:10px;color:#64748b;">(çok sayıda yapılabilir)</span>' : ''}</div>
               <div class="building-desc">${b.desc || ''}</div>
@@ -3932,14 +3948,6 @@ export function renderCampusPanel(state, onBuildStart, onDecision) {
 
       </div><!-- /campus-main -->
 
-      <!-- SAĞ: Küçük harita önizlemesi -->
-      <div class="campus-map-sidebar">
-        <div class="campus-map-preview" id="campus-map-preview" title="Haritayı büyütmek için tıklayın">
-          <canvas id="campus-canvas" width="960" height="600"></canvas>
-          <div id="campus-tooltip" class="campus-tooltip" style="display:none;"></div>
-          <div class="campus-map-expand-hint">🔍 Büyütmek için tıklayın</div>
-        </div>
-      </div>
 
     </div><!-- /campus-layout -->
 
@@ -3950,7 +3958,7 @@ export function renderCampusPanel(state, onBuildStart, onDecision) {
         <button class="campus-map-close" id="campus-map-close">✕</button>
       </div>
       <div style="position:relative;width:90%;max-width:1200px;">
-        <canvas id="campus-canvas-full" width="1200" height="750"></canvas>
+        <canvas id="campus-canvas-full" width="1600" height="1000"></canvas>
         <div id="campus-tooltip-full" class="campus-tooltip" style="display:none;"></div>
       </div>
     </div>
@@ -3994,7 +4002,7 @@ export function renderCampusPanel(state, onBuildStart, onDecision) {
   }
 
   // Tam ekran harita — önizlemeye tıklanınca aç
-  const mapPreview  = document.getElementById('campus-map-preview');
+  const expandBtn   = document.getElementById('campus-map-expand');
   const fullscreen  = document.getElementById('campus-map-fullscreen');
   const closeBtn    = document.getElementById('campus-map-close');
   const fullCanvas  = document.getElementById('campus-canvas-full');
@@ -4052,9 +4060,9 @@ export function renderCampusPanel(state, onBuildStart, onDecision) {
     if (tt) tt.style.display = 'none';
   }
 
-  if (mapPreview) {
-    mapPreview.addEventListener('click', (e) => {
-      // Tıklama önizleme div'ine ait olmalı (canvas veya hint dahil)
+  if (expandBtn) {
+    expandBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
       openFullscreen();
     });
   }
@@ -5546,8 +5554,8 @@ function _renderTransferFacultyCard(f, depts, state) {
   const ratingClass = overall >= 85 ? 'gold' : overall >= 70 ? 'green' : overall >= 55 ? 'yellow' : 'red';
 
   // SVG avatar (36px) ya da baş harfler
-  const avatarHtml = f.avatar
-    ? renderFacultyAvatar(f.avatar, 36)
+  const avatarHtml = (f.gender || f.avatar)
+    ? renderFacultyPortrait(f, 46)
     : `<div class="faculty-avatar" style="width:36px;height:36px;font-size:12px;flex-shrink:0;">${(f.name||'').split(' ').map(n=>n[0]).slice(0,2).join('').toUpperCase()}</div>`;
 
   const pubCount = f.publications ?? null;
@@ -5630,8 +5638,8 @@ function _renderTransferRightPanel(fac, depts, state) {
   const initials      = (fac.name || '').split(' ').map(n => n[0]).slice(0, 2).join('').toUpperCase();
 
   // SVG avatar (48px) ya da baş harfler
-  const avatarHtmlRight = fac.avatar
-    ? renderFacultyAvatar(fac.avatar, 48)
+  const avatarHtmlRight = (fac.gender || fac.avatar)
+    ? renderFacultyPortrait(fac, 88)
     : `<div class="faculty-avatar" style="width:48px;height:48px;font-size:18px;flex-shrink:0;">${initials}</div>`;
 
   const statBars = [
