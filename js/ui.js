@@ -3222,7 +3222,10 @@ function _bsUyarilar(dept, v) {
   }
   const bekleyen = v.basvurular.length + v.spontane.length;
   if (bekleyen > 0) ekle(`${bekleyen} kadro başvurusu yanıt bekliyor.`, 'kadro');
-  if (v.hocalar.length > 0 && v.bosHoca.length > 0 && v.mufredat.length > 0) {
+  // Müfredattan çok hoca olunca birkaç boşta hoca olağandır; uyarı yalnız boşta kalanlar
+  // en az 3 kişi ve kadronun en az %30'u olunca çıkar
+  if (v.hocalar.length > 0 && v.mufredat.length > 0 &&
+      v.bosHoca.length >= 3 && v.bosHoca.length >= v.hocalar.length * 0.3) {
     ekle(`${v.hocalar.length} hocadan ${sayiEkle(v.bosHoca.length, 'si')} bu dönem ders vermiyor; müfredatta ${v.mufredat.length} ders var.`, 'kadro');
   }
   // Akredite değil ve değerlendirmede başvurusu yok (süresi dolanın kendi maddesi var)

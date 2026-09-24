@@ -94,6 +94,8 @@ Tam liste: `js/changelog.js` (oyun içi "Yenilikler" panelinde de gösterilir, b
   - Köklü Devlet hedefi "15 yılda ilk 15" oldu (Oğuz onayı, 24 Eyl): gerçekçi iyi yönetim vekili 15. yılda 13.-14. sırada, ilk 10'a en erken 17,5 yılda. `migrateState` hedefi 30 ya da 10 olan köklü kayıtları 15'e çeker.
   - Bilinen: araştırma puanının proje ve h-indeks bileşenleri gerçek oyunda dolmuyor (kalite puanında 45/100 ulaşılamaz); iyi yönetimde devlet ilk 10'a 25-30 yılda. Düzeltmesi dengeyi değiştirir, ayrı sürümde ölçerek; sonra köklü hedefi yeniden ilk 10 olabilir. Ölçüm betikleri `C:\repos\_v052\birlesik\hiz_olc.py`, `hiz_iyi.py`.
 
+- v0.6.0 (24 Eyl 2026) Bölüm Sayfası (Oğuz'un isteği: "bir bölümün her şeyini göreceğim sayfa"). `ui.js` `renderDeptPage(state, deptId)` (~3987), yardımcıları ~3120-4010; açma `window._openDeptPage(deptId)` (main.js ~788-820), açıkken `refreshGameUI` aynı bölümle yeniden çizer. Başlık, 8 gösterge, "Dikkat" kutusu (7 veri kuralı; ders vermeyen hoca uyarısı en az 3 kişi ve kadronun %30'u), 7 iç sekme: Kadro, Dersler (`_mufredatHtml` Bölümler sekmesiyle ortak), Öğrenciler ve Kontenjan, Araştırma, Yerleşke, Akreditasyon (`checkAccreditationRequirements`), Bütçe (gelir `calculateIncome` toplamının öğrenci payı, "tahmin" diye yazılı). Giriş: Genel Bakış bölüm satırları, Bölümler kartları, Fakülteler, Kadro grup başlığı, Öğrenciler tablosu. Eylemler var olan kararlara gider (ilan bölüm seçili, transfer bölüme süzülü, başkan, taşı, zorluk, kontenjan vurgusu). Başkana devretme YOK (ayrı iş). Sınama betikleri `C:\repos\_v060\sina_*.py`.
+
 ## Aktif Oyuncu Raporcuları
 Erdinç (en yoğun), AkaDemi, Emir, Burak Gökalp, Yusuf Sertkaya, R-Fatih (Issue #7, #9), X, serhattural
 

@@ -6,6 +6,16 @@
 
 export const CHANGELOG = [
   {
+    version: '0.6.0',
+    date: '2026-09-24',
+    title: 'Bölüm Sayfası',
+    items: [
+      { type: 'feat', text: 'Her bölümün kendi sayfası var: göstergeler, uyarılar, kadro, dersler, öğrenciler, araştırma, yerleşke, akreditasyon ve bütçe tek yerde.' },
+      { type: 'feat', text: 'Sayfadan ilan verilebiliyor, transfer pazarı o bölüme süzülüyor; başkan atama, hoca taşıma, ders zorluğu ve kontenjan da aynı yerden.' },
+      { type: 'feat', text: 'Sayfaya Genel Bakış, Bölümler, Fakülteler, Kadro ve Öğrenciler ekranlarındaki bölüm adlarından gidiliyor.' },
+    ],
+  },
+  {
     version: '0.5.2',
     date: '2026-09-24',
     title: 'Düzeltme paketi',
