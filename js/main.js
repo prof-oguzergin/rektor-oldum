@@ -30,6 +30,8 @@ import {
   updateTopBar,
   renderDashboard,
   renderDepartmentsPanel,
+  renderDeptPage,
+  sekmeyiEtkinlestir,
   renderBolumlerPanel,
   renderFacultyPanel,
   renderStudentsPanel,
@@ -85,6 +87,11 @@ import {
 
 /** Aktif sekme ID'si */
 let _activeTab = 'dashboard';
+
+/** v0.6: açık Bölüm Sayfası (bölüm kimliği). null ise Bölümler sekmesi bölüm listesini gösterir. */
+let _bolumSayfasi = null;
+/** v0.6: Bölüm Sayfası açılırken seçilecek iç sekme (yalnız ilk çizimde kullanılır). */
+let _bolumSayfasiIlkSekme = null;
 
 /** Transfer pazarı verisi (fakulte.js gelince gerçek değer alacak) */
 let _transferMarket = null;
@@ -578,6 +585,10 @@ function _startGameWithState(state) {
   window._onShowAccreditationModal = _onShowAccreditationModal;
   window._checkAccreditationRequirements = checkAccreditationRequirements;
 
+  // v0.6: Bölüm Sayfası (Genel Bakış, Bölümler, Fakülteler, Kadro, Öğrenciler satırlarından açılır)
+  _bolumSayfasi = null;
+  window._openDeptPage = _bolumSayfasiniAc;
+
   // Kulüp verilerini ve callback'lerini global alana kaydet (ui.js butonları için)
   window._CLUB_TYPES      = CLUB_TYPES;
   window._CLUB_CATEGORIES = CLUB_CATEGORIES;
@@ -711,7 +722,14 @@ function refreshGameUI() {
       renderStudentsPanel(state, _onOpenQuotaScreen);
       break;
     case 'departments':
-      renderDepartmentsPanel(state);
+      // v0.6: Bölüm Sayfası açıksa aynı bölümle yeniden çizilir (dönem ilerleyince, eylemden sonra)
+      if (_bolumSayfasi && (state.departments || []).some(d => d.id === _bolumSayfasi && d.isOpen !== false)) {
+        renderDeptPage(state, _bolumSayfasi, _bolumSayfasiIslemleri, { icSekme: _bolumSayfasiIlkSekme });
+        _bolumSayfasiIlkSekme = null;
+      } else {
+        _bolumSayfasi = null;
+        renderDepartmentsPanel(state);
+      }
       break;
     case 'bolumler':
       renderBolumlerPanel(state, _onAssignDeptHead, _onReassignFaculty);
@@ -756,6 +774,52 @@ function refreshGameUI() {
       renderDashboard(state);
   }
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// BÖLÜM SAYFASI (v0.6)
+// ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * Bölüm Sayfası'nı açar: yan menüde Bölümler seçili olur, içerik alanında sayfa bu bölümle çizilir.
+ * ui.js'teki giriş noktaları window._openDeptPage üzerinden çağırır.
+ * @param {string}      deptId
+ * @param {string|null} [icSekme]  açılışta seçilecek iç sekme (verilmezse Kadro)
+ */
+function _bolumSayfasiniAc(deptId, icSekme = null) {
+  const state = getState();
+  if (!state) return;
+  if (!(state.departments || []).some(d => d.id === deptId && d.isOpen !== false)) {
+    showNotification('Bölüm bulunamadı.', 'warning');
+    return;
+  }
+  _activeTab = 'departments';
+  _bolumSayfasi = deptId;
+  _bolumSayfasiIlkSekme = (typeof icSekme === 'string' && icSekme) ? icSekme : 'kadro';
+  sekmeyiEtkinlestir('departments');
+  playSound('click');
+  refreshGameUI();
+}
+
+/** Bölüm Sayfası'nın eylemleri: var olan kararlar, bölüm önceden seçili gelir. */
+const _bolumSayfasiIslemleri = {
+  onGeri: () => {
+    _bolumSayfasi = null;
+    sekmeyiEtkinlestir('departments');
+    refreshGameUI();
+  },
+  onOpenPosition:      (deptId) => _onOpenPositionModal(deptId),
+  onTransferMarket:    (deptId) => _onOpenTransferMarket(deptId),
+  onAssignHead:        (deptId, facultyId) => _onAssignDeptHead(deptId, facultyId),
+  onReassignFaculty:   (facultyId, newDeptId) => _onReassignFaculty(facultyId, newDeptId),
+  onFacultyDetail:     (facultyId) => _onFacultyDetail(facultyId),
+  onOpenQuota:         (deptId) => _onOpenQuotaScreen(deptId),
+  onAccreditation:     (deptId, bodyId) => _onShowAccreditationModal(deptId, bodyId),
+  onAcceptApplicant:   (appId) => _handleAcceptApplicant({ detail: { appId } }),
+  onRejectApplicant:   (appId) => _handleRejectApplicant({ detail: { appId } }),
+  onAcceptSpontaneous: (appId, targetDeptId) => _handleAcceptSpontaneous({ detail: { appId, targetDeptId } }),
+  onRejectSpontaneous: (appId) => _handleRejectSpontaneous({ detail: { appId } }),
+  onProjectDecision:   (tur, applicationId, ek) => _onProjectDecision(tur, applicationId, ek),
+};
 
 // ─────────────────────────────────────────────────────────────────────────────
 // ULUSLARARASI SIRALAMA PANELİ
@@ -835,6 +899,7 @@ function _bindGameScreenEvents() {
   initTabNavigation((tabId) => {
     console.log(`[main] Sekme değişti → ${tabId}`);
     _activeTab = tabId;
+    _bolumSayfasi = null;   // yan menüden gelen her sekme (Bölümler dahil) listeyle açılır
     playSound('click');
     refreshGameUI();
   });
@@ -1380,7 +1445,7 @@ function _onEventChoice(eventId, choiceIndex) {
 /**
  * Transfer pazarı butonuna basıldığında çalışır.
  */
-function _onOpenTransferMarket() {
+function _onOpenTransferMarket(bolumId = null) {
   const state = getState();
   if (!state) return;
 
@@ -1391,6 +1456,11 @@ function _onOpenTransferMarket() {
     console.log('[main] generateTransferMarket() çağrıldı, aday sayısı:', _transferMarket?.candidates?.length ?? 0);
   }
 
+  // v0.6: Bölüm Sayfası'ndan açılınca var olan pazar yalnız o bölümün adaylarına süzülür
+  const suzgec = typeof bolumId === 'string' && bolumId
+    ? { bolumId, onTumPazar: () => { hideModal(); _onOpenTransferMarket(); } }
+    : {};
+
   renderTransferMarket(
     state,
     _transferMarket,
@@ -1398,6 +1468,7 @@ function _onOpenTransferMarket() {
       console.log('[main] Transfer teklifi gönderildi, hoca:', facultyId, 'teklif:', offer);
       _onHireOffer(facultyId, offer);
     },
+    suzgec,
   );
 }
 
@@ -1501,11 +1572,12 @@ function _transferBolumuSec(fac, offer, acikBolumler) {
 
 /**
  * Kadro ilanı modalını aç.
+ * @param {string|null} [bolumId] v0.6: Bölüm Sayfası'ndan açılınca bu bölüm önceden seçili gelir
  */
-function _onOpenPositionModal() {
+function _onOpenPositionModal(bolumId = null) {
   const state = getState();
   if (!state) return;
-  renderOpenPositionModal(state, _onSubmitOpenPosition);
+  renderOpenPositionModal(state, _onSubmitOpenPosition, { bolumId: typeof bolumId === 'string' ? bolumId : null });
 }
 
 /**
@@ -2008,8 +2080,11 @@ function _onFacultyDetail(facultyId) {
 // PANEL CALLBACK'LERİ
 // ─────────────────────────────────────────────────────────────────────────────
 
-/** Kontenjan belirleme ekranını aç */
-function _onOpenQuotaScreen() {
+/**
+ * Kontenjan belirleme ekranını aç
+ * @param {string|null} [odakBolum] v0.6: Bölüm Sayfası'ndan açılınca bu bölümün kartı vurgulanır
+ */
+function _onOpenQuotaScreen(odakBolum = null) {
   const state = getState();
   if (!state) return;
   console.log('[main] Kontenjan belirleme ekranı açılıyor...');
@@ -2018,7 +2093,7 @@ function _onOpenQuotaScreen() {
     applyQuotas(quotas);
     _persistState();
     refreshGameUI();
-  });
+  }, { odakBolum: typeof odakBolum === 'string' ? odakBolum : null });
 }
 
 /** Yapı inşaatı başlat */

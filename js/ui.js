@@ -6,7 +6,7 @@
 
 import { DEPARTMENTS, DEPARTMENT_CURRICULA, UNIVERSITY_TYPES, UNIVERSITY_MODELS, USD_TO_TL, DIFFICULTY_SETTINGS, BUILDINGS, SEMESTER_MONTHS, FACULTIES, DEPT_TO_FACULTY, SALARY_SCALES, ADMIN_UNITS, ADMIN_TITLES, ADMIN_UNIT_BUILDINGS, ACCREDITATION_BODIES, SCENARIOS, BANKS } from './data.js?v=0.5.2';
 import { DEPARTMENT_FIELDS, getSalaryRange, renderFacultyAvatar, renderFacultyPortrait, calculateOverallRating, getFacultyRatingTrend } from './faculty.js?v=0.5.2';
-import { AVAILABLE_NEW_DEPARTMENTS, getCourseEffectiveDifficulty, getUnitTitles, getUnitTitleSalary, isUnitManagerTitle, calculateCampusUsageSummary, kaliciSayginlikEtkisi } from './game.js?v=0.5.2';
+import { AVAILABLE_NEW_DEPARTMENTS, getCourseEffectiveDifficulty, getUnitTitles, getUnitTitleSalary, isUnitManagerTitle, calculateCampusUsageSummary, kaliciSayginlikEtkisi, checkAccreditationRequirements } from './game.js?v=0.5.2';
 import { calculateIncome, calculateExpenses, calculateLoanPayment } from './economy.js?v=0.4.24';
 import { renderCampusMap, handleCampusClick, handleCampusHover, clearHover } from './campus-renderer.js?v=0.5.1';
 
@@ -155,9 +155,9 @@ function _sayiSonSozcuk(n) {
 
 /**
  * Sayıya kesme işaretiyle doğru eki ekler: sayiEkle(2) → "2'ye", sayiEkle(6) → "6'ya",
- * sayiEkle(3, 'de') → "3'te", sayiEkle(10, 'in') → "10'un".
+ * sayiEkle(3, 'de') → "3'te", sayiEkle(10, 'in') → "10'un", sayiEkle(16, 'si') → "16'sı" ("24 hocadan 16'sı").
  * @param {number} sayi
- * @param {'e'|'de'|'den'|'in'|'i'} [tur='e']: yönelme, bulunma, ayrılma, tamlayan, belirtme
+ * @param {'e'|'de'|'den'|'in'|'i'|'si'} [tur='e']: yönelme, bulunma, ayrılma, tamlayan, belirtme, iyelik (3. kişi)
  * @param {string} [gosterim]: sayının ekrandaki yazılışı (verilmezse sayının kendisi)
  */
 export function sayiEkle(sayi, tur = 'e', gosterim = null) {
@@ -172,6 +172,7 @@ export function sayiEkle(sayi, tur = 'e', gosterim = null) {
     den: d + iki + 'n',
     in:  (unluyleBiter ? 'n' : '') + dort,
     i:   (unluyleBiter ? 'y' : '') + dort,
+    si:  (unluyleBiter ? 's' : '') + dort,
   };
   return `${gosterim ?? sayi}'${ekler[tur] ?? ekler.e}`;
 }
@@ -532,7 +533,8 @@ export function showAccreditationModal(state, deptId, bodyId, reqResult, onApply
   if (!dept || !body) return;
 
   const acc = dept.accreditation?.[bodyId];
-  const isRenewal = acc?.status === 'expired';
+  // Süresi dolmuş ya da son 2 dönemine girmiş akreditasyon yenilenir (game.js applyForAccreditation yenileme ücretini alır)
+  const isRenewal = acc?.status === 'expired' || acc?.status === 'granted';
   const cost = isRenewal ? body.renewalCost : body.cost;
 
   const checksHtml = reqResult.checks.map(c => {
@@ -1242,17 +1244,64 @@ export function initTabNavigation(onTabChange) {
   delegate(qs('.sidebar'), '.sidebar-tab', 'click', (e, btn) => {
     const tabId = btn.dataset.tab;
 
-    qsa('.sidebar-tab').forEach(t => t.classList.remove('active'));
-    btn.classList.add('active');
-
-    qsa('.tab-panel').forEach(p => p.classList.remove('active'));
-    const panel = el(`tab-${tabId}`);
-    if (panel) panel.classList.add('active');
+    _sekmeSiniflari(tabId);
 
     if (onTabChange) onTabChange(tabId);
 
     // Yeni sekme baştan görünsün: masaüstünde içerik kabı, telefonda ekran ya da sayfa kayar
     _sekmeyiBasaAl();
+  });
+  _bolumSayfasiGirisleriniBagla();
+}
+
+/** Yan menüde ve içerik alanında verilen sekmeyi etkin gösterir. */
+function _sekmeSiniflari(tabId) {
+  qsa('.sidebar-tab').forEach(t => t.classList.toggle('active', t.dataset.tab === tabId));
+  qsa('.tab-panel').forEach(p => p.classList.toggle('active', p.id === `tab-${tabId}`));
+}
+
+/**
+ * v0.6: sekmeyi kodla açar (yan menü tıklaması gibi, ama sekme değişikliği bildirimi olmadan).
+ * Bölüm Sayfası başka bir sekmeden açılırken yan menüde "Bölümler" seçili olsun diye kullanılır.
+ * @param {string} tabId
+ */
+export function sekmeyiEtkinlestir(tabId) {
+  _sekmeSiniflari(tabId);
+  // Telefonda alt gezinme yatay kayar: seçili sekme görünür olsun
+  qs(`.sidebar-tab[data-tab="${tabId}"]`)?.scrollIntoView?.({ block: 'nearest', inline: 'nearest' });
+  _sekmeyiBasaAl();
+}
+
+/**
+ * v0.6: data-bolum-git="<bölüm kimliği>" taşıyan her öğe Bölüm Sayfası'nı açar
+ * (Genel Bakış, Bölümler, Fakülteler, Kadro, Öğrenciler). data-bolum-sekme açılışta seçilecek iç sekmedir.
+ * Belge düzeyinde bir kez bağlanır; paneller yeniden çizilse de dinleyici birikmez.
+ */
+let _bolumGirisiBagli = false;
+function _bolumSayfasiGirisleriniBagla() {
+  if (_bolumGirisiBagli) return;
+  _bolumGirisiBagli = true;
+  const ac = (hedef) => {
+    if (typeof window._openDeptPage === 'function') {
+      window._openDeptPage(hedef.dataset.bolumGit, hedef.dataset.bolumSekme || null);
+    }
+  };
+  document.addEventListener('click', (e) => {
+    const hedef = e.target.closest?.('[data-bolum-git]');
+    if (!hedef) return;
+    // Satırın içindeki başka bir denetim (ör. Taşı düğmesi) kendi işini yapsın
+    const icDenetim = e.target.closest('button, a, input, select, textarea, label');
+    if (icDenetim && icDenetim !== hedef && hedef.contains(icDenetim)) return;
+    // <summary> içindeki düğmede grubu katlama/açma olmasın
+    e.preventDefault();
+    ac(hedef);
+  });
+  document.addEventListener('keydown', (e) => {
+    if (e.key !== 'Enter' && e.key !== ' ') return;
+    const hedef = e.target.closest?.('[data-bolum-git][role="button"]');
+    if (!hedef || hedef !== e.target) return;
+    e.preventDefault();
+    ac(hedef);
   });
 }
 
@@ -1375,13 +1424,16 @@ export function renderDashboard(state) {
             <span>Bölüm</span>
             <span style="text-align:right">Öğrenci</span>
             <span>Kalite</span>
+            <span></span>
           </div>
           ${(state.departments || []).map(d => `
-            <div class="gb-dept-row">
+            <div class="gb-dept-row gb-dept-row--git" data-bolum-git="${d.id}" role="button" tabindex="0"
+                 title="${d.name}: Bölüm Sayfası" aria-label="${d.name} Bölüm Sayfası">
               <span class="gb-dept-icon">${bolumIkonu(d.id, 26, d.icon || '🏫')}</span>
-              <span class="gb-dept-name" title="${d.name}">${d.shortName || d.name}</span>
+              <span class="gb-dept-name">${d.shortName || d.name}</span>
               <span class="gb-dept-num">${formatNumber(d.enrolledStudents ?? 0)}</span>
               ${kalite(d.educationQuality ?? 50)}
+              <span class="gb-dept-git" aria-hidden="true">›</span>
             </div>
           `).join('')}
         </div>
@@ -1469,8 +1521,6 @@ export function renderDepartmentsPanel(state) {
   const depts   = state.departments || [];
   const faculty = state.faculty     || [];
 
-  const matchIcon  = q => q === 2 ? '✓' : q === 1 ? '~' : '✗';
-  const matchColor = q => q === 2 ? 'var(--accent-green)' : q === 1 ? 'var(--accent-yellow,#f5a623)' : 'var(--accent-red,#e53e3e)';
   const diffStars  = d => '★'.repeat(Math.round(d)) + '☆'.repeat(5 - Math.round(d));
 
   // Doluluk rengini hesapla: yeşil=sağlıklı, sarı=dolu, kırmızı=kritik
@@ -1496,15 +1546,12 @@ export function renderDepartmentsPanel(state) {
       ${depts.map(dept => {
         const curriculum  = DEPARTMENT_CURRICULA[dept.id] || [];
         const assignments = dept.courseAssignments || [];
-        const uncovered   = dept.uncoveredCourses  || [];
         const deptFaculty = faculty.filter(f => (f.department || f.departmentId) === dept.id);
         const stats       = dept.stats || {};
 
         const coveredCount   = assignments.length;
         const totalCount     = curriculum.length;
         const coveragePct    = totalCount > 0 ? Math.round((coveredCount / totalCount) * 100) : 100;
-        const fullMatchCount = assignments.filter(c => c.matchQuality === 2).length;
-        const partialCount   = assignments.filter(c => c.matchQuality === 1).length;
 
         const edQuality  = dept.educationQuality ?? 50;
         const edColor    = edQuality >= 70 ? 'var(--accent-green)' : edQuality >= 45 ? 'var(--accent-yellow,#f5a623)' : 'var(--accent-red,#e53e3e)';
@@ -1533,78 +1580,14 @@ export function renderDepartmentsPanel(state) {
             ? `Bölüm kapasitesinin (${capacity}) %85'inden fazlası dolu (${enrolled} öğrenci). Önümüzdeki dönemlerde kapasiteyi artırmayı planlayın.`
             : `Öğrenci sayısı (${enrolled}) kapasite (${capacity}) sınırları içinde. Sorun yok.`;
 
-        // Ders istatistikleri (stats.courseStats varsa kullan, yoksa eski basit görünüme dön)
-        const courseStats = stats.courseStats || [];
-
-        // Her ders satırı
-        const courseRows = curriculum.map(course => {
-          const assign     = assignments.find(a => a.course?.id === course.id);
-          const isUncovered = uncovered.some(u => u.id === course.id);
-          const cStat      = courseStats.find(cs => cs.id === course.id);
-
-          // Etkin zorluk: override varsa onu göster
-          const effectiveDiff = getCourseEffectiveDifficulty(dept, course);
-
-          let statusIcon  = '⚫';
-          let statusColor = 'var(--text-faint)';
-          let assignedTo  = '—';
-
-          if (assign) {
-            statusIcon  = matchIcon(assign.matchQuality);
-            statusColor = matchColor(assign.matchQuality);
-            assignedTo  = assign.assignedName || '—';
-          } else if (isUncovered) {
-            statusIcon  = '⚠️';
-            statusColor = 'var(--accent-red,#e53e3e)';
-            assignedTo  = 'Dışarıdan hoca gerekli';
-          }
-
-          const enrolledStr = cStat ? `${cStat.enrolled} öğr.` : '—';
-          const passRateStr = cStat ? `%${Math.round(cStat.passRate * 100)}` : '—';
-          const avgGradeStr = cStat ? `${cStat.avgGrade}/100` : '—';
-          const passColor   = cStat ? (cStat.passRate >= 0.80 ? 'var(--accent-green)' : cStat.passRate >= 0.60 ? 'var(--accent-yellow,#f5a623)' : 'var(--accent-red,#e53e3e)') : 'var(--text-muted)';
-
-          // Slider rengi: düşük zorluk yeşil, yüksek kırmızı
-          const sliderColor = effectiveDiff >= 4 ? '#e53e3e' : effectiveDiff >= 3 ? '#f5a623' : '#38a169';
-
-          return `
-            <tr style="border-bottom:1px solid var(--border);">
-              <td style="padding:6px 8px;">
-                <span style="font-size:10px;padding:1px 5px;border-radius:8px;
-                  background:${course.type === 'zorunlu' ? 'rgba(229,62,62,0.1)' : 'rgba(56,161,105,0.1)'};
-                  color:${course.type === 'zorunlu' ? 'var(--accent-red,#e53e3e)' : 'var(--accent-green)'};
-                  font-weight:700;">
-                  ${course.type === 'zorunlu' ? 'Z' : 'S'}
-                </span>
-              </td>
-              <td style="padding:6px 8px;font-size:13px;font-weight:500;">${course.name}</td>
-              <td style="padding:6px 8px;font-size:11px;color:var(--text-muted);">${diffStars(effectiveDiff)}</td>
-              <td style="padding:6px 8px;font-size:11px;color:var(--text-muted);white-space:nowrap;">${enrolledStr}</td>
-              <td style="padding:6px 8px;font-size:12px;font-weight:700;color:${passColor};">${passRateStr}</td>
-              <td style="padding:6px 8px;font-size:11px;color:var(--text-muted);">${avgGradeStr}</td>
-              <td style="padding:6px 8px;font-size:12px;font-weight:700;color:${statusColor};">${statusIcon}</td>
-              <td style="padding:6px 8px;font-size:12px;color:var(--text-muted);">${assignedTo}</td>
-              <td style="padding:6px 8px;min-width:120px;">
-                <div style="display:flex;align-items:center;gap:6px;">
-                  <input type="range" min="1" max="5" step="1" value="${effectiveDiff}"
-                    style="width:70px;accent-color:${sliderColor};cursor:pointer;"
-                    oninput="window._onSetCourseDifficulty('${dept.id}', '${course.id}', this.value)"
-                    title="Zorluk ayarı: 1 (kolay) - 5 (çok zor)">
-                  <span style="font-size:11px;font-weight:700;color:${sliderColor};min-width:8px;">${effectiveDiff}</span>
-                </div>
-              </td>
-            </tr>
-          `;
-        }).join('');
-
         return `
           <div class="card" style="padding:0;overflow:hidden;">
-            <!-- Bölüm başlığı -->
-            <div style="display:flex;align-items:center;gap:12px;padding:14px 16px;
+            <!-- Bölüm başlığı (v0.6: ad ve düğme Bölüm Sayfası'nı açar) -->
+            <div style="display:flex;align-items:center;flex-wrap:wrap;gap:12px;padding:14px 16px;
                  border-bottom:2px solid var(--border);background:var(--bg-secondary);">
               <span style="font-size:28px;line-height:0;">${bolumIkonu(dept.id, 38, dept.icon || '🏫')}</span>
-              <div style="flex:1;">
-                <div style="font-size:15px;font-weight:700;">${dept.name}</div>
+              <div style="flex:1 1 180px;min-width:0;">
+                <button type="button" class="bs-link bs-link--baslik" data-bolum-git="${dept.id}" title="${dept.name}: Bölüm Sayfası">${dept.name}</button>
                 <div style="font-size:12px;color:var(--text-muted);">${deptFaculty.length} hoca · ${deptFaculty.reduce((s, f) => s + ((f.currentLoad?.assignedCourses || []).length), 0)} ders yükü · <span title="${statusTip}" style="cursor:help;border-bottom:1px dotted currentColor;">${statusText}</span></div>
               </div>
               <div style="text-align:right;margin-right:8px;">
@@ -1615,6 +1598,7 @@ export function renderDepartmentsPanel(state) {
                 <div style="font-size:16px;font-weight:700;color:${coveragePct >= 80 ? 'var(--accent-green)' : 'var(--accent-yellow,#f5a623)'};">${coveragePct}%</div>
                 <div style="font-size:10px;color:var(--text-muted);">Kapsama</div>
               </div>
+              <button type="button" class="btn btn-secondary btn-sm bs-git-dugme" data-bolum-git="${dept.id}">Bölüm Sayfası →</button>
             </div>
             <!-- Akreditasyon rozetleri -->
             ${(() => {
@@ -1686,46 +1670,7 @@ export function renderDepartmentsPanel(state) {
               <span>4. Sınıf: <strong>${byYear[4] || 0}</strong></span>
             </div>
 
-            <!-- Ders eşleşme özet satırı -->
-            <div style="display:flex;gap:16px;padding:8px 16px;border-bottom:1px solid var(--border);font-size:12px;flex-wrap:wrap;">
-              <span style="color:var(--accent-green);">✓ ${fullMatchCount} tam eşleşme</span>
-              <span style="color:var(--accent-yellow,#f5a623);">~ ${partialCount} kısmi eşleşme</span>
-              ${uncovered.length > 0 ? `<span style="color:var(--accent-red,#e53e3e);">⚠️ ${uncovered.length} karşılanmayan ders</span>` : ''}
-              ${dept.partTimeHires > 0 ? `<span style="color:var(--text-muted);">👤 ${dept.partTimeHires} dışarıdan hoca</span>` : ''}
-            </div>
-
-            <!-- Ders tablosu -->
-            ${curriculum.length === 0 ? `
-              <div class="empty-state" style="padding:16px;">
-                <div style="font-size:12px;color:var(--text-faint);">Bu bölüm için müfredat tanımlanmamış.</div>
-              </div>
-            ` : `
-              <div style="padding:12px 16px 0;">
-                <div style="background:rgba(56,161,105,0.08);border-left:3px solid #38a169;padding:10px;margin-bottom:12px;font-size:12px;line-height:1.5;">
-                  <strong>Müfredat sertliği oyununuzun karakterini belirler:</strong><br>
-                  <span style="color:#38a169;">&#8593; Yüksek zorluk:</span> Nitelikli mezunlar, prestij ve sıralama yükselir, ünlü mezun ihtimali artar. Ama öğrenci memnuniyeti düşer ve geçme oranı azalır.<br>
-                  <span style="color:#dc8a2e;">&#8595; Düşük zorluk:</span> Öğrenciler memnun, geçme oranı yüksek. Ama mezun kalitesi ve uzun vadede prestij düşer.
-                </div>
-              </div>
-              <div style="overflow-x:auto;">
-                <table style="width:100%;border-collapse:collapse;">
-                  <thead>
-                    <tr style="border-bottom:1px solid var(--border);">
-                      <th style="padding:6px 8px;font-size:10px;text-transform:uppercase;color:var(--text-muted);text-align:left;width:30px;">T</th>
-                      <th style="padding:6px 8px;font-size:10px;text-transform:uppercase;color:var(--text-muted);text-align:left;">Ders Adı</th>
-                      <th style="padding:6px 8px;font-size:10px;text-transform:uppercase;color:var(--text-muted);text-align:left;width:80px;">Zorluk</th>
-                      <th style="padding:6px 8px;font-size:10px;text-transform:uppercase;color:var(--text-muted);text-align:left;width:80px;">Kayıtlı</th>
-                      <th style="padding:6px 8px;font-size:10px;text-transform:uppercase;color:var(--text-muted);text-align:left;width:70px;">Geçme</th>
-                      <th style="padding:6px 8px;font-size:10px;text-transform:uppercase;color:var(--text-muted);text-align:left;width:80px;">Not Ort.</th>
-                      <th style="padding:6px 8px;font-size:10px;text-transform:uppercase;color:var(--text-muted);text-align:center;width:30px;">Durum</th>
-                      <th style="padding:6px 8px;font-size:10px;text-transform:uppercase;color:var(--text-muted);text-align:left;">Veren Hoca</th>
-                      <th style="padding:6px 8px;font-size:10px;text-transform:uppercase;color:var(--text-muted);text-align:left;min-width:120px;">Zorluk Ayarı</th>
-                    </tr>
-                  </thead>
-                  <tbody>${courseRows}</tbody>
-                </table>
-              </div>
-            `}
+            ${_mufredatHtml(dept)}
           </div>
         `;
       }).join('') || `
@@ -1736,6 +1681,131 @@ export function renderDepartmentsPanel(state) {
       `}
     </div>
   `;
+}
+
+/**
+ * Bölümün müfredat bölümü: eşleşme özeti, zorluk bilgi kutusu ve ders tablosu
+ * (tür, ders, zorluk, kayıt, geçme, not, eşleşme, veren hoca, zorluk ayarı).
+ * Bölümler sekmesi ve Bölüm Sayfası'nın Dersler sekmesi ortak kullanır.
+ * Kaydırıcı sürüklenirken yalnız yanındaki sayı değişir; değer bırakınca kaydedilir
+ * (her adımda sayfa yeniden çizilince sürükleme kopuyordu).
+ * @param {object} dept
+ */
+function _mufredatHtml(dept) {
+  const curriculum  = DEPARTMENT_CURRICULA[dept.id] || [];
+  const assignments = dept.courseAssignments || [];
+  const uncovered   = dept.uncoveredCourses  || [];
+  const courseStats = dept.stats?.courseStats || [];
+  const fullMatchCount = assignments.filter(c => c.matchQuality === 2).length;
+  const partialCount   = assignments.filter(c => c.matchQuality === 1).length;
+
+  const matchIcon  = q => q === 2 ? '✓' : q === 1 ? '~' : '✗';
+  const matchColor = q => q === 2 ? 'var(--accent-green)' : q === 1 ? 'var(--accent-yellow,#f5a623)' : 'var(--accent-red,#e53e3e)';
+  const diffStars  = d => '★'.repeat(Math.round(d)) + '☆'.repeat(5 - Math.round(d));
+
+  // Her ders satırı
+  const courseRows = curriculum.map(course => {
+    const assign     = assignments.find(a => a.course?.id === course.id);
+    const isUncovered = uncovered.some(u => u.id === course.id);
+    const cStat      = courseStats.find(cs => cs.id === course.id);
+
+    // Etkin zorluk: override varsa onu göster
+    const effectiveDiff = getCourseEffectiveDifficulty(dept, course);
+
+    let statusIcon  = '⚫';
+    let statusColor = 'var(--text-faint)';
+    let assignedTo  = '—';
+
+    if (assign) {
+      statusIcon  = matchIcon(assign.matchQuality);
+      statusColor = matchColor(assign.matchQuality);
+      assignedTo  = assign.assignedName || '—';
+    } else if (isUncovered) {
+      statusIcon  = '⚠️';
+      statusColor = 'var(--accent-red,#e53e3e)';
+      assignedTo  = 'Dışarıdan hoca gerekli';
+    }
+
+    const enrolledStr = cStat ? `${cStat.enrolled} öğr.` : '—';
+    const passRateStr = cStat ? `%${Math.round(cStat.passRate * 100)}` : '—';
+    const avgGradeStr = cStat ? `${cStat.avgGrade}/100` : '—';
+    const passColor   = cStat ? (cStat.passRate >= 0.80 ? 'var(--accent-green)' : cStat.passRate >= 0.60 ? 'var(--accent-yellow,#f5a623)' : 'var(--accent-red,#e53e3e)') : 'var(--text-muted)';
+
+    // Slider rengi: düşük zorluk yeşil, yüksek kırmızı
+    const sliderColor = effectiveDiff >= 4 ? '#e53e3e' : effectiveDiff >= 3 ? '#f5a623' : '#38a169';
+
+    return `
+      <tr style="border-bottom:1px solid var(--border);">
+        <td style="padding:6px 8px;">
+          <span style="font-size:10px;padding:1px 5px;border-radius:8px;
+            background:${course.type === 'zorunlu' ? 'rgba(229,62,62,0.1)' : 'rgba(56,161,105,0.1)'};
+            color:${course.type === 'zorunlu' ? 'var(--accent-red,#e53e3e)' : 'var(--accent-green)'};
+            font-weight:700;">
+            ${course.type === 'zorunlu' ? 'Z' : 'S'}
+          </span>
+        </td>
+        <td style="padding:6px 8px;font-size:13px;font-weight:500;">${course.name}</td>
+        <td style="padding:6px 8px;font-size:11px;color:var(--text-muted);">${diffStars(effectiveDiff)}</td>
+        <td style="padding:6px 8px;font-size:11px;color:var(--text-muted);white-space:nowrap;">${enrolledStr}</td>
+        <td style="padding:6px 8px;font-size:12px;font-weight:700;color:${passColor};">${passRateStr}</td>
+        <td style="padding:6px 8px;font-size:11px;color:var(--text-muted);">${avgGradeStr}</td>
+        <td style="padding:6px 8px;font-size:12px;font-weight:700;color:${statusColor};">${statusIcon}</td>
+        <td style="padding:6px 8px;font-size:12px;color:var(--text-muted);">${assignedTo}</td>
+        <td style="padding:6px 8px;min-width:120px;">
+          <div style="display:flex;align-items:center;gap:6px;">
+            <input type="range" min="1" max="5" step="1" value="${effectiveDiff}"
+              style="width:70px;accent-color:${sliderColor};cursor:pointer;"
+              oninput="this.nextElementSibling.textContent = this.value"
+              onchange="window._onSetCourseDifficulty('${dept.id}', '${course.id}', this.value)"
+              title="Zorluk ayarı: 1 (kolay) - 5 (çok zor)" aria-label="${course.name} zorluğu">
+            <span style="font-size:11px;font-weight:700;color:${sliderColor};min-width:8px;">${effectiveDiff}</span>
+          </div>
+        </td>
+      </tr>
+    `;
+  }).join('');
+
+  return `
+    <!-- Ders eşleşme özet satırı -->
+    <div style="display:flex;gap:16px;padding:8px 16px;border-bottom:1px solid var(--border);font-size:12px;flex-wrap:wrap;">
+      <span style="color:var(--accent-green);">✓ ${fullMatchCount} tam eşleşme</span>
+      <span style="color:var(--accent-yellow,#f5a623);">~ ${partialCount} kısmi eşleşme</span>
+      ${uncovered.length > 0 ? `<span style="color:var(--accent-red,#e53e3e);">⚠️ ${uncovered.length} karşılanmayan ders</span>` : ''}
+      ${dept.partTimeHires > 0 ? `<span style="color:var(--text-muted);">👤 ${dept.partTimeHires} dışarıdan hoca</span>` : ''}
+    </div>
+
+    <!-- Ders tablosu -->
+    ${curriculum.length === 0 ? `
+      <div class="empty-state" style="padding:16px;">
+        <div style="font-size:12px;color:var(--text-faint);">Bu bölüm için müfredat tanımlanmamış.</div>
+      </div>
+    ` : `
+      <div style="padding:12px 16px 0;">
+        <div style="background:rgba(56,161,105,0.08);border-left:3px solid #38a169;padding:10px;margin-bottom:12px;font-size:12px;line-height:1.5;">
+          <strong>Müfredat sertliği oyununuzun karakterini belirler:</strong><br>
+          <span style="color:#38a169;">&#8593; Yüksek zorluk:</span> Nitelikli mezunlar, prestij ve sıralama yükselir, ünlü mezun ihtimali artar. Ama öğrenci memnuniyeti düşer ve geçme oranı azalır.<br>
+          <span style="color:#dc8a2e;">&#8595; Düşük zorluk:</span> Öğrenciler memnun, geçme oranı yüksek. Ama mezun kalitesi ve uzun vadede prestij düşer.
+        </div>
+      </div>
+      <div style="overflow-x:auto;">
+        <table class="mufredat-tablo" style="width:100%;border-collapse:collapse;">
+          <thead>
+            <tr style="border-bottom:1px solid var(--border);">
+              <th style="padding:6px 8px;font-size:10px;text-transform:uppercase;color:var(--text-muted);text-align:left;width:30px;">T</th>
+              <th style="padding:6px 8px;font-size:10px;text-transform:uppercase;color:var(--text-muted);text-align:left;">Ders Adı</th>
+              <th style="padding:6px 8px;font-size:10px;text-transform:uppercase;color:var(--text-muted);text-align:left;width:80px;">Zorluk</th>
+              <th style="padding:6px 8px;font-size:10px;text-transform:uppercase;color:var(--text-muted);text-align:left;width:80px;">Kayıtlı</th>
+              <th style="padding:6px 8px;font-size:10px;text-transform:uppercase;color:var(--text-muted);text-align:left;width:70px;">Geçme</th>
+              <th style="padding:6px 8px;font-size:10px;text-transform:uppercase;color:var(--text-muted);text-align:left;width:80px;">Not Ort.</th>
+              <th style="padding:6px 8px;font-size:10px;text-transform:uppercase;color:var(--text-muted);text-align:center;width:30px;">Durum</th>
+              <th style="padding:6px 8px;font-size:10px;text-transform:uppercase;color:var(--text-muted);text-align:left;">Veren Hoca</th>
+              <th style="padding:6px 8px;font-size:10px;text-transform:uppercase;color:var(--text-muted);text-align:left;min-width:120px;">Zorluk Ayarı</th>
+            </tr>
+          </thead>
+          <tbody>${courseRows}</tbody>
+        </table>
+      </div>
+    `}`;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -2157,11 +2227,9 @@ export function renderFacultyPanel(state, onTransferMarket, onFacultyDetail, onO
       </div>
     </div>
 
-    <div id="faculty-view-container">
-      <div class="faculty-grid" id="faculty-grid">
-        ${faculty.map(f => renderFacultyCard(f, depts)).join('')}
-      </div>
-    </div>
+    <!-- Kartlar _renderCurrentView ile bölümlere göre gruplu çizilir (v0.6: ilk açılışta da;
+         eskiden gruplar yalnız süzgeç ya da görünüm değişince çıkıyordu) -->
+    <div id="faculty-view-container"></div>
   `;
 
   // Transfer pazarı
@@ -2362,6 +2430,8 @@ export function renderFacultyPanel(state, onTransferMarket, onFacultyDetail, onO
                 <span class="faculty-dept-group-icon">${icon}</span>
                 <span class="faculty-dept-group-name">${name}</span>
                 <span class="faculty-dept-group-count">(${members.length})</span>
+                <button type="button" class="bs-git-dugme bs-git-dugme--ince" data-bolum-git="${dept.id}" data-bolum-sekme="kadro"
+                        title="${name}: Bölüm Sayfası">Bölüm Sayfası →</button>
               </summary>
               <div class="faculty-grid faculty-dept-grid" id="${groupId}">
                 ${members.map(f => renderFacultyCard(f, depts)).join('')}
@@ -2451,6 +2521,9 @@ export function renderFacultyPanel(state, onTransferMarket, onFacultyDetail, onO
     el('btn-faculty-view-card')?.setAttribute('style', 'font-size:11px;padding:4px 10px;');
     _renderCurrentView();
   });
+
+  // İlk görünüm: bölümlere göre gruplu kartlar (grup başlığından Bölüm Sayfası açılır)
+  _renderCurrentView();
 
   // Başvuru kabul / ret butonları — event delegation
   const appsList = el('applications-list');
@@ -2859,13 +2932,16 @@ export function renderBolumlerPanel(state, onAssignHead, onReassignFaculty) {
         <div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:8px;margin-bottom:12px;">
           <div>
             <span style="font-size:18px;line-height:0;">${bolumIkonu(dept.id, 26, dept.icon || '🏛️')}</span>
-            <strong style="font-size:15px;">${dept.name}</strong>
+            <button type="button" class="bs-link bs-link--baslik" data-bolum-git="${dept.id}" title="${dept.name}: Bölüm Sayfası">${dept.name}</button>
             ${_akreditasyonRozeti(dept)}
           </div>
-          <!-- Feature 3: Bölüm ort. puan -->
-          <div style="text-align:center;padding:4px 10px;border-radius:8px;background:rgba(56,161,105,0.08);border:1px solid rgba(56,161,105,0.2);">
-            <div style="font-size:18px;font-weight:800;color:${avgRatingColor};">${deptAvgRating}</div>
-            <div style="font-size:9px;color:var(--text-muted);">Ort. Puan</div>
+          <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
+            <button type="button" class="btn btn-secondary btn-sm bs-git-dugme" data-bolum-git="${dept.id}">Bölüm Sayfası →</button>
+            <!-- Feature 3: Bölüm ort. puan -->
+            <div style="text-align:center;padding:4px 10px;border-radius:8px;background:rgba(56,161,105,0.08);border:1px solid rgba(56,161,105,0.2);">
+              <div style="font-size:18px;font-weight:800;color:${avgRatingColor};">${deptAvgRating}</div>
+              <div style="font-size:9px;color:var(--text-muted);">Ort. Puan</div>
+            </div>
           </div>
         </div>
 
@@ -2994,42 +3070,952 @@ export function renderBolumlerPanel(state, onAssignHead, onReassignFaculty) {
     });
   });
 
-  // Hoca taşıma butonları
+  // Hoca taşıma butonları (pencere Bölüm Sayfası ile ortak)
   panel.querySelectorAll('.btn-reassign-faculty').forEach(btn => {
     btn.addEventListener('click', (e) => {
       e.stopPropagation();
-      const facId      = btn.dataset.facultyId;
-      const currentDept = btn.dataset.currentDept;
-      // Basit modal: hedef bölümü seç
-      const otherDepts = depts.filter(d => d.id !== currentDept);
-      if (otherDepts.length === 0) {
-        showNotification('Taşınacak başka bölüm yok.', 'warning');
-        return;
-      }
-      const opts = otherDepts.map(d => `<option value="${d.id}">${d.name}</option>`).join('');
-      const bodyHtml = `
-        <div style="padding:16px;">
-          <p style="margin-bottom:12px;font-size:14px;">Hedef bölümü seçin:</p>
-          <select id="reassign-target-dept" class="filter-select" style="width:100%;margin-bottom:16px;">
-            ${opts}
-          </select>
-          <button class="btn btn-primary" id="btn-confirm-reassign" style="width:100%;">Taşı</button>
-        </div>`;
-      showModal('Hoca Bölüm Değiştir', bodyHtml);
-      setTimeout(() => {
-        const confirmBtn = document.getElementById('btn-confirm-reassign');
-        if (confirmBtn) {
-          confirmBtn.addEventListener('click', () => {
-            const targetDept = document.getElementById('reassign-target-dept')?.value;
-            if (targetDept && onReassignFaculty) {
-              onReassignFaculty(facId, targetDept);
-              hideModal();
-            }
-          });
-        }
-      }, 50);
+      const hoca = faculty.find(f => f.id === btn.dataset.facultyId);
+      if (!hoca) return;
+      const bolum = depts.find(d => d.id === btn.dataset.currentDept);
+      _hocaTasiPenceresi(hoca, depts, onReassignFaculty, bolum?.headId === hoca.id);
     });
   });
+}
+
+/**
+ * Hocayı başka bir bölüme taşıma penceresi (Fakülteler sekmesi ve Bölüm Sayfası ortak).
+ * Karar main.js üzerinden reassignFacultyToDept'e gider.
+ * @param {object}   hoca
+ * @param {object[]} depts
+ * @param {Function} onReassign  (facultyId, newDeptId)
+ * @param {boolean}  [baskanMi]  hoca şu an bölümünün başkanıysa pencere başkanlığın boşalacağını söyler
+ */
+function _hocaTasiPenceresi(hoca, depts, onReassign, baskanMi = false) {
+  const mevcut = hoca.department || hoca.departmentId;
+  const digerleri = (depts || []).filter(d => d.id !== mevcut && d.isOpen !== false);
+  if (digerleri.length === 0) {
+    showNotification('Taşınacak başka bölüm yok.', 'warning');
+    return;
+  }
+  showModal(`${hoca.name}: Bölüm Değiştir`, `
+    <p style="margin:0 0 12px;font-size:13.5px;line-height:1.5;">Hoca hangi bölüme taşınsın?${baskanMi
+      ? ' <b>Bu hoca bölümünün başkanı;</b> taşınınca başkanlık boşalır.' : ''}</p>
+    <select id="reassign-target-dept" class="filter-select" style="width:100%;" aria-label="Hedef bölüm">
+      ${digerleri.map(d => `<option value="${d.id}">${d.name}</option>`).join('')}
+    </select>
+    <div class="onay-dugmeler">
+      <button class="btn btn-secondary" id="btn-reassign-vazgec" type="button">Vazgeç</button>
+      <button class="btn btn-primary" id="btn-confirm-reassign" type="button">Taşı</button>
+    </div>`);
+  on(el('btn-reassign-vazgec'), 'click', hideModal);
+  on(el('btn-confirm-reassign'), 'click', () => {
+    const hedef = el('reassign-target-dept')?.value;
+    if (!hedef) return;
+    hideModal();
+    if (onReassign) onReassign(hoca.id, hedef);
+  });
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 2c. BÖLÜM SAYFASI (v0.6): bir bölümün her şeyi tek sayfada
+// Bölümler sekmesinin panelinde çizilir; yan menüde "Bölümler" seçili kalır.
+// Veriler oyun durumundan okunur, eylemler var olan kararlara (main.js) gider.
+// ─────────────────────────────────────────────────────────────────────────────
+
+const _BS_UNVAN      = { profesor: 'Prof. Dr.', docent: 'Doç. Dr.', dr_ogr_uyesi: 'Dr. Öğr. Üyesi', 'argö': 'Arş. Gör.' };
+const _BS_UNVAN_SIRA = { profesor: 4, docent: 3, dr_ogr_uyesi: 2, 'argö': 1 };
+const _BS_SEKMELER   = [
+  ['kadro', 'Kadro'], ['dersler', 'Dersler'], ['ogrenciler', 'Öğrenciler ve Kontenjan'], ['arastirma', 'Araştırma'],
+  ['yerleske', 'Yerleşke'], ['akreditasyon', 'Akreditasyon'], ['butce', 'Bütçe'],
+];
+const _BS_LISTE_SINIRI = 10;   // uzun listelerde önce ilk 10 satır, sonra "tümünü göster"
+
+/**
+ * Sayfanın arayüz durumu (oyun durumuna yazılmaz): seçili iç sekme, kadro sıralaması,
+ * açılmış listeler ve son çizimin girdileri (iç sekme değişince aynı veriyle yeniden çizmek için).
+ */
+const _bs = { bolumId: null, sekme: 'kadro', sirala: null, artan: false, tumu: {}, son: null };
+
+const _bsHocaBolumu = f => f?.department || f?.departmentId || null;
+const _bsDersSayisi = f => (f?.currentLoad?.assignedCourses || []).length;
+const _bsYuzde      = (oran, basamak = 0) => `%${ondalikYaz((Number(oran) || 0) * 100, basamak)}`;
+const _bsNot        = g => (Number.isFinite(g) && g > 0) ? g.toFixed(2).replace('.', ',') : '—';
+const _bsKademe     = (x, iyi, orta) => x >= iyi ? 'iyi' : x >= orta ? 'orta' : 'kotu';
+const _bsSekmeAdi   = id => (_BS_SEKMELER.find(([k]) => k === id) || [id, id])[1];
+
+/** Uzun listenin altındaki "Tümünü göster (N)" / "İlk 10'u göster" düğmesi; liste kısaysa boş. */
+function _bsTumuDugmesi(liste, adet) {
+  if (adet <= _BS_LISTE_SINIRI) return '';
+  return `<button type="button" class="bs-link bs-link--kucuk bs-tumu" data-bs-eylem="tumu" data-liste="${liste}">${_bs.tumu[liste]
+    ? `İlk ${sayiEkle(_BS_LISTE_SINIRI, 'i')} göster` : `Tümünü göster (${adet})`}</button>`;
+}
+
+/** Proje ya da başvurunun bölümü: yürütücü hâlâ kadrodaysa bugünkü bölümü, değilse kayıttaki bölüm. */
+function _bsKayitBolumu(kayit, faculty) {
+  const id   = kayit?.piId ?? kayit?.facultyId;
+  const hoca = id != null ? faculty.find(f => f.id === id) : null;
+  return hoca ? _bsHocaBolumu(hoca) : (kayit?.facultyDept ?? null);
+}
+
+/** Sayfanın bütün bölümlerinin ortak kullandığı veriler. */
+function _bsVeri(state, dept) {
+  const faculty  = state.faculty || [];
+  const hocalar  = faculty.filter(f => _bsHocaBolumu(f) === dept.id);
+  const byDept   = state.students?.byDepartment?.[dept.id] || {};
+  const siniflar = ['year1', 'year2', 'year3', 'year4'].map(k => byDept[k] || {});
+  const sayilar  = siniflar.map(s => Number(s.count) || 0);
+  return {
+    faculty, hocalar, byDept, siniflar, sayilar,
+    bas:        dept.headId ? (faculty.find(f => f.id === dept.headId) || null) : null,
+    ogrenci:    sayilar.reduce((a, b) => a + b, 0),
+    kapasite:   Number(dept.studentCapacity) > 0 ? Number(dept.studentCapacity) : (Number(dept.stats?.capacity) || 0),
+    mufredat:   DEPARTMENT_CURRICULA[dept.id] || [],
+    hocasiz:    dept.uncoveredCourses || [],
+    bosHoca:    hocalar.filter(f => _bsDersSayisi(f) === 0),
+    enAz:       Number.isFinite(dept.minFaculty) ? dept.minFaculty : 3,
+    memnuniyet: _bolumMemnuniyeti(byDept),
+    kurumlar:   Object.entries(ACCREDITATION_BODIES)
+                  .filter(([, b]) => b.applicableTo.includes('all') || b.applicableTo.includes(dept.category || '')),
+    basvurular: (state.pendingApplicants || []).filter(a => a.department === dept.id),
+    spontane:   (state.spontaneousApplicants || []).filter(a => (a.preferredDept || a.department) === dept.id),
+    ilanlar:    (state.openPositions || []).filter(p => p.department === dept.id),
+    projeler:   (state.research?.activeResearchProjects || []).filter(p => _bsKayitBolumu(p, faculty) === dept.id),
+    tur:        state.meta?.turn || 1,
+    bahar:      state.meta?.semester === 'bahar',
+  };
+}
+
+/**
+ * "Dikkat" kutusunun maddeleri: yalnız verilerden türeyen gerçek durumlar, önemliden önemsize.
+ * @returns {{ metin: string, sekme: string }[]}
+ */
+function _bsUyarilar(dept, v) {
+  const u = [];
+  const ekle = (metin, sekme) => u.push({ metin, sekme });
+  const akr = dept.accreditation || {};
+
+  if (v.hocalar.length < v.enAz) {
+    ekle(`Öğretim üyesi sayısı en az sayının altında (${v.hocalar.length}/${v.enAz}); bölüm bu sayıya ulaşmadan yeni öğrenci alamaz.`, 'kadro');
+  }
+  if (v.kapasite > 0 && v.ogrenci > v.kapasite) {
+    ekle(`Öğrenci sayısı (${formatNumber(v.ogrenci)}) kapasiteyi (${formatNumber(v.kapasite)}) aşıyor; kalabalık sınıflar başarısızlığı artırıyor.`, 'yerleske');
+  }
+  if (v.hocasiz.length > 0) {
+    const adlar = v.hocasiz.slice(0, 3).map(c => c.name).join(', ')
+      + (v.hocasiz.length > 3 ? ` ve ${v.hocasiz.length - 3} ders daha` : '');
+    ekle(`${v.hocasiz.length} ders hocasız, dışarıdan öğretim görevlisi veriyor (${adlar}).`, 'dersler');
+  }
+  if (!v.bas) {
+    const adayVar = v.hocalar.some(f => f.title === 'profesor' || f.title === 'docent');
+    ekle(`Bölüm başkanı yok; başkansız bölüm eğitim kalitesinde 5 puan kaybeder.${adayVar ? '' : ' Bölümde başkan olabilecek Prof. ya da Doç. de yok.'}`, 'kadro');
+  } else if (Number(v.bas.happiness ?? 60) < 40) {
+    ekle(`Bölüm başkanı ${v.bas.name} mutsuz (mutluluk ${tamPuan(v.bas.happiness)}/100).`, 'kadro');
+  }
+  for (const [id, kurum] of v.kurumlar) {
+    const a = akr[id];
+    if (a?.status === 'expired') {
+      ekle(`${kurum.name} akreditasyonunun süresi doldu; yenilenebilir.`, 'akreditasyon');
+    } else if (a?.status === 'granted' && a.expiresAt != null && a.expiresAt - v.tur <= 2) {
+      const kalan = a.expiresAt - v.tur;
+      ekle(`${kurum.name} akreditasyonunun süresi ${kalan > 0 ? `${kalan} dönem sonra` : 'bu dönem'} doluyor; yenileme şimdi yapılabilir.`, 'akreditasyon');
+    }
+  }
+  const bekleyen = v.basvurular.length + v.spontane.length;
+  if (bekleyen > 0) ekle(`${bekleyen} kadro başvurusu yanıt bekliyor.`, 'kadro');
+  if (v.hocalar.length > 0 && v.bosHoca.length > 0 && v.mufredat.length > 0) {
+    ekle(`${v.hocalar.length} hocadan ${sayiEkle(v.bosHoca.length, 'si')} bu dönem ders vermiyor; müfredatta ${v.mufredat.length} ders var.`, 'kadro');
+  }
+  // Akredite değil ve değerlendirmede başvurusu yok (süresi dolanın kendi maddesi var)
+  const durumu = id => akr[id]?.status || 'none';
+  const etkin  = v.kurumlar.some(([id]) => ['granted', 'applied', 'under_review', 'expired'].includes(durumu(id)));
+  if (v.kurumlar.length > 0 && !etkin) {
+    const reddedilen = v.kurumlar.filter(([id]) => durumu(id) === 'rejected').map(([, b]) => b.name);
+    ekle(reddedilen.length
+      ? `Akreditasyon yok; ${reddedilen.join(', ')} başvurusu reddedildi, yeniden başvurulabilir.`
+      : `Akreditasyon başvurusu yok (${v.kurumlar.map(([, b]) => b.name).join(', ')}).`, 'akreditasyon');
+  }
+  return u;
+}
+
+/**
+ * Bölümün dönemlik bütçesi. Maaş ekonomi hesabıyla aynı (aylık maaş × SEMESTER_MONTHS), işletme gideri
+ * yıllık tutarın yarısı. Gelir bölüme özgü tutulmadığından calculateIncome toplamı öğrenci payına bölünür (tahmin).
+ */
+function _bsButceHesabi(state, dept, v) {
+  let toplamGelir = 0;
+  try {
+    toplamGelir = Number(calculateIncome(state)?.total) || 0;
+  } catch (e) {
+    console.warn('[ui] Bölüm Sayfası: gelir hesaplanamadı:', e);
+  }
+  const acik = new Set((state.departments || []).filter(d => d.isOpen !== false).map(d => d.id));
+  let tumOgrenci = 0;
+  for (const [id, d] of Object.entries(state.students?.byDepartment || {})) {
+    if (!acik.has(id)) continue;
+    for (const k of ['year1', 'year2', 'year3', 'year4']) tumOgrenci += Number(d?.[k]?.count) || 0;
+  }
+  if (tumOgrenci <= 0) tumOgrenci = Number(state.students?.totalEnrolled) || 0;
+  const pay       = tumOgrenci > 0 ? v.ogrenci / tumOgrenci : 0;
+  const gelir     = Math.round(toplamGelir * pay);
+  const aylikMaas = v.hocalar.reduce((s, f) => s + (Number(f.salary) || 0), 0);
+  const maas      = Math.round(aylikMaas * SEMESTER_MONTHS);
+  const isletme   = Math.round((Number(dept.annualOperatingCost) || 0) / 2);
+  const tumMaas   = (state.faculty || []).reduce((s, f) => s + (Number(f.salary) || 0), 0) * SEMESTER_MONTHS;
+  return { toplamGelir, pay, gelir, aylikMaas, maas, isletme, net: gelir - maas - isletme, maasPayi: tumMaas > 0 ? maas / tumMaas : 0 };
+}
+
+/** Bölümün tamamlanmış binaları: derslik binaları, araştırma merkezleri ve bağlı laboratuvarlar. */
+function _bsBinalari(state, dept) {
+  const tamam = (state.buildings || []).filter(b => b.isCompleted);
+  const atanmis = b => (b.assignedDepartments || []).includes(dept.id);
+  return {
+    derslik: tamam.filter(b => b.type !== 'lab' && b.type !== 'arastirma_merkezi' && atanmis(b)),
+    merkez:  tamam.filter(b => b.type === 'arastirma_merkezi' && atanmis(b)),
+    lab:     tamam.filter(b => b.type === 'lab' && (b.linkedDepartments || []).includes(dept.id)),
+  };
+}
+
+/** Akreditasyon durum rozeti; ayrıntılı ise değerlendirmenin kaçıncı dönemde olduğunu da yazar. */
+function _bsAkrRozeti(kurum, a, tur, ayrintili = false) {
+  switch (a?.status) {
+    case 'granted': {
+      const kalan = a.expiresAt != null ? a.expiresAt - tur : null;
+      return `<span class="bs-rozet bs-rozet--iyi">${kurum.name}: akredite${kalan != null ? ` (${kalan} dönem kaldı)` : ''}</span>`;
+    }
+    case 'applied':
+    case 'under_review': {
+      const sure = ayrintili ? ` (${Math.max(0, tur - (a.appliedAt ?? tur))}/${a.processTime || kurum.processingTime?.max || '?'} dönem)` : '';
+      return `<span class="bs-rozet bs-rozet--bekle">${kurum.name}: değerlendirmede${sure}</span>`;
+    }
+    case 'expired':      return `<span class="bs-rozet bs-rozet--kotu">${kurum.name}: süresi doldu</span>`;
+    case 'rejected':     return `<span class="bs-rozet bs-rozet--kotu">${kurum.name}: reddedildi</span>`;
+    default:             return `<span class="bs-rozet">${kurum.name}: başvuru yok</span>`;
+  }
+}
+
+function _bsUst(dept, v, uyariSayisi) {
+  const fakulte = FACULTIES[DEPT_TO_FACULTY[dept.id]]?.name || '';
+  const bas = v.bas
+    ? `Başkan <b>${_BS_UNVAN[v.bas.title] || ''} ${v.bas.name}</b> (yönetim ${tamPuan(v.bas.stats?.management)}, mutluluk ${tamPuan(v.bas.happiness)})`
+    : '<span class="bs-kotu-metin">Başkan atanmamış</span>';
+  const akr = dept.accreditation || {};
+  return `
+    <div class="bs-ust">
+      <div class="bs-ikon">${bolumIkonu(dept.id, 50, dept.icon || '🏫')}</div>
+      <div class="bs-kimlik">
+        <h2 class="bs-baslik">${dept.name}</h2>
+        <div class="bs-alt">${fakulte ? `${fakulte} · ` : ''}${bas}</div>
+        <div class="bs-rozetler">
+          ${v.kurumlar.map(([id, kurum]) => _bsAkrRozeti(kurum, akr[id], v.tur)).join('')}
+          ${uyariSayisi > 0
+            ? `<span class="bs-rozet bs-rozet--kotu">${uyariSayisi} uyarı</span>`
+            : '<span class="bs-rozet bs-rozet--iyi">Uyarı yok</span>'}
+        </div>
+      </div>
+    </div>`;
+}
+
+function _bsKutu(etiket, deger, alt, sinif = '') {
+  return `
+    <div class="bs-kutu">
+      <div class="bs-kutu-e">${etiket}</div>
+      <div class="bs-kutu-s ${sinif}">${deger}</div>
+      <div class="bs-kutu-a">${alt}</div>
+    </div>`;
+}
+
+function _bsGostergeler(dept, v) {
+  const st      = dept.stats || {};
+  const kalite  = Number(dept.educationQuality);
+  const basari  = Number(st.failureRate);
+  const gpa     = Number(st.avgGPA);
+  const mezun   = Number(st.graduationRate);
+  const doluluk = v.kapasite > 0 ? v.ogrenci / v.kapasite : null;
+  // Alt satırlarda sayı ile birimi ayrılmasın (bölünmez boşluk)
+  const unvanlar = [['profesor', 'Prof.'], ['docent', 'Doç.'], ['dr_ogr_uyesi', 'Dr.&nbsp;Öğr.'], ['argö', 'Arş.&nbsp;Gör.']]
+    .map(([t, ad]) => [v.hocalar.filter(f => f.title === t).length, ad])
+    .filter(([n]) => n > 0).map(([n, ad]) => `${n}&nbsp;${ad}`).join(' · ');
+  return `
+    <div class="bs-gosterge">
+      ${_bsKutu('Öğrenci', formatNumber(v.ogrenci), `${v.sayilar.join(' · ')} <span class="bs-nowrap">(1-4. sınıf)</span>`)}
+      ${_bsKutu('Eğitim kalitesi', Number.isFinite(kalite) ? Math.round(kalite) : '—', '100 üzerinden',
+        Number.isFinite(kalite) ? _bsKademe(kalite, 70, 45) : '')}
+      ${_bsKutu('Başarısızlık', Number.isFinite(basari) ? _bsYuzde(basari) : '—', `ders zorluğu ${ondalikYaz(st.difficultyRating ?? 3, 1)}/5`,
+        Number.isFinite(basari) ? (basari > 0.20 ? 'kotu' : basari > 0.10 ? 'orta' : 'iyi') : '')}
+      ${_bsKutu('Not ortalaması', _bsNot(gpa), '4,00 üzerinden', gpa > 0 ? _bsKademe(gpa, 3.0, 2.5) : '')}
+      ${_bsKutu('Mezuniyet', Number.isFinite(mezun) ? _bsYuzde(mezun) : '—', `bırakma ${_bsYuzde(st.dropoutRate ?? 0)}`,
+        Number.isFinite(mezun) ? _bsKademe(mezun, 0.8, 0.6) : '')}
+      ${_bsKutu('Memnuniyet', v.memnuniyet != null ? Math.round(v.memnuniyet) : '—', 'sınıfların ağırlıklı ortalaması',
+        v.memnuniyet != null ? _bsKademe(v.memnuniyet, 70, 45) : '')}
+      ${_bsKutu('Kadro', formatNumber(v.hocalar.length), unvanlar || 'hoca yok', v.hocalar.length < v.enAz ? 'kotu' : '')}
+      ${_bsKutu('Kapasite', doluluk != null ? _bsYuzde(doluluk) : '—',
+        v.kapasite > 0 ? `${formatNumber(v.ogrenci)}&nbsp;öğrenci, ${formatNumber(v.kapasite)}&nbsp;yer` : 'hesaplanmadı',
+        doluluk == null ? '' : doluluk > 1 ? 'kotu' : doluluk > 0.85 ? 'orta' : 'iyi')}
+    </div>`;
+}
+
+function _bsDikkat(uyarilar) {
+  if (uyarilar.length === 0) return '';
+  return `
+    <div class="bs-dikkat" role="status">
+      <div class="bs-dikkat-baslik">Dikkat</div>
+      <ul>
+        ${uyarilar.map(u => `<li>${u.metin} <button type="button" class="bs-link bs-link--kucuk" data-bs-sekme="${u.sekme}">${_bsSekmeAdi(u.sekme)} →</button></li>`).join('')}
+      </ul>
+    </div>`;
+}
+
+function _bsSekmeCubugu(v) {
+  const sayac = { kadro: v.hocalar.length, dersler: v.mufredat.length, arastirma: v.projeler.length };
+  return `
+    <div class="bs-sekmeler" role="tablist" aria-label="Bölüm Sayfası sekmeleri">
+      ${_BS_SEKMELER.map(([id, ad]) => `
+        <button type="button" role="tab" class="bs-sekme${_bs.sekme === id ? ' secili' : ''}" aria-selected="${_bs.sekme === id}"
+                data-bs-sekme="${id}">${ad}${sayac[id] != null ? ` <small>${sayac[id]}</small>` : ''}</button>`).join('')}
+    </div>`;
+}
+
+function _bsYanKartlar(state, dept, v, butce, binalar) {
+  const ilkBina  = binalar.derslik[0];
+  const binaAdi  = ilkBina
+    ? `${_escHtml(ilkBina.name || BUILDINGS[ilkBina.type]?.name || ilkBina.type)}, düzey ${ilkBina.level || 1}${binalar.derslik.length > 1 ? ` (+${binalar.derslik.length - 1})` : ''}`
+    : (dept.kapasiteKaynagi === 'yedek' ? 'derslik yok' : 'ortak derslikler');
+  const tumProje = (state.research?.activeResearchProjects || []).length;
+  return `
+    <div class="bs-kart bs-eylem">
+      <div class="bs-kart-baslik"><span>Bu bölüm için</span></div>
+      <div class="bs-dugmeler">
+        <button type="button" class="bs-dugme" data-bs-eylem="ilan">Kadro ilanı ver</button>
+        <button type="button" class="bs-dugme" data-bs-eylem="transfer">Transfer pazarı (yalnız bu bölüm)</button>
+        <button type="button" class="bs-dugme" data-bs-eylem="baskan">Başkan ata</button>
+        <button type="button" class="bs-dugme" data-bs-eylem="kontenjan"${v.bahar ? '' : ' disabled'}>Kontenjan${v.bahar ? '' : " (Bahar'da)"}</button>
+        <button type="button" class="bs-dugme" data-bs-sekme="akreditasyon">Akreditasyon</button>
+      </div>
+      ${v.bahar ? '' : '<div class="bs-not">Kontenjan Bahar döneminde belirlenir.</div>'}
+    </div>
+    ${_bs.sekme === 'butce' ? '' : `
+    <div class="bs-kart">
+      <div class="bs-kart-baslik"><span>Bütçe (dönemlik)</span>
+        <button type="button" class="bs-link bs-link--kucuk" data-bs-sekme="butce">Ayrıntı →</button></div>
+      <div class="bs-satir"><span>Maaşlar</span><b class="eksi">-${formatMoney(butce.maas)}</b></div>
+      <div class="bs-satir"><span>İşletme gideri</span><b class="eksi">-${formatMoney(butce.isletme)}</b></div>
+      <div class="bs-satir"><span>Gelir payı (tahmin)</span><b class="arti">+${formatMoney(butce.gelir)}</b></div>
+      <div class="bs-satir bs-satir--toplam"><span>Net</span>
+        <b class="${butce.net >= 0 ? 'arti' : 'eksi'}">${butce.net >= 0 ? '+' : ''}${formatMoney(butce.net)}</b></div>
+    </div>`}
+    ${_bs.sekme === 'yerleske' || _bs.sekme === 'arastirma' ? '' : `
+    <div class="bs-kart">
+      <div class="bs-kart-baslik"><span>Yerleşke ve araştırma</span></div>
+      <div class="bs-satir"><span>Bina</span><b>${binaAdi}</b></div>
+      <div class="bs-satir"><span>Laboratuvar puanı</span><b>${tamPuan(dept.labScore)}/100</b></div>
+      <div class="bs-satir"><span>Etkin proje</span><b>${v.projeler.length} (üniversitede ${tumProje})</b></div>
+      <div class="bs-kart-alt">
+        <button type="button" class="bs-link bs-link--kucuk" data-bs-sekme="yerleske">Yerleşke →</button>
+        <button type="button" class="bs-link bs-link--kucuk" data-bs-sekme="arastirma">Araştırma →</button>
+      </div>
+    </div>`}`;
+}
+
+// ── İç sekmeler ─────────────────────────────────────────────────────────────
+
+function _bsKadro(state, dept, v) {
+  const anahtarlar = {
+    ad:        f => String(f.name || ''),
+    unvan:     f => _BS_UNVAN_SIRA[f.title] || 0,
+    yas:       f => Number(f.age) || 0,
+    ogretim:   f => Number(f.stats?.teaching) || 0,
+    arastirma: f => Number(f.stats?.research) || 0,
+    mutluluk:  f => Number(f.happiness ?? 60),
+    ders:      _bsDersSayisi,
+    maas:      f => Number(f.salary) || 0,
+  };
+  const liste = [...v.hocalar];
+  const al = anahtarlar[_bs.sirala];
+  if (al) {
+    liste.sort((a, b) => {
+      const x = al(a), y = al(b);
+      const fark = typeof x === 'string' ? x.localeCompare(y, 'tr') : x - y;
+      return _bs.artan ? fark : -fark;
+    });
+  } else {
+    // Varsayılan: başkan, sonra unvan (Prof. önce), sonra ad
+    liste.sort((a, b) => (b.id === dept.headId) - (a.id === dept.headId)
+      || (_BS_UNVAN_SIRA[b.title] || 0) - (_BS_UNVAN_SIRA[a.title] || 0)
+      || String(a.name || '').localeCompare(String(b.name || ''), 'tr'));
+  }
+
+  const baslik = (anahtar, ad, sayisal = true) => {
+    const secili = _bs.sirala === anahtar;
+    return `<th class="${sayisal ? 'n' : ''}${secili ? ' sirali' : ''}" aria-sort="${secili ? (_bs.artan ? 'ascending' : 'descending') : 'none'}">
+      <button type="button" class="bs-th-dugme" data-bs-sirala="${anahtar}" title="${ad}: sırala">${ad}${secili ? (_bs.artan ? ' ▲' : ' ▼') : ''}</button></th>`;
+  };
+
+  const satirlar = liste.map(f => {
+    const ders  = _bsDersSayisi(f);
+    const mutlu = Number(f.happiness ?? 60);
+    return `
+      <tr data-bs-hoca="${f.id}" tabindex="0" title="${f.name}: ayrıntılar">
+        <td><span class="bs-hoca-ad">${renderFacultyPortrait(f, 28, 'portre--yuvarlak')}<span>${f.name}</span>${f.id === dept.headId ? '<span class="bs-baskan-etiket">başkan</span>' : ''}</span></td>
+        <td class="bs-nowrap">${_BS_UNVAN[f.title] || f.title || '—'}</td>
+        <td class="n">${f.age ?? '—'}</td>
+        <td class="n">${tamPuan(f.stats?.teaching)}</td>
+        <td class="n">${tamPuan(f.stats?.research)}</td>
+        <td class="n ${_bsKademe(mutlu, 70, 45)}">${tamPuan(f.happiness)}</td>
+        <td class="n${ders === 0 ? ' bs-sifir' : ''}">${ders}</td>
+        <td class="n bs-nowrap">${formatMoney(f.salary)}</td>
+        <td class="bs-islem"><button type="button" class="btn btn-secondary btn-sm bs-tasi" data-bs-eylem="tasi" data-hoca="${f.id}"
+            aria-label="${f.name}: başka bölüme taşı">Taşı</button></td>
+      </tr>`;
+  }).join('');
+
+  const tablo = v.hocalar.length === 0 ? `
+    <div class="bs-kart bs-bos">
+      <div>Bu bölümde hoca yok. Kadro ilanı verin ya da transfer pazarına bakın.</div>
+      <div class="bs-dugmeler">
+        <button type="button" class="bs-dugme" data-bs-eylem="ilan">Kadro ilanı ver</button>
+        <button type="button" class="bs-dugme" data-bs-eylem="transfer">Transfer pazarı</button>
+      </div>
+    </div>` : `
+    <div class="bs-tablo-kap">
+      <table class="bs-tablo bs-tablo--kadro">
+        <thead><tr>
+          ${baslik('ad', 'Hoca', false)}${baslik('unvan', 'Unvan', false)}${baslik('yas', 'Yaş')}${baslik('ogretim', 'Öğretim')}
+          ${baslik('arastirma', 'Araştırma')}${baslik('mutluluk', 'Mutluluk')}${baslik('ders', 'Ders')}${baslik('maas', 'Maaş (ay)')}
+          <th><span class="bs-gizli">İşlem</span></th>
+        </tr></thead>
+        <tbody>${satirlar}</tbody>
+      </table>
+    </div>
+    <div class="bs-tablo-dip">${v.hocalar.length} hoca · aylık maaş toplamı ${formatMoney(v.hocalar.reduce((s, f) => s + (Number(f.salary) || 0), 0))}
+      · ortalama genel puan ${getDeptAvgRating(dept.id, state.faculty || [])} · satıra tıklayınca hocanın ayrıntıları açılır</div>`;
+
+  const basvuruSatiri = (a, spontane) => `
+    <div class="bs-basvuru">
+      ${(a.gender || a.avatar) ? renderFacultyPortrait(a, 44, 'portre--yuvarlak') : ''}
+      <div class="bs-basvuru-bilgi">
+        <div class="bs-basvuru-ad">${a.name || 'İsimsiz'} <span class="bs-rozet">${_BS_UNVAN[a.title] || a.title || ''}</span>${spontane ? ' <span class="bs-rozet bs-rozet--bekle">ilan dışı</span>' : ''}</div>
+        <div class="bs-basvuru-alt">genel puan ${calculateOverallRating(a)} · araştırma ${tamPuan(a.stats?.research)} · eğitim ${tamPuan(a.stats?.teaching)} · beklenti ${formatMoney(a.salaryExpectation)}/ay</div>
+      </div>
+      <div class="bs-basvuru-dugmeler">
+        <button type="button" class="btn btn-success btn-sm" data-bs-eylem="${spontane ? 'spontane-kabul' : 'basvuru-kabul'}" data-basvuru="${a.id}">Kabul et</button>
+        <button type="button" class="btn btn-danger btn-sm" data-bs-eylem="${spontane ? 'spontane-ret' : 'basvuru-ret'}" data-basvuru="${a.id}">Reddet</button>
+      </div>
+    </div>`;
+  const tumBasvurular = [...v.basvurular.map(a => [a, false]), ...v.spontane.map(a => [a, true])];
+  const gosterilen = _bs.tumu.basvurular ? tumBasvurular : tumBasvurular.slice(0, _BS_LISTE_SINIRI);
+  const basvurular = tumBasvurular.length === 0 ? '' : `
+    <div class="bs-kart">
+      <div class="bs-kart-baslik"><span>Bu bölüme gelen başvurular (${tumBasvurular.length})</span></div>
+      <div class="bs-basvuru-liste">
+        ${gosterilen.map(([a, spontane]) => basvuruSatiri(a, spontane)).join('')}
+      </div>
+      ${_bsTumuDugmesi('basvurular', tumBasvurular.length)}
+      <div class="bs-not">Yanıtlanmayan başvurular 2 dönem sonra geri çekilir.</div>
+    </div>`;
+
+  const ilanlar = v.ilanlar.length === 0 ? '' : `
+    <div class="bs-kart">
+      <div class="bs-kart-baslik"><span>Açık kadro ilanları (${v.ilanlar.length})</span></div>
+      ${v.ilanlar.map(p => `
+        <div class="bs-satir"><span>${_BS_UNVAN[p.title] || p.title} · ${p.allFields ? 'tüm alanlar' : (p.fields?.length ? p.fields.join(', ') : (p.field || ''))}</span>
+          <b>${formatMoney(p.offeredSalary)}/ay</b></div>`).join('')}
+      <div class="bs-not">İlana başvurular dönem sonunda gelir; ilan 2 dönem açık kalır.</div>
+    </div>`;
+
+  return `${tablo}${basvurular}${ilanlar}`;
+}
+
+function _bsDersler(dept, v) {
+  const hocasiz = v.hocasiz.length === 0 ? '' : `
+    <div class="bs-kart bs-kart--uyari">
+      <div class="bs-kart-baslik"><span>Hocasız dersler (${v.hocasiz.length})</span></div>
+      <ul class="bs-liste">
+        ${v.hocasiz.map(c => `<li><b>${c.name}</b>${c.requiredExpertise ? ` · gereken uzmanlık ${c.requiredExpertise}` : ''}</li>`).join('')}
+      </ul>
+      <div class="bs-not">Bölümün her hocası en çok 3 ders verebiliyor. Kadroya yeni hoca katılınca bu dersler Sonraki Dönem'deki atamada ona geçer; o zamana dek dışarıdan öğretim görevlisi verir.</div>
+      <div class="bs-dugmeler"><button type="button" class="bs-dugme" data-bs-eylem="ilan">Kadro ilanı ver</button></div>
+    </div>`;
+  return `${hocasiz}<div class="bs-kart bs-kart--govde">${_mufredatHtml(dept)}</div>`;
+}
+
+function _bsOgrenciler(state, dept, v) {
+  const burslu = (state.meta?.universityType || 'vakif') !== 'devlet';
+  const agirlikli = alan => {
+    let t = 0, n = 0;
+    v.siniflar.forEach((s, i) => { const x = Number(s[alan]); if (v.sayilar[i] > 0 && x > 0) { t += x * v.sayilar[i]; n += v.sayilar[i]; } });
+    return n > 0 ? t / n : null;
+  };
+  const satir = (ad, s, n) => `
+    <tr>
+      <td class="bs-nowrap">${ad}</td>
+      <td class="n">${formatNumber(n)}</td>
+      <td class="n ${n > 0 && s.satisfaction != null ? _bsKademe(Number(s.satisfaction), 70, 45) : ''}">${n > 0 && s.satisfaction != null ? Math.round(s.satisfaction) : '—'}</td>
+      <td class="n">${n > 0 ? _bsNot(Number(s.avgGPA)) : '—'}</td>
+      <td class="n">${n > 0 && Number(s.avgYKS) > 0 ? formatNumber(s.avgYKS) : '—'}</td>
+      ${burslu ? `<td class="n">${formatNumber(s.tamBurslu || 0)}</td><td class="n">${formatNumber(s.yariBurslu || 0)}</td><td class="n">${formatNumber(s.ucretli || 0)}</td>` : ''}
+    </tr>`;
+  const toplamBurs = k => v.siniflar.reduce((s, x) => s + (Number(x[k]) || 0), 0);
+  const ortYks = agirlikli('avgYKS');
+  const tablo = `
+    <div class="bs-tablo-kap">
+      <table class="bs-tablo">
+        <thead><tr>
+          <th>Sınıf</th><th class="n">Öğrenci</th><th class="n">Memnuniyet</th><th class="n">Not ort.</th><th class="n">Ort. YKS sırası</th>
+          ${burslu ? '<th class="n">Tam burslu</th><th class="n">Yarı burslu</th><th class="n">Ücretli</th>' : ''}
+        </tr></thead>
+        <tbody>
+          ${v.siniflar.map((s, i) => satir(`${i + 1}. sınıf`, s, v.sayilar[i])).join('')}
+          <tr class="bs-toplam">
+            <td>Toplam</td><td class="n">${formatNumber(v.ogrenci)}</td>
+            <td class="n">${v.memnuniyet != null ? Math.round(v.memnuniyet) : '—'}</td>
+            <td class="n">${_bsNot(agirlikli('avgGPA'))}</td>
+            <td class="n">${ortYks ? formatNumber(ortYks) : '—'}</td>
+            ${burslu ? `<td class="n">${formatNumber(toplamBurs('tamBurslu'))}</td><td class="n">${formatNumber(toplamBurs('yariBurslu'))}</td><td class="n">${formatNumber(toplamBurs('ucretli'))}</td>` : ''}
+          </tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="bs-tablo-dip">YKS sırası küçüldükçe öğrenci daha başarılıdır. Memnuniyet sınıf sınıf izlenir; bölüm memnuniyeti bunların öğrenci sayısıyla ağırlıklı ortalaması.</div>`;
+
+  const q = state.students?.quotas?.[dept.id];
+  const qToplam = q ? (q.tamBurslu || 0) + (q.yariBurslu || 0) + (q.ucretli || 0) : null;
+  const kontenjan = `
+    <div class="bs-kart">
+      <div class="bs-kart-baslik"><span>Kontenjan</span></div>
+      <div class="bs-satir"><span>Yıllık kontenjan (yeni alım)</span><b>${qToplam != null ? formatNumber(qToplam) : 'belirlenmedi'}</b></div>
+      ${burslu && q ? `<div class="bs-satir"><span>Dağılım</span><b>${q.tamBurslu || 0} tam burslu · ${q.yariBurslu || 0} yarı burslu · ${q.ucretli || 0} ücretli</b></div>` : ''}
+      <div class="bs-satir"><span>Şu anki 1. sınıf</span><b>${formatNumber(v.sayilar[0])}</b></div>
+      <div class="bs-satir"><span>Bölüm kapasitesi (4 sınıf)</span><b>${v.kapasite > 0 ? `${formatNumber(v.kapasite)} yer` : '—'}</b></div>
+      ${v.hocalar.length < v.enAz ? `<div class="bs-not bs-not--uyari">Bölümün en az ${v.enAz} öğretim üyesi olmadıkça kontenjan uygulanmaz, yeni öğrenci alınmaz.</div>` : ''}
+      <div class="bs-kontenjan">
+        ${v.bahar
+          ? `<button type="button" class="btn btn-primary btn-sm" data-bs-eylem="kontenjan">Kontenjan penceresini aç</button>
+             <div class="bs-not">Pencere bütün bölümleri gösterir, bu bölümün kartı vurgulanır. Yeni öğrenciler Bahar sonunda alınır; Sonraki Dönem'e basınca da bu pencere açılır.</div>`
+          : `<button type="button" class="btn btn-secondary btn-sm" disabled>Kontenjan penceresi Bahar'da açılır</button>
+             <div class="bs-not">Kontenjan Bahar döneminde belirlenir, çünkü yeni öğrenciler Bahar sonunda alınır. Şimdi Güz dönemi; Sonraki Dönem'den sonra bu düğme açılır.</div>`}
+      </div>
+    </div>`;
+
+  const yildizlar = (state.students?.starStudents || []).filter(s => s.department === dept.id);
+  const yildiz = `
+    <div class="bs-kart">
+      <div class="bs-kart-baslik"><span>Yıldız öğrenciler (${yildizlar.length})</span></div>
+      ${yildizlar.length
+        ? `<div class="bs-yildizlar">${yildizlar.map(s => renderStudentCard(s, state.departments || [])).join('')}</div>`
+        : '<div class="bs-not">Bu bölümde keşfedilmiş yıldız öğrenci yok.</div>'}
+    </div>`;
+  return `${tablo}${kontenjan}${yildiz}`;
+}
+
+function _bsArastirma(state, dept, v) {
+  const r       = state.research || {};
+  const yayin   = v.hocalar.reduce((s, f) => s + (Number(f.publications) || 0), 0);
+  const atif    = v.hocalar.reduce((s, f) => s + (Number(f.citations) || 0), 0);
+  const hOrt    = v.hocalar.length ? v.hocalar.reduce((s, f) => s + (Number(f.hIndex) || 0), 0) / v.hocalar.length : null;
+  const son     = r.lastApplicationResults || {};
+  const kabul   = (son.accepted || []).filter(a => _bsKayitBolumu(a, v.faculty) === dept.id).length;
+  const red     = (son.rejected || []).filter(a => _bsKayitBolumu(a, v.faculty) === dept.id).length;
+  const biten   = (r.completedProjects || []).filter(p => _bsKayitBolumu(p, v.faculty) === dept.id);
+  const patentli = biten.filter(p => p.generatedPatent).length;
+
+  const projeler = _bs.tumu.projeler ? v.projeler : v.projeler.slice(0, _BS_LISTE_SINIRI);
+  const projeTablosu = v.projeler.length === 0
+    ? '<div class="bs-kart"><div class="bs-not">Bölümün yürüttüğü etkin proje yok. Hocalar dış çağrılara kendileri başvurur; BAP çağrısı açmak da proje sayısını artırır.</div></div>'
+    : `
+      <div class="bs-tablo-kap">
+        <table class="bs-tablo">
+          <thead><tr><th>Proje</th><th>Tür</th><th>Yürütücü</th><th class="n">Bütçe</th><th class="n">Kalan</th><th class="n">İlerleme</th></tr></thead>
+          <tbody>
+            ${projeler.map(p => {
+              const kalan = Math.max(0, (Number(p.duration) || 0) - (Number(p.currentTurn) || 0));
+              const ilerleme = Math.max(0, Math.min(100, Math.round(Number(p.progress ?? ((p.currentTurn || 0) / Math.max(1, p.duration || 1)) * 100) || 0)));
+              return `<tr>
+                <td class="bs-proje-ad">${p.projectName || p.name || 'Adsız proje'}</td>
+                <td class="bs-nowrap">${p.callType || '—'}</td>
+                <td class="bs-nowrap">${p.piName || '—'}</td>
+                <td class="n bs-nowrap">${formatMoney(p.requestedFunding || p.funding || 0)}</td>
+                <td class="n bs-nowrap">${kalan} dönem</td>
+                <td class="n">%${ilerleme}</td>
+              </tr>`;
+            }).join('')}
+          </tbody>
+        </table>
+      </div>
+      <div class="bs-tablo-dip">${v.projeler.length} etkin proje${v.projeler.length > _BS_LISTE_SINIRI && !_bs.tumu.projeler ? `, ilk ${_BS_LISTE_SINIRI} tanesi gösteriliyor` : ''} ${_bsTumuDugmesi('projeler', v.projeler.length)}</div>`;
+
+  const bap = r.activeBapCall;
+  const bapListe = (r.bapApplications || []).filter(a => _bsKayitBolumu(a, v.faculty) === dept.id);
+  const bapGoster = _bs.tumu.bap ? bapListe : bapListe.slice(0, _BS_LISTE_SINIRI);
+  const bapKart = bap ? `
+    <div class="bs-kart">
+      <div class="bs-kart-baslik"><span>BAP başvuruları (${bapListe.length})</span></div>
+      <div class="bs-not">Açık BAP çağrısında kalan bütçe ${formatMoney(bap.remainingBudget)}, proje başına en çok ${formatMoney(bap.maxPerProject)}${bap.expirationTurn != null ? `; çağrı ${Math.max(0, bap.expirationTurn - v.tur)} dönem sonra kapanır` : ''}.</div>
+      ${bapListe.length === 0 ? '<div class="bs-not">Bu bölümden bekleyen BAP başvurusu yok.</div>' : `
+        <div class="bs-basvuru-liste">
+          ${bapGoster.map(a => `
+            <div class="bs-basvuru">
+              <div class="bs-basvuru-bilgi">
+                <div class="bs-basvuru-ad">${a.projectName || 'Adsız proje'}</div>
+                <div class="bs-basvuru-alt">${a.facultyName || '—'} · ${formatMoney(a.requestedFunding || 0)} · ${a.duration || 2} dönem · ~${a.estimatedPublications || 1} yayın</div>
+              </div>
+              <div class="bs-basvuru-dugmeler">
+                <button type="button" class="btn btn-success btn-sm" data-bs-eylem="bap-onay" data-basvuru="${a.id}">Onayla</button>
+                <button type="button" class="btn btn-danger btn-sm" data-bs-eylem="bap-ret" data-basvuru="${a.id}">Reddet</button>
+              </div>
+            </div>`).join('')}
+        </div>
+        ${_bsTumuDugmesi('bap', bapListe.length)}`}
+    </div>` : `
+    <div class="bs-kart">
+      <div class="bs-kart-baslik"><span>BAP başvuruları</span></div>
+      <div class="bs-not">Açık BAP çağrısı yok. Çağrı Araştırma sekmesinden açılır; başvurular bütün bölümlerin hocalarından gelir.</div>
+      <div class="bs-dugmeler"><button type="button" class="bs-dugme" data-bs-eylem="git" data-sekme="research">Araştırma sekmesine git</button></div>
+    </div>`;
+
+  return `
+    <div class="bs-gosterge bs-gosterge--dar">
+      ${_bsKutu('Etkin proje', formatNumber(v.projeler.length), `üniversitede ${formatNumber((r.activeResearchProjects || []).length)}`)}
+      ${_bsKutu('Yayın', formatNumber(yayin), 'bölüm hocalarının toplamı')}
+      ${_bsKutu('Atıf', formatNumber(atif), 'bölüm hocalarının toplamı')}
+      ${_bsKutu('h-indeksi', hOrt != null ? ondalikYaz(hOrt, 1) : '—', 'hoca ortalaması')}
+    </div>
+    <div class="bs-kart">
+      <div class="bs-satir"><span>Son dönem dış proje başvuruları</span><b>${kabul + red} başvuru, ${kabul} kabul</b></div>
+      <div class="bs-satir"><span>Son tamamlanan projeler</span><b>${biten.filter(p => p.status === 'completed').length} başarılı, ${biten.filter(p => p.status !== 'completed').length} sonuçsuz</b></div>
+      <div class="bs-not">Yayın ve atıf, hocaların kariyerleri boyunca biriktirdiği sayılardır. Patentler bölüm bazında tutulmuyor; üniversitede toplam ${formatNumber(r.patents || 0)} patent var, bu bölümün son tamamlanan projelerinden ${patentli} tanesi patent getirdi (oyun son 50 projeyi saklar).</div>
+    </div>
+    <div class="bs-altbaslik">Etkin projeler</div>
+    ${projeTablosu}
+    ${bapKart}`;
+}
+
+function _bsYerleske(state, dept, v, binalar) {
+  const depts   = state.departments || [];
+  const doluluk = v.kapasite > 0 ? v.ogrenci / v.kapasite : null;
+  const kaynak  = {
+    bina:  'Kapasite, bölümün atandığı binaların dersliklerinden hesaplanıyor. Her koltuk bir yıllık alımı taşır; dört sınıf için koltuk × 4.',
+    ortak: 'Bölüm bir derslik binasına atanmamış. Hiçbir bölüme atanmamış binaların dersliklerini, kendine binası olmayan öteki bölümlerle paylaşıyor.',
+    yedek: 'Bölümün kullanabileceği derslik yok; kapasite tek derslik varsayılarak hesaplanıyor.',
+  }[dept.kapasiteKaynagi] || '';
+
+  const binaSatiri = (b, ek = '') => {
+    const tanim   = BUILDINGS[b.type] || {};
+    const duzey   = b.level || 1;
+    const boy     = _derslikBoyu(tanim, duzey);
+    const derslik = b.currentCapacity?.classrooms || 0;
+    const ortak   = ((b.type === 'lab' ? b.linkedDepartments : b.assignedDepartments) || [])
+      .filter(id => id !== dept.id).map(id => depts.find(d => d.id === id)).filter(Boolean).map(d => d.shortName || d.name);
+    const ad      = b.name || tanim.name || b.type;
+    // Oyuncu binayı yeniden adlandırdıysa türü de yazılır
+    const turAdi  = tanim.name && tanim.name !== ad ? `${tanim.name} · ` : '';
+    return `
+      <div class="bs-bina">
+        ${_binaGorseli(b.type, Math.min(duzey, tanim.maxLevel || 3), 56)}
+        <div class="bs-bina-bilgi">
+          <div class="bs-bina-ad">${_escHtml(ad)}</div>
+          <div class="bs-bina-alt">${turAdi}Düzey ${duzey}${b.status === 'upgrading' ? ' (yükseltiliyor)' : ''}${derslik && boy ? ` · ${derslik} derslik × ${boy} kişi = ${formatNumber(derslik * boy)} koltuk` : ''}</div>
+          ${ortak.length ? `<div class="bs-bina-alt">Birlikte kullanan bölümler: ${ortak.join(', ')}</div>` : ''}
+          ${ek}
+        </div>
+      </div>`;
+  };
+
+  const labPuani = Number(dept.labScore) || 0;
+  const gereksinim = Number(dept.labRequirement) || 0;
+  const labKart = `
+    <div class="bs-kart">
+      <div class="bs-kart-baslik"><span>Laboratuvar</span></div>
+      <div class="bs-satir"><span>Laboratuvar puanı</span><b>${Math.round(labPuani)}/100</b></div>
+      <div class="bs-cubuk"><span style="width:${Math.max(0, Math.min(100, labPuani))}%"></span></div>
+      <div class="bs-satir"><span>Laboratuvar gereksinimi</span><b>${gereksinim}/5</b></div>
+      <div class="bs-satir"><span>Akreditasyonda sayılan laboratuvar</span><b>${Math.floor(labPuani / 25)}</b></div>
+      ${gereksinim === 0
+        ? '<div class="bs-not">Bu bölüm laboratuvar gerektirmiyor.</div>'
+        : `<div class="bs-not">Akreditasyonda her 25 puan bir laboratuvar sayılır. Bölüme bağlı her Laboratuvar binası düzey × 25 puan ekler.</div>
+           ${binalar.lab.length
+             ? binalar.lab.map(b => binaSatiri(b, `<div class="bs-bina-alt bs-iyi-metin">Laboratuvar puanına +${25 * (b.level || 1)}</div>`)).join('')
+             : `<div class="bs-not bs-not--uyari">Bölüme bağlı laboratuvar binası yok. Yerleşke sekmesinde Laboratuvar binasının "Lab Bağla" düğmesiyle bağlanır.</div>`}`}
+    </div>`;
+
+  const derslikler = binalar.derslik.length || binalar.merkez.length ? `
+    ${binalar.derslik.map(b => binaSatiri(b)).join('')}
+    ${binalar.merkez.map(b => binaSatiri(b, '<div class="bs-bina-alt bs-iyi-metin">Bölüm hocalarının dış proje başarı olasılığı ×1,15 (merkez sayısıyla en çok ×1,30)</div>')).join('')}`
+    : '<div class="bs-not bs-not--uyari">Bölüm hiçbir binaya atanmamış.</div>';
+
+  return `
+    <div class="bs-kart">
+      <div class="bs-kart-baslik"><span>Derslik kapasitesi</span></div>
+      <div class="bs-satir"><span>Öğrenci / yer</span><b>${formatNumber(v.ogrenci)} / ${v.kapasite > 0 ? formatNumber(v.kapasite) : '—'}${doluluk != null ? ` (${_bsYuzde(doluluk)})` : ''}</b></div>
+      <div class="bs-cubuk ${doluluk == null ? '' : doluluk > 1 ? 'kotu' : doluluk > 0.85 ? 'orta' : 'iyi'}"><span style="width:${doluluk != null ? Math.min(100, Math.round(doluluk * 100)) : 0}%"></span></div>
+      ${kaynak ? `<div class="bs-not">${kaynak}</div>` : ''}
+    </div>
+    <div class="bs-kart">
+      <div class="bs-kart-baslik"><span>Bölümün binaları</span></div>
+      ${derslikler}
+    </div>
+    ${labKart}
+    <div class="bs-kart">
+      <div class="bs-not">Bölümü bir binaya atamak ya da laboratuvar bağlamak için Yerleşke sekmesinde binanın kartındaki "Bölüm Ata" ya da "Lab Bağla" düğmesini kullanın.</div>
+      <div class="bs-dugmeler"><button type="button" class="bs-dugme" data-bs-eylem="git" data-sekme="campus">Yerleşke sekmesine git</button></div>
+    </div>`;
+}
+
+function _bsAkreditasyon(state, dept, v) {
+  if (v.kurumlar.length === 0) {
+    return '<div class="bs-kart"><div class="bs-not">Bu bölüm için tanımlı akreditasyon kuruluşu yok.</div></div>';
+  }
+  const akr = dept.accreditation || {};
+  return v.kurumlar.map(([id, kurum]) => {
+    const a = akr[id] || { status: 'none' };
+    let denetim = null;
+    try {
+      denetim = checkAccreditationRequirements(state, dept, kurum);
+    } catch (e) {
+      console.warn('[ui] Bölüm Sayfası: akreditasyon koşulları okunamadı:', e);
+    }
+    const kalan = a.expiresAt != null ? a.expiresAt - v.tur : null;
+    const dugme = (metin, birincil) =>
+      `<button type="button" class="btn ${birincil ? 'btn-primary' : 'btn-secondary'} btn-sm" data-bs-eylem="akr" data-kurum="${id}">${metin}</button>`;
+    let eylem = '';
+    switch (a.status) {
+      case 'granted':
+        eylem = kalan != null && kalan <= 2
+          ? dugme(`Yenile (${formatMoney(kurum.renewalCost)})`, true)
+          : '<span class="bs-not">Yenileme son 2 dönemde açılır.</span>';
+        break;
+      case 'applied':
+      case 'under_review':
+        eylem = '<span class="bs-not">Sonuç değerlendirme süresi dolunca dönem sonunda gelir.</span>';
+        break;
+      case 'expired':
+        eylem = dugme(`Yenile (${formatMoney(kurum.renewalCost)})`, true);
+        break;
+      case 'rejected':
+        eylem = dugme(`Yeniden başvur (${formatMoney(kurum.cost)})`, !!denetim?.allMet);
+        break;
+      default:
+        eylem = dugme(`Başvur (${formatMoney(kurum.cost)})`, !!denetim?.allMet);
+    }
+    const eksik = denetim ? denetim.checks.filter(c => !c.met).length : 0;
+    return `
+      <div class="bs-kart bs-akr">
+        <div class="bs-akr-ust">
+          <div>
+            <div class="bs-akr-ad">${kurum.name}</div>
+            <div class="bs-akr-tam">${kurum.fullName || ''}</div>
+          </div>
+          ${_bsAkrRozeti(kurum, a, v.tur, true)}
+        </div>
+        ${denetim ? `
+          <ul class="bs-kosullar">
+            ${denetim.checks.map(c => `<li class="${c.met ? 'tamam' : 'eksik'}"><span>${c.met ? '✓' : '✗'} ${c.label}</span><b>${c.current} / ${c.required}</b></li>`).join('')}
+          </ul>
+          <div class="bs-not ${eksik ? 'bs-not--uyari' : ''}">${eksik ? `${eksik} koşul karşılanmıyor; başvuru reddedilebilir.` : 'Bütün koşullar karşılanıyor.'}</div>` : ''}
+        <div class="bs-not">Değerlendirme ${kurum.processingTime.min}-${kurum.processingTime.max} dönem sürer, akreditasyon ${kurum.duration} dönem geçerlidir. Başvuru ${formatMoney(kurum.cost)}, yenileme ${formatMoney(kurum.renewalCost)}.</div>
+        ${eylem ? `<div class="bs-dugmeler">${eylem}</div>` : ''}
+      </div>`;
+  }).join('');
+}
+
+function _bsButce(dept, v, b) {
+  const satir = (ad, alt, tutar, sinif) => `
+    <tr>
+      <td><div class="bs-butce-ad">${ad}</div><div class="bs-butce-alt">${alt}</div></td>
+      <td class="n bs-nowrap ${sinif}">${tutar}</td>
+    </tr>`;
+  return `
+    <div class="bs-tablo-kap">
+      <table class="bs-tablo bs-tablo--butce">
+        <thead><tr><th>Kalem (dönemlik)</th><th class="n">Tutar</th></tr></thead>
+        <tbody>
+          ${satir('Gelir payı (tahmin, öğrenci payına göre)', `Üniversitenin bu dönemki tahmini geliri ${formatMoney(b.toplamGelir)} × bölümün öğrenci payı ${_bsYuzde(b.pay, 1)}`, `+${formatMoney(b.gelir)}`, 'arti')}
+          ${satir('Hoca maaşları', `${v.hocalar.length} hoca, aylık ${formatMoney(b.aylikMaas)} × ${SEMESTER_MONTHS} ay; üniversitenin akademik maaşlarının ${_bsYuzde(b.maasPayi, 1)}`, `-${formatMoney(b.maas)}`, 'eksi')}
+          ${satir('İşletme gideri', `yıllık ${formatMoney(dept.annualOperatingCost || 0)}, dönemde yarısı`, `-${formatMoney(b.isletme)}`, 'eksi')}
+          <tr class="bs-toplam">
+            <td>Net</td>
+            <td class="n bs-nowrap ${b.net >= 0 ? 'arti' : 'eksi'}">${b.net >= 0 ? '+' : ''}${formatMoney(b.net)}</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="bs-kart">
+      <div class="bs-not">Gelir bir tahmindir. Oyun bölüme özgü gelir tutmuyor; üniversitenin toplam geliri öğrenci sayısına göre bölüştürüldü. Bina bakımı, idari kadro, burslar ve genel giderler bölümlere dağıtılmadı; net, bu ortak giderler düşülmeden önceki katkıdır.</div>
+    </div>`;
+}
+
+function _bsIcerik(state, dept, v, butce, binalar) {
+  switch (_bs.sekme) {
+    case 'dersler':      return _bsDersler(dept, v);
+    case 'ogrenciler':   return _bsOgrenciler(state, dept, v);
+    case 'arastirma':    return _bsArastirma(state, dept, v);
+    case 'yerleske':     return _bsYerleske(state, dept, v, binalar);
+    case 'akreditasyon': return _bsAkreditasyon(state, dept, v);
+    case 'butce':        return _bsButce(dept, v, butce);
+    default:             return _bsKadro(state, dept, v);
+  }
+}
+
+/** Başkan atama penceresi: bölümün Prof. ve Doç. hocaları, yönetim puanına göre. */
+function _bsBaskanPenceresi(state, dept, islemler) {
+  const adaylar = (state.faculty || [])
+    .filter(f => _bsHocaBolumu(f) === dept.id && (f.title === 'profesor' || f.title === 'docent'))
+    .sort((a, b) => (Number(b.stats?.management) || 0) - (Number(a.stats?.management) || 0));
+  const not = 'Başkanın yönetim puanı 75 ve üstündeyse bölümün eğitim kalitesi 5 puan artar, 50\'nin altındaysa 5 puan düşer; başkansız bölüm de 5 puan kaybeder.';
+  showModal(`Başkan Ata: ${dept.name}`, adaylar.length === 0 ? `
+    <p style="margin:0 0 12px;font-size:13.5px;line-height:1.5;">Bölümde başkan olabilecek Prof. ya da Doç. yok. Kadro ilanında unvanı Doçent ya da Profesör seçerek aday arayabilirsiniz.</p>
+    <div class="onay-dugmeler"><button class="btn btn-secondary" id="btn-bs-baskan-kapat" type="button">Kapat</button></div>` : `
+    <p style="margin:0 0 12px;font-size:13px;line-height:1.5;color:#b8c4e6;">${not}</p>
+    <div class="yonetici-liste">
+      ${adaylar.map(f => `
+        <div class="yonetici-satir${f.id === dept.headId ? ' secili' : ''}">
+          ${renderFacultyPortrait(f, 40, 'portre--yuvarlak')}
+          <div class="yonetici-bilgi">
+            <div class="yonetici-ad">${_BS_UNVAN[f.title] || ''} ${f.name}</div>
+            <div class="yonetici-alt">yönetim ${tamPuan(f.stats?.management)} · mutluluk ${tamPuan(f.happiness)} · ${_bsDersSayisi(f)} ders</div>
+          </div>
+          ${f.id === dept.headId
+            ? '<span class="bs-rozet bs-rozet--iyi">Şu anki başkan</span>'
+            : `<button class="btn btn-primary btn-sm" type="button" data-bs-baskan="${f.id}">Ata</button>`}
+        </div>`).join('')}
+    </div>
+    <div class="onay-dugmeler"><button class="btn btn-secondary" id="btn-bs-baskan-kapat" type="button">Vazgeç</button></div>`);
+  on(el('btn-bs-baskan-kapat'), 'click', hideModal);
+  qsa('#general-modal-body [data-bs-baskan]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      hideModal();
+      islemler.onAssignHead?.(dept.id, btn.dataset.bsBaskan);
+    });
+  });
+}
+
+function _bsEylem(ad, dugme, state, deptId, islemler) {
+  const dept = (state.departments || []).find(d => d.id === deptId);
+  if (!dept) return;
+  const id = dugme.dataset.basvuru;
+  switch (ad) {
+    case 'geri':           islemler.onGeri?.(); break;
+    case 'ilan':           islemler.onOpenPosition?.(deptId); break;
+    case 'transfer':       islemler.onTransferMarket?.(deptId); break;
+    case 'baskan':         _bsBaskanPenceresi(state, dept, islemler); break;
+    case 'kontenjan':      islemler.onOpenQuota?.(deptId); break;
+    case 'akr':            islemler.onAccreditation?.(deptId, dugme.dataset.kurum); break;
+    case 'basvuru-kabul':  islemler.onAcceptApplicant?.(id); break;
+    case 'basvuru-ret':    islemler.onRejectApplicant?.(id); break;
+    case 'spontane-kabul': islemler.onAcceptSpontaneous?.(id, deptId); break;
+    case 'spontane-ret':   islemler.onRejectSpontaneous?.(id); break;
+    case 'bap-onay':       islemler.onProjectDecision?.('approve_bap_application', id, {}); break;
+    case 'bap-ret':        islemler.onProjectDecision?.('reject_bap_application', id, {}); break;
+    case 'tumu':
+      _bs.tumu[dugme.dataset.liste] = !_bs.tumu[dugme.dataset.liste];
+      _bsYenidenCiz();
+      break;
+    case 'git':            qs(`.sidebar-tab[data-tab="${dugme.dataset.sekme}"]`)?.click(); break;
+    case 'tasi': {
+      const hoca = (state.faculty || []).find(f => f.id === dugme.dataset.hoca);
+      if (hoca) _hocaTasiPenceresi(hoca, state.departments || [], islemler.onReassignFaculty, dept.headId === hoca.id);
+      break;
+    }
+    default: break;
+  }
+}
+
+/** Son çizimin verisiyle sayfayı yeniden çizer (iç sekme, sıralama, liste açma: oyun durumu değişmez). */
+function _bsYenidenCiz() {
+  if (!_bs.son) return;
+  const { state, deptId, islemler } = _bs.son;
+  renderDeptPage(state, deptId, islemler);
+}
+
+function _bsSekmeyeGec(sekme) {
+  if (!_BS_SEKMELER.some(([id]) => id === sekme)) return;
+  _bs.sekme = sekme;
+  _bsYenidenCiz();
+  // Seçili sekme görünür olsun (telefonda sekme çubuğu yatay kayar, yan karttan gelinmişse sayfa sekmelere iner)
+  const dugme = qs(`#tab-departments .bs-sekme[data-bs-sekme="${sekme}"]`);
+  dugme?.focus({ preventScroll: true });
+  qs('#tab-departments .bs-sekmeler')?.scrollIntoView?.({ block: 'nearest' });
+  dugme?.scrollIntoView?.({ block: 'nearest', inline: 'nearest' });
+}
+
+/** Panel dinleyicileri bir kez bağlanır; her çizimde birikmez (araştırma panelindeki sorun, Issue #22). */
+function _bsDinleyicileriKur(panel) {
+  if (panel._bsDinleyiciBagli) return;
+  panel._bsDinleyiciBagli = true;
+  panel.addEventListener('click', (e) => {
+    if (!_bs.son || !e.target.closest('.bs-sayfa')) return;
+    const { state, deptId, islemler } = _bs.son;
+    const sekme = e.target.closest('[data-bs-sekme]');
+    if (sekme) { _bsSekmeyeGec(sekme.dataset.bsSekme); return; }
+    const sirala = e.target.closest('[data-bs-sirala]');
+    if (sirala) {
+      const anahtar = sirala.dataset.bsSirala;
+      if (_bs.sirala === anahtar) _bs.artan = !_bs.artan;
+      else { _bs.sirala = anahtar; _bs.artan = anahtar === 'ad'; }
+      _bsYenidenCiz();
+      qs(`#tab-departments [data-bs-sirala="${anahtar}"]`)?.focus({ preventScroll: true });
+      return;
+    }
+    const eylem = e.target.closest('[data-bs-eylem]');
+    if (eylem) {
+      if (!eylem.disabled) _bsEylem(eylem.dataset.bsEylem, eylem, state, deptId, islemler);
+      return;
+    }
+    const satir = e.target.closest('tr[data-bs-hoca]');
+    if (satir) islemler.onFacultyDetail?.(satir.dataset.bsHoca);
+  });
+  panel.addEventListener('keydown', (e) => {
+    if (e.key !== 'Enter' && e.key !== ' ') return;
+    const satir = e.target.closest?.('tr[data-bs-hoca]');
+    if (!satir || satir !== e.target || !_bs.son) return;
+    e.preventDefault();
+    _bs.son.islemler.onFacultyDetail?.(satir.dataset.bsHoca);
+  });
+}
+
+/**
+ * v0.6 Bölüm Sayfası: tek bölümün göstergeleri, uyarıları, kadrosu, dersleri, öğrencileri, araştırması,
+ * binaları, akreditasyonu ve bütçesi. Bölümler sekmesinin panelinde çizilir.
+ * @param {object} state
+ * @param {string} deptId
+ * @param {object} [islemler]  main.js kararları: onGeri, onOpenPosition(deptId), onTransferMarket(deptId),
+ *   onAssignHead(deptId, facId), onReassignFaculty(facId, deptId), onFacultyDetail(facId), onOpenQuota(deptId),
+ *   onAccreditation(deptId, bodyId), onAcceptApplicant(id), onRejectApplicant(id), onAcceptSpontaneous(id, deptId),
+ *   onRejectSpontaneous(id), onProjectDecision(tur, id, ek)
+ * @param {object} [secenek]   { icSekme }: açılışta seçilecek iç sekme (kadro, dersler, ogrenciler, arastirma,
+ *   yerleske, akreditasyon, butce); verilmezse son seçili sekme kalır
+ */
+export function renderDeptPage(state, deptId, islemler = {}, secenek = {}) {
+  const panel = el('tab-departments');
+  if (!panel || !state) return;
+  const dept = (state.departments || []).find(d => d.id === deptId);
+  if (!dept) {
+    panel.innerHTML = '<div class="empty-state"><div class="empty-state-title">Bölüm bulunamadı</div></div>';
+    return;
+  }
+  if (_bs.bolumId !== deptId) {
+    Object.assign(_bs, { bolumId: deptId, sekme: 'kadro', sirala: null, artan: false, tumu: {} });
+  }
+  if (secenek.icSekme && _BS_SEKMELER.some(([id]) => id === secenek.icSekme)) _bs.sekme = secenek.icSekme;
+  _bs.son = { state, deptId, islemler };
+
+  const v        = _bsVeri(state, dept);
+  const uyarilar = _bsUyarilar(dept, v);
+  const butce    = _bsButceHesabi(state, dept, v);
+  const binalar  = _bsBinalari(state, dept);
+
+  panel.innerHTML = `
+    <div class="bs-sayfa" data-bolum="${dept.id}">
+      <button type="button" class="bs-geri" data-bs-eylem="geri">← Bölümler</button>
+      ${_bsUst(dept, v, uyarilar.length)}
+      ${_bsGostergeler(dept, v)}
+      ${_bsDikkat(uyarilar)}
+      ${_bsSekmeCubugu(v)}
+      <div class="bs-govde">
+        <div class="bs-ana" role="tabpanel" aria-label="${_bsSekmeAdi(_bs.sekme)}">${_bsIcerik(state, dept, v, butce, binalar)}</div>
+        <div class="bs-yan">${_bsYanKartlar(state, dept, v, butce, binalar)}</div>
+      </div>
+    </div>`;
+  _bsDinleyicileriKur(panel);
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -3160,9 +4146,10 @@ export function renderStudentsPanel(state, onOpenQuotaScreen) {
                                (d.year3?.satisfaction ?? 60) * y3 + (d.year4?.satisfaction ?? 60) * y4;
                 const dAvgSat = tot > 0 ? Math.round(satSum / tot) : 60;
                 return `
-                  <tr style="border-bottom:1px solid var(--border);">
+                  <tr class="bs-satir-git" data-bolum-git="${dept.id}" data-bolum-sekme="ogrenciler" style="border-bottom:1px solid var(--border);">
                     <td style="padding:8px 10px;">
-                      <span style="font-weight:600;">${dept.shortName || dept.name}</span>
+                      <button type="button" class="bs-link" data-bolum-git="${dept.id}" data-bolum-sekme="ogrenciler"
+                              title="${dept.name}: Bölüm Sayfası">${dept.shortName || dept.name} <span aria-hidden="true">›</span></button>
                     </td>
                     <td style="text-align:right;padding:6px;">${y1 || '—'}</td>
                     <td style="text-align:right;padding:6px;">${y2 || '—'}</td>
@@ -3352,6 +4339,8 @@ export function renderStudentCard(s, depts = []) {
  *
  * @param {object}   state        — Oyun durumu
  * @param {Function} onConfirm    — Onaylama callback: onConfirm(quotas)
+ * @param {object}   [secenek]    { donemiBaslatir }: Bahar'daki zorunlu adım;
+ *                                { odakBolum }: v0.6, bu bölümün kartına kaydırılır ve vurgulanır
  */
 export function renderQuotaModal(state, onConfirm, secenek = {}) {
   // Sonraki Dönem'in Bahar'da açtığı zorunlu adımda onay dönemi de işler;
@@ -3641,6 +4630,15 @@ export function renderQuotaModal(state, onConfirm, secenek = {}) {
   `;
 
   showModal('Kontenjan Belirleme', bodyHtml, { wide: true });
+
+  // v0.6: Bölüm Sayfası'ndan açılınca o bölümün kartı görünür ve vurgulu olsun
+  if (secenek.odakBolum) {
+    const odak = document.querySelector(`#quota-form [data-dept="${secenek.odakBolum}"].card`);
+    if (odak) {
+      odak.classList.add('kontenjan-odak');
+      odak.scrollIntoView({ block: 'center' });
+    }
+  }
 
   // Live update: toplam, net gelir ve kapasite uyarısı hesapla
   function updateSummary(deptId) {
@@ -6294,25 +7292,35 @@ function _renderTransferRightPanel(fac, depts, state) {
  * @param {object}   state   — Oyun durumu
  * @param {Array}    market  — Transfer pazarındaki hoca listesi
  * @param {Function} onOffer — Teklif gönderme callback (facultyId, offer) => void
+ * @param {object}   [secenek] v0.6: { bolumId } pazar yalnız bu bölümün adaylarına süzülür (Bölüm Sayfası);
+ *                             { onTumPazar } süzülmüş pazarda "Tüm pazarı göster" düğmesinin işi
  */
-export function renderTransferMarket(state, market, onOffer) {
+export function renderTransferMarket(state, market, onOffer, secenek = {}) {
   const depts = state.departments || [];
   let selectedFacultyId = null;
+  const tumu   = market || [];
+  const bolum  = secenek.bolumId ? depts.find(d => d.id === secenek.bolumId) : null;
+  const liste  = bolum ? tumu.filter(f => (f.department ?? f.departmentId) === bolum.id) : tumu;
 
   // Sol panel: sadece kompakt kart listesi
-  const leftCards = (market || []).map(f => _renderTransferFacultyCard(f, depts, state)).join('');
+  const leftCards = liste.map(f => _renderTransferFacultyCard(f, depts, state)).join('');
+  const bosMetin = bolum
+    ? `Pazarda şu an ${bolum.name} adayı yok.${tumu.length > 0 ? ` Pazardaki ${tumu.length} aday başka bölümlerden.` : ''}`
+    : 'Bu dönem transfer pazarında uygun aday yok.';
 
   const html = `
     <div class="transfer-grid">
       <!-- Sol: Hoca listesi -->
       <div>
-        <div class="section-title" style="margin-bottom:8px;">Pazardaki Hocalar (${(market || []).length})</div>
+        <div class="section-title" style="margin-bottom:8px;">${bolum ? `Bu Bölümün Adayları (${liste.length}/${tumu.length})` : `Pazardaki Hocalar (${tumu.length})`}</div>
         <div id="transfer-faculty-list" style="display:flex;flex-direction:column;gap:8px;max-height:560px;overflow-y:auto;padding-right:4px;">
           ${leftCards || `
             <div class="empty-state" style="padding:24px;">
               <div class="empty-state-icon">👔</div>
-              <div class="empty-state-title">Pazar boş</div>
-              <div class="empty-state-desc">Bu dönem transfer pazarında uygun aday yok.</div>
+              <div class="empty-state-title">${bolum ? 'Bu bölümden aday yok' : 'Pazar boş'}</div>
+              <div class="empty-state-desc">${bosMetin}</div>
+              ${bolum && tumu.length > 0 && secenek.onTumPazar
+                ? '<button class="btn btn-secondary btn-sm" id="btn-transfer-tum-pazar" type="button" style="margin-top:10px;">Tüm pazarı göster</button>' : ''}
             </div>
           `}
         </div>
@@ -6329,12 +7337,13 @@ export function renderTransferMarket(state, market, onOffer) {
     </div>
   `;
 
-  showModal('Transfer Pazarı', html, { wide: true });
+  showModal(bolum ? `Transfer Pazarı: ${bolum.name}` : 'Transfer Pazarı', html, { wide: true });
+  on(el('btn-transfer-tum-pazar'), 'click', () => secenek.onTumPazar?.());
 
   // Hoca kartı tıklama — sağ paneli güncelle
   delegate(el('transfer-faculty-list'), '.transfer-market-card', 'click', (e, card) => {
     selectedFacultyId = card.dataset.facultyId;
-    const fac = (market || []).find(f => f.id === selectedFacultyId);
+    const fac = tumu.find(f => f.id === selectedFacultyId);
     if (!fac) return;
 
     // Seçili kartı vurgula
@@ -6372,19 +7381,20 @@ export function renderTransferMarket(state, market, onOffer) {
  * Kadro ilanı verme modalını gösterir.
  * @param {object}   state    — Oyun durumu
  * @param {Function} onSubmit — İlan gönderme callback: (position) => void
+ * @param {object}   [secenek] v0.6: { bolumId } bölüm önceden seçili gelir (Bölüm Sayfası)
  */
-export function renderOpenPositionModal(state, onSubmit) {
+export function renderOpenPositionModal(state, onSubmit, secenek = {}) {
   const depts      = (state.departments || []).filter(d => d.isOpen);
   const uniType    = state.meta?.universityType ?? 'vakif';
   const scaleMap   = { devlet: SALARY_SCALES.tr_devlet, vakif: SALARY_SCALES.tr_vakif, us_private: SALARY_SCALES.us_private };
   const scale      = scaleMap[uniType] || SALARY_SCALES.tr_vakif;
 
-  const deptOptions = depts.map(d =>
-    `<option value="${d.id}">${d.shortName || d.name}</option>`
-  ).join('');
-
   // Başlangıç değerleri
-  const firstDept  = depts[0];
+  const firstDept  = depts.find(d => d.id === secenek.bolumId) || depts[0];
+
+  const deptOptions = depts.map(d =>
+    `<option value="${d.id}"${d === firstDept ? ' selected' : ''}>${d.shortName || d.name}</option>`
+  ).join('');
   const firstTitle = 'dr_ogr_uyesi';
   const firstRange = scale[firstTitle] || { min: 28000, max: 55000 };
   const initSalary = Math.round((firstRange.min + firstRange.max) / 2);
