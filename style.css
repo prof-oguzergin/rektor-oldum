@@ -1303,32 +1303,8 @@ body {
   padding: 4px var(--space-sm);
 }
 
-/* Kampüs bina kartı aksiyon butonları */
-.btn-campus-upgrade,
-.btn-campus-assign {
-  align-items: center;
-  background: var(--bg-card);
-  border: 1px solid var(--border-light);
-  border-radius: var(--radius-md);
-  color: var(--text);
-  cursor: pointer;
-  display: inline-flex;
-  font-size: 11px;
-  padding: 4px 8px;
-  transition: var(--transition);
-}
-.btn-campus-upgrade:hover:not(:disabled) {
-  border-color: var(--accent-yellow);
-  color: var(--accent-yellow);
-}
-.btn-campus-assign:hover {
-  border-color: var(--accent-blue);
-  color: var(--accent-blue);
-}
-.btn-campus-upgrade:disabled {
-  cursor: not-allowed;
-  opacity: 0.4;
-}
+/* v0.6.1: .btn-campus-upgrade / .btn-campus-assign artık yalnız dinleyici kancası; görünüş .btn-primary,
+   .btn-ghost ve .btn-sm'den gelir (eski kurallar üzerine gelince yazıyı sarıya/maviye çeviriyordu) */
 
 .btn-icon {
   aspect-ratio: 1;
@@ -2429,22 +2405,8 @@ body.tutorial-active {
     bottom: calc(56px + 12px);
   }
 
-  /* Dashboard ve panel içi 2 sütunlu grid'ler: tek sütuna indir
-     JS inline style'larını override etmek için !important gerekli */
-  .tab-panel [style*="grid-template-columns:1fr 1fr"],
-  .tab-panel [style*="grid-template-columns: 1fr 1fr"],
-  .tab-panel [style*="grid-template-columns:2fr 1fr"],
-  .tab-panel [style*="grid-template-columns: 2fr 1fr"] {
-    grid-template-columns: 1fr !important;
-  }
-
-  /* 3-5 sütunlu stat grid'leri: 2 sütuna indir */
-  .tab-panel [style*="grid-template-columns:repeat(3,1fr)"],
-  .tab-panel [style*="grid-template-columns: repeat(3, 1fr)"],
-  .tab-panel [style*="grid-template-columns:repeat(4,1fr)"],
-  .tab-panel [style*="grid-template-columns:repeat(5,1fr)"] {
-    grid-template-columns: repeat(2, 1fr) !important;
-  }
+  /* v0.6.1: satır içi grid stillerini ezen eski kurallar kaldırıldı; sekmelerde satır içi
+     grid kalmadı, sütunlar theme.css ortak bileşenlerinde (ob-kutular, ob-iki, ob-kartlar) daralıyor */
 
   /* Dashboard istatistik kartları (auto-fill) */
   .dashboard-grid {

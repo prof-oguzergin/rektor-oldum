@@ -57,6 +57,7 @@ import {
   renderInternationalRankingPanel,
   showChangelogModal,
   showGameWonModal,
+  hocaAyrintisiHtml,
   el,
   on,
 } from './ui.js?v=0.6.0';
@@ -68,7 +69,7 @@ import { calculateScore, scoreBreakdown, submitScore, getTopScores, initFirebase
 import { showTutorialIfNeeded, replayTutorial } from './tutorial.js?v=0.5.2';
 import { initAudio, playSound, toggleMute, isMuted, startMusic, stopMusic, setMusicVolume, setSFXVolume, getAudioSettings } from './audio.js?v=0.4.24';
 
-import { generateTransferMarket, renderFacultyAvatar, renderFacultyPortrait, calculateOverallRating, getFacultyRatingTrend } from './faculty.js?v=0.5.2';
+import { generateTransferMarket, renderFacultyAvatar, calculateOverallRating } from './faculty.js?v=0.5.2';
 import { resolveDecision } from './events.js?v=0.4.24';
 
 // Uluslararası sıralama modülleri
@@ -1691,303 +1692,12 @@ function _onFacultyDetail(facultyId) {
     return;
   }
 
-  const titleMap = { argö: 'Araştırma Görevlisi', dr_ogr_uyesi: 'Dr. Öğr. Üyesi', docent: 'Doçent', profesor: 'Profesör' };
-  const depts = state.departments || [];
-  const dept = depts.find(d => d.id === f.department);
-  const deptName = dept ? dept.name : (f.department || '—');
-  const titleLabel = titleMap[f.title] || f.title || '—';
+  // v0.6.1: pencerenin gövdesi ui.js hocaAyrintisiHtml'de (hoca kartıyla aynı parçalar, ortak bileşenler);
+  // burada yalnız fesih onayında kullanılan maaş hesaplanır, dinleyiciler aşağıda
+  const salaryRange   = f.salaryRange || {};
+  const currentSalary = f.salary || Math.round(((salaryRange.min || 20000) + (salaryRange.max || 80000)) / 2);
 
-  const stats = f.stats || {};
-  const statList = [
-    { label: 'Araştırma',   value: stats.research   ?? 0 },
-    { label: 'Öğretim',     value: stats.teaching   ?? 0 },
-    { label: 'Yönetim',     value: stats.management ?? 0 },
-    { label: 'Rehberlik',   value: stats.mentoring  ?? 0 },
-    { label: 'Popülarite',  value: stats.popularity ?? 0 },
-  ];
-
-  const statBars = statList.map(s => {
-    const pct = Math.round(Math.min(100, Math.max(0, Number(s.value) || 0)));
-    const color = pct >= 70 ? '#4caf50' : pct >= 40 ? '#ff9800' : '#e94560';
-    return `
-      <div style="margin-bottom:10px;">
-        <div style="display:flex;justify-content:space-between;margin-bottom:3px;">
-          <span style="font-size:13px;color:var(--text-muted)">${s.label}</span>
-          <span style="font-size:13px;font-weight:600">${pct}</span>
-        </div>
-        <div style="background:var(--bg-tertiary);border-radius:4px;height:8px;overflow:hidden;">
-          <div style="width:${pct}%;height:100%;background:${color};border-radius:4px;transition:width .3s;"></div>
-        </div>
-      </div>`;
-  }).join('');
-
-  const happiness = Math.round(f.happiness ?? 60);
-  const happinessColor = happiness >= 70 ? '#4caf50' : happiness >= 40 ? '#ff9800' : '#e94560';
-  const courseLoad = f.currentLoad?.courses ?? 0;
-
-  const fmt = v => v?.toLocaleString('tr-TR') ?? '—';
-
-  const assignedCourses = f.currentLoad?.assignedCourses || [];
-  const specializations = f.specializations || [];
-
-  const matchIcon  = q => q === 2 ? '✓' : q === 1 ? '~' : '✗';
-  const matchColor = q => q === 2 ? '#4caf50' : q === 1 ? '#ff9800' : '#e94560';
-  const matchLabel = q => q === 2 ? 'Tam eşleşme' : q === 1 ? 'Kısmi eşleşme' : 'Eşleşme yok';
-
-  // Maaş baremi bilgisi
-  const salaryRange = f.salaryRange || {};
-  const salaryMin  = salaryRange.min || 20000;
-  const salaryMax  = salaryRange.max || 80000;
-  const salaryMid  = Math.round((salaryMin + salaryMax) / 2);
-  const currentSalary = f.salary || salaryMid;
-  const salaryPct  = Math.round(Math.min(100, Math.max(0, (currentSalary - salaryMin) / (salaryMax - salaryMin) * 100)));
-
-  // Yayın / terfi bilgisi
-  const pubs = f.publications || 0;
-  const cits = f.citations || 0;
-  const expYrs = f.yearsExperience || 0;
-
-  let promotionTarget = null;
-  let promotionReqs   = null;
-  if (f.title === 'dr_ogr_uyesi') {
-    promotionTarget = 'Doçent';
-    promotionReqs   = { pubs: 40, cits: 200, exp: 10, curPubs: pubs, curCits: cits, curExp: expYrs };
-  } else if (f.title === 'docent') {
-    promotionTarget = 'Profesör';
-    promotionReqs   = { pubs: 80, cits: 500, exp: 15, curPubs: pubs, curCits: cits, curExp: expYrs };
-  }
-
-  // Bölüm başkanı mı?
-  const isDeptHead = state.departments?.some(d => d.headId === f.id);
-
-  // Ödül geçmişi
-  const awardHistory = f.awardHistory || [];
-
-  // Genel puan ve trend
-  const overallRating  = calculateOverallRating(f);
-  const ratingColor    = overallRating >= 85 ? '#d4af37' : overallRating >= 70 ? '#38a169' : overallRating >= 55 ? '#f5a623' : '#e53e3e';
-  const ratingBg       = overallRating >= 85 ? 'rgba(212,175,55,0.12)' : overallRating >= 70 ? 'rgba(56,161,105,0.12)' : overallRating >= 55 ? 'rgba(245,166,35,0.12)' : 'rgba(229,62,62,0.12)';
-  const trendInfo      = getFacultyRatingTrend(f);
-  const trendHtml      = trendInfo.trend !== 'stable'
-    ? `<span style="font-size:13px;color:${trendInfo.color};margin-left:4px;">${trendInfo.arrow}</span>`
-    : '';
-
-  // Cinsiyet
-  const genderLabel = (f.avatar?.gender === 'male') ? 'Erkek' : (f.avatar?.gender === 'female') ? 'Kadın' : null;
-  const ageLine = [
-    genderLabel,
-    f.age ? `${f.age} yaş` : null,
-    expYrs ? `${expYrs} yıl deneyim` : null,
-  ].filter(Boolean).join(' · ');
-
-  const body = `
-    <div style="display:flex;gap:16px;align-items:center;margin-bottom:18px;">
-      <div style="flex-shrink:0;">${renderFacultyPortrait(f, 120)}</div>
-      <div style="flex:1;min-width:0;">
-        <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
-          <span style="font-size:17px;font-weight:700">${f.name || '—'}</span>
-          <div style="display:flex;align-items:center;padding:3px 10px;border-radius:20px;background:${ratingBg};border:1px solid ${ratingColor};flex-shrink:0;">
-            <span style="font-size:16px;font-weight:800;color:${ratingColor};line-height:1;">${overallRating}</span>
-            ${trendHtml}
-          </div>
-        </div>
-        <div style="font-size:13px;color:var(--text-muted);margin-top:2px;">${titleLabel} · ${deptName}</div>
-        ${ageLine ? `<div style="font-size:12px;color:var(--text-muted);margin-top:2px;">${ageLine}</div>` : ''}
-        ${isDeptHead ? `<div style="font-size:11px;margin-top:3px;padding:2px 8px;background:rgba(245,166,35,0.15);color:#f5a623;border-radius:4px;display:inline-block;">Bölüm Başkanı</div>` : ''}
-      </div>
-    </div>
-
-    <!-- Akademik istatistikler: yayın/atıf -->
-    <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:16px;">
-      <div style="background:var(--bg-tertiary);border-radius:8px;padding:10px;text-align:center;">
-        <div style="font-size:18px;font-weight:700;color:#3182ce;">${pubs}</div>
-        <div style="font-size:10px;color:var(--text-muted);">Yayın</div>
-      </div>
-      <div style="background:var(--bg-tertiary);border-radius:8px;padding:10px;text-align:center;">
-        <div style="font-size:18px;font-weight:700;color:#805ad5;">${cits}</div>
-        <div style="font-size:10px;color:var(--text-muted);">Atıf</div>
-      </div>
-      <div style="background:var(--bg-tertiary);border-radius:8px;padding:10px;text-align:center;">
-        <div style="font-size:18px;font-weight:700;color:#38a169;">${f.hIndex || 0}</div>
-        <div style="font-size:10px;color:var(--text-muted);">h-indeks</div>
-      </div>
-    </div>
-
-    <!-- Uzmanlık alanları -->
-    ${specializations.length > 0 ? `
-      <div style="font-size:12px;text-transform:uppercase;letter-spacing:.08em;color:var(--text-muted);margin-bottom:8px;">Uzmanlık Alanları</div>
-      <div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:16px;">
-        ${specializations.map(s => `
-          <span style="font-size:11px;padding:3px 8px;border-radius:12px;background:rgba(56,161,105,0.12);color:#38a169;border:1px solid rgba(56,161,105,0.3);font-weight:600;">
-            ${s}
-          </span>
-        `).join('')}
-      </div>
-    ` : ''}
-
-    <hr style="border:none;border-top:1px solid var(--border-color);margin:0 0 16px;">
-    <div style="font-size:12px;text-transform:uppercase;letter-spacing:.08em;color:var(--text-muted);margin-bottom:10px;">İstatistikler</div>
-    ${statBars}
-    <hr style="border:none;border-top:1px solid var(--border-color);margin:16px 0;">
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:16px;">
-      <div style="background:var(--bg-tertiary);border-radius:8px;padding:12px;">
-        <div style="font-size:11px;color:var(--text-muted);margin-bottom:4px;">Mutluluk</div>
-        <div style="font-size:20px;font-weight:700;color:${happinessColor}">${happiness}<span style="font-size:13px;font-weight:400">/100</span></div>
-      </div>
-      <div style="background:var(--bg-tertiary);border-radius:8px;padding:12px;">
-        <div style="font-size:11px;color:var(--text-muted);margin-bottom:4px;">Ders Yükü</div>
-        <div style="font-size:20px;font-weight:700">${courseLoad}<span style="font-size:13px;font-weight:400"> ders</span></div>
-      </div>
-      <div style="background:var(--bg-tertiary);border-radius:8px;padding:12px;grid-column:1/-1;">
-        <div style="font-size:11px;color:var(--text-muted);margin-bottom:4px;">Maaş</div>
-        <div style="font-size:18px;font-weight:700;">₺${fmt(f.salary)}<span style="font-size:13px;font-weight:400">/ay</span></div>
-        ${f.salaryRange ? `<div style="font-size:11px;color:var(--text-muted);margin-top:2px;">Barem: ${salaryMin.toLocaleString('tr-TR')} – ${salaryMax.toLocaleString('tr-TR')} ₺</div>` : ''}
-        ${f.seniority ? `<div style="font-size:11px;color:var(--text-muted);">Kıdem: ${f.seniority} yıl</div>` : ''}
-        ${f._salaryUnhappy ? `<div style="font-size:11px;color:#e53e3e;margin-top:3px;">⚠ Maaş memnuniyetsizliği</div>` : ''}
-      </div>
-    </div>
-
-    <!-- Atanmış dersler -->
-    <div style="font-size:12px;text-transform:uppercase;letter-spacing:.08em;color:var(--text-muted);margin-bottom:8px;">
-      Atanmış Dersler (${assignedCourses.length})
-    </div>
-    ${assignedCourses.length === 0 ? `
-      <div style="font-size:13px;color:var(--text-faint);padding:8px;background:var(--bg-tertiary);border-radius:8px;">
-        Bu dönem atanmış ders yok.
-      </div>
-    ` : `
-      <div style="display:flex;flex-direction:column;gap:6px;">
-        ${assignedCourses.map(c => `
-          <div style="display:flex;align-items:center;gap:10px;padding:8px 12px;background:var(--bg-tertiary);border-radius:8px;border-left:3px solid ${matchColor(c.matchQuality)};">
-            <span style="font-size:16px;font-weight:700;color:${matchColor(c.matchQuality)};">${matchIcon(c.matchQuality)}</span>
-            <div style="flex:1;">
-              <div style="font-size:13px;font-weight:600;">${c.courseName}</div>
-              <div style="font-size:11px;color:var(--text-muted);">${matchLabel(c.matchQuality)} · ${c.type === 'zorunlu' ? 'Zorunlu' : 'Seçmeli'}</div>
-            </div>
-          </div>
-        `).join('')}
-      </div>
-    `}
-
-    <hr style="border:none;border-top:1px solid var(--border-color);margin:20px 0 14px;">
-
-    <!-- HOCA YÖNETİMİ -->
-    <div style="font-size:13px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--text-muted);margin-bottom:14px;padding:8px 12px;background:var(--bg-tertiary);border-radius:6px;text-align:center;">
-      HOCA YÖNETİMİ
-    </div>
-
-    <!-- Maaş Ayarlama -->
-    <div style="background:var(--bg-tertiary);border-radius:8px;padding:14px;margin-bottom:12px;">
-      <div style="font-size:12px;font-weight:700;color:var(--text-primary);margin-bottom:10px;">💰 Maaş Ayarlama</div>
-      <div style="font-size:12px;color:var(--text-muted);margin-bottom:6px;">
-        Mevcut: <strong>₺${fmt(currentSalary)}/ay</strong>
-        &nbsp;·&nbsp; Barem: ₺${salaryMin.toLocaleString('tr-TR')} – ₺${salaryMax.toLocaleString('tr-TR')}
-      </div>
-      <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px;">
-        <input type="range" id="salary-slider-${f.id}"
-               min="${salaryMin}" max="${salaryMax}" step="1000"
-               value="${currentSalary}"
-               style="flex:1;cursor:pointer;"
-               oninput="document.getElementById('salary-display-${f.id}').textContent='₺'+(+this.value).toLocaleString('tr-TR')+'/ay'; document.getElementById('salary-cost-${f.id}').textContent='Yıllık ek maliyet: ₺'+(((+this.value)-${currentSalary})*12).toLocaleString('tr-TR');">
-        <span id="salary-display-${f.id}" style="font-size:13px;font-weight:700;color:#f5a623;white-space:nowrap;min-width:110px;">₺${fmt(currentSalary)}/ay</span>
-      </div>
-      <div id="salary-cost-${f.id}" style="font-size:11px;color:var(--text-muted);margin-bottom:8px;">Yıllık ek maliyet: ₺0</div>
-      <button class="btn btn-primary" id="btn-update-salary-${f.id}" style="font-size:12px;width:100%;justify-content:center;"
-              data-faculty-id="${f.id}">
-        Maaşı Güncelle
-      </button>
-    </div>
-
-    <!-- Ödüller -->
-    <div style="background:var(--bg-tertiary);border-radius:8px;padding:14px;margin-bottom:12px;">
-      <div style="font-size:12px;font-weight:700;color:var(--text-primary);margin-bottom:10px;">🏆 Ödüller</div>
-      <div style="display:flex;flex-direction:column;gap:6px;">
-        <button class="btn btn-secondary" id="btn-award-arastirma-${f.id}" data-faculty-id="${f.id}" data-award="arastirma"
-                style="font-size:11px;justify-content:space-between;">
-          <span>Araştırma Ödülü</span>
-          <span style="color:var(--text-muted);">+5 moral &nbsp;·&nbsp; 50.000 ₺ prim</span>
-        </button>
-        <button class="btn btn-secondary" id="btn-award-egitim-${f.id}" data-faculty-id="${f.id}" data-award="egitim"
-                style="font-size:11px;justify-content:space-between;">
-          <span>Eğitim Ödülü</span>
-          <span style="color:var(--text-muted);">+5 moral &nbsp;·&nbsp; 30.000 ₺ prim</span>
-        </button>
-        <button class="btn btn-secondary" id="btn-award-yilin-${f.id}" data-faculty-id="${f.id}" data-award="yilin"
-                style="font-size:11px;justify-content:space-between;">
-          <span>Yılın Hocası</span>
-          <span style="color:var(--text-muted);">+10 moral &nbsp;·&nbsp; +3 saygınlık &nbsp;·&nbsp; 100.000 ₺ prim</span>
-        </button>
-      </div>
-      ${awardHistory.length > 0 ? `
-        <div style="margin-top:8px;font-size:10px;color:var(--text-muted);">
-          Geçmiş ödüller: ${awardHistory.map(a => a.label).join(', ')}
-        </div>
-      ` : ''}
-    </div>
-
-    <!-- Unvan Yükseltme -->
-    ${promotionTarget ? `
-    <div style="background:var(--bg-tertiary);border-radius:8px;padding:14px;margin-bottom:12px;">
-      <div style="font-size:12px;font-weight:700;color:var(--text-primary);margin-bottom:10px;">📋 Unvan Yükseltme</div>
-      <div style="font-size:11px;color:var(--text-muted);margin-bottom:8px;">
-        ${titleLabel} → ${promotionTarget}
-      </div>
-      ${['pubs', 'cits', 'exp'].map(key => {
-        const labels = { pubs: 'Yayın', cits: 'Atıf', exp: 'Deneyim (yıl)' };
-        const cur   = promotionReqs['cur' + key.charAt(0).toUpperCase() + key.slice(1)];
-        const req   = promotionReqs[key];
-        const pct   = Math.min(100, Math.round(cur / req * 100));
-        const color = pct >= 100 ? '#38a169' : pct >= 70 ? '#f5a623' : 'var(--text-muted)';
-        return `
-          <div style="margin-bottom:6px;">
-            <div style="display:flex;justify-content:space-between;font-size:10px;color:var(--text-muted);margin-bottom:2px;">
-              <span>${labels[key]}</span>
-              <span style="color:${color};">${cur}/${req} ${pct>=100?'✓':''}</span>
-            </div>
-            <div style="height:4px;background:var(--bg-secondary);border-radius:2px;overflow:hidden;">
-              <div style="width:${pct}%;height:100%;background:${color};border-radius:2px;"></div>
-            </div>
-          </div>`;
-      }).join('')}
-      ${f.promotionEligible ? `
-        <button class="btn btn-success" id="btn-promote-${f.id}" data-faculty-id="${f.id}"
-                style="font-size:12px;width:100%;justify-content:center;margin-top:6px;">
-          Yükselt: ${promotionTarget}
-        </button>
-      ` : `
-        <div style="font-size:11px;color:var(--text-muted);margin-top:6px;padding:6px;background:var(--bg-secondary);border-radius:4px;">
-          Kriterler henüz karşılanmadı
-        </div>
-      `}
-    </div>
-    ` : (f.title === 'profesor' ? `
-    <div style="background:var(--bg-tertiary);border-radius:8px;padding:10px;margin-bottom:12px;font-size:11px;color:var(--text-muted);">
-      Profesör — En yüksek akademik unvan
-    </div>
-    ` : '')}
-
-    <!-- Sözleşme Feshi -->
-    <div style="background:rgba(229,62,62,0.05);border:1px solid rgba(229,62,62,0.2);border-radius:8px;padding:14px;margin-bottom:4px;">
-      <div style="font-size:12px;font-weight:700;color:#e53e3e;margin-bottom:8px;">⚠ Sözleşme Feshi</div>
-      ${isDeptHead ? `
-        <div style="font-size:11px;color:var(--text-muted);padding:6px;background:var(--bg-tertiary);border-radius:4px;">
-          Bu hoca bölüm başkanıdır. Sözleşmeyi feshetmek için önce başkanlık görevini sonlandırın.
-        </div>
-      ` : `
-        <div style="font-size:11px;color:var(--text-muted);margin-bottom:8px;">
-          Kıdem tazminatı: <strong style="color:#e53e3e;">₺${(currentSalary * 3).toLocaleString('tr-TR')}</strong> (3 aylık maaş)
-          &nbsp;·&nbsp; Etkilenen dersler: ${assignedCourses.length} ders
-          &nbsp;·&nbsp; Moral etkisi: Bölüm -${happiness > 80 ? 8 : 5}, Üniversite -${happiness > 80 ? 3 : 1}
-        </div>
-        <button class="btn btn-danger" id="btn-fire-${f.id}" data-faculty-id="${f.id}"
-                style="font-size:12px;width:100%;justify-content:center;">
-          Sözleşmeyi Feshet
-        </button>
-      `}
-    </div>
-  `;
-
-  showModal(f.name || 'Hoca Detayı', body);
+  showModal(f.name || 'Hoca Ayrıntısı', hocaAyrintisiHtml(f, state));
 
   // Yönetim aksiyonları için event listener'lar (showModal sonrası DOM'da hazır olur)
   // Maaş güncelle
@@ -2063,7 +1773,7 @@ function _onFacultyDetail(facultyId) {
         ratingAssessment = '\n\nDEĞERLENDİRME: Ortalama hoca → Hafif moral etkisi (-3)';
       }
 
-      if (!confirm(`${f.name} sözleşmesini feshetmek istediğinizden emin misiniz?\n\nKıdem tazminatı: ₺${(currentSalary * 3).toLocaleString('tr-TR')}\nHoca puanı: ${firedRating} | Bölüm ort.: ${deptAvgRating}${ratingAssessment}\n\nBu işlem geri alınamaz.`)) return;
+      if (!confirm(`${f.name} sözleşmesini feshetmek istediğinizden emin misiniz?\n\nKıdem tazminatı: ${(currentSalary * 3).toLocaleString('tr-TR')} ₺\nHoca puanı: ${firedRating} | Bölüm ort.: ${deptAvgRating}${ratingAssessment}\n\nBu işlem geri alınamaz.`)) return;
       const result = applyDecision({ type: 'fire_faculty_confirmed', facultyId: f.id });
       if (result && result.success) {
         showNotification(result.message, 'success');
@@ -2546,14 +2256,15 @@ window._onAdminTitleSelectionChange = (idx, chosenTitle) => {
   const bareMid  = Math.round((bar.min + bar.max) / 2);
 
   if (!warnEl) return;
+  // v0.6.1: renkler ortak durum sınıflarıyla (theme.css .ob-uyari / .ob-kritik / .ob-iyi)
   if (choIdx > sugIdx) {
-    warnEl.innerHTML = `<span style="color:#f5a623;">⚠ Önerinin üzerinde - maaş yükselebilir, ilk mutluluk düşük</span>`;
+    warnEl.innerHTML = `<span class="ob-uyari">Önerilenin üstünde: maaş yükselebilir, ilk mutluluk düşük olur.</span>`;
     if (salaryEl) salaryEl.textContent = `${bareMid.toLocaleString('tr-TR')} ₺/ay (tahmini)`;
   } else if (choIdx < sugIdx) {
-    warnEl.innerHTML = `<span style="color:#e53e3e;">⚠ Önerinin altında - kişi memnun olmayabilir</span>`;
+    warnEl.innerHTML = `<span class="ob-kritik">Önerilenin altında: kişi memnun olmayabilir.</span>`;
     if (salaryEl) salaryEl.textContent = `${(c.salaryExpectation || bar.min).toLocaleString('tr-TR')} ₺/ay (tahmini)`;
   } else {
-    warnEl.innerHTML = `<span style="color:#38a169;">✓ Önerilen rütbe - uygun yerleşme</span>`;
+    warnEl.innerHTML = `<span class="ob-iyi">Önerilen rütbe: kişi işine uygun yerleşir.</span>`;
     if (salaryEl) salaryEl.textContent = `${(c.salaryExpectation || bareMid).toLocaleString('tr-TR')} ₺/ay (tahmini)`;
   }
 };

@@ -1478,11 +1478,8 @@ input[type="range"].budget-slider::-webkit-slider-thumb:hover {
   animation: slideIn 0.3s ease;
 }
 
-/* Rastgele olay seçenekleri */
-.random-event-choice:hover {
-  border-color: var(--accent) !important;
-  background: rgba(var(--accent-rgb, 99, 179, 237), 0.08) !important;
-}
+/* Rastgele olay seçenekleri: v0.6.1'de .random-event-choice yalnız dinleyici kancası; görünüş ve üzerine
+   gelme theme.css .ob-kart--tiklanir / .olay-secenek'ten gelir (eski !important kural kenarı mercana çeviriyordu) */
 
 /* ─────────────────────────────────────────────────────────────────────────────
    KULÜPLER PANELİ (v0.3)
