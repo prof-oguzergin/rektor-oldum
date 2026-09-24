@@ -126,7 +126,7 @@ export const UNIVERSITY_TYPES = {
 
 export const UNIVERSITY_MODELS = {
   devlet: {
-    name:         'Türkiye — Devlet Üniversitesi',
+    name:         'Devlet Üniversitesi (Türkiye)',
     tuitionModel: 'free',   // öğrenci ücretten muaf; sadece sembolik katkı payı
     revenueStreams: {
       // YÖK bütçe tahsisi
@@ -179,7 +179,7 @@ export const UNIVERSITY_MODELS = {
   },
 
   vakif: {
-    name:         'Türkiye — Vakıf Üniversitesi',
+    name:         'Vakıf Üniversitesi (Türkiye)',
     tuitionModel: 'paid',   // ana gelir kaynağı harç
     revenueStreams: {
       // Öğrenci ücretleri (bölüme göre değişir)
@@ -224,7 +224,7 @@ export const UNIVERSITY_MODELS = {
   },
 
   us_private: {
-    name:         'ABD — Özel Üniversite',
+    name:         'Özel Üniversite (ABD)',
     tuitionModel: 'paid',   // yüksek harç; need-based financial aid
     revenueStreams: {
       // Harç (çok yüksek)
@@ -1876,7 +1876,7 @@ export const BUILDINGS = {
     id:                    'amfi',
     name:                  'Amfi Binası',
     icon:                  '🏫',
-    description:           'Büyük derslikler — kalabalık sınıflar için',
+    description:           'Büyük derslikler, kalabalık sınıflar için',
     assignable:            true,
     baseCost:              12_000_000,
     baseArea:              2500,

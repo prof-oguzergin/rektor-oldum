@@ -34,10 +34,10 @@ import {
   BANKS,
   SAYGINLIK_OLAY_ETKI,
   SAYGINLIK_OLAY_SINIR,
-} from './data.js?v=0.5.2';
+} from './data.js?v=0.6.1';
 
-import { calculateEconomy, applyBudget, calculateLoanPayment, processLoanPayments } from './economy.js?v=0.4.24';
-import { generateInitialFaculty, updateAllFacultyHappiness, generateApplicants, generateFaculty, getSalaryRange, calculateOverallRating, getFacultyRatingTrend } from './faculty.js?v=0.5.2';
+import { calculateEconomy, applyBudget, calculateLoanPayment, processLoanPayments } from './economy.js?v=0.6.1';
+import { generateInitialFaculty, updateAllFacultyHappiness, generateApplicants, generateFaculty, getSalaryRange, calculateOverallRating, getFacultyRatingTrend } from './faculty.js?v=0.6.1';
 import {
   generateInitialStudents,
   getTotalEnrolled,
@@ -54,11 +54,11 @@ import {
   updateCohorts,
   processGraduation,
   processAdmissions,
-} from './students.js?v=0.5.2';
-import { calculatePrestige, calculateQualityScore, kurumsalTavan, updateRivals, updateRankings } from './ranking.js?v=0.5.1';
+} from './students.js?v=0.6.1';
+import { calculatePrestige, calculateQualityScore, kurumsalTavan, updateRivals, updateRankings } from './ranking.js?v=0.6.1';
 import { calculateIntlPillars, calculateIntlTotalScore, findIntlRank } from './intl_ranking.js?v=0.4.39';
 import { THE_2024 } from './intl_rankings_the2024.js?v=0.4.39';
-import { checkForEvents, applyEventEffects } from './events.js?v=0.4.24';
+import { checkForEvents, applyEventEffects } from './events.js?v=0.6.1';
 import {
   initAlumniState,
   processGraduatesForAlumni,
@@ -72,7 +72,7 @@ import {
   secimSayginlikEtkisi,
   RANDOM_EVENTS,
   ACHIEVEMENTS,
-} from './alumni_events_achievements.js?v=0.5.2';
+} from './alumni_events_achievements.js?v=0.6.1';
 
 export { RANDOM_EVENTS, ACHIEVEMENTS, getAchievementStats, organizeAlumniEvent, applyRandomEventChoice, ACCREDITATION_BODIES };
 
@@ -3948,7 +3948,7 @@ export function nextTurn() {
     return {
       error:    true,
       blocked:  true,
-      message:  `Dönem ilerletilemedi: ${err.message || 'beklenmeyen hata'}. State geri alındı, sayfa yenilemeye gerek yok — tekrar deneyebilirsiniz.`,
+      message:  `Dönem ilerletilemedi: ${err.message || 'beklenmeyen hata'}. Oyun önceki duruma döndürüldü; sayfayı yenilemeden yeniden deneyebilirsiniz.`,
       stack:    err.stack,
     };
   }
@@ -6487,7 +6487,7 @@ export function applyDecision(decision) {
         const label = type === 'yuksek_lisans' ? 'Yüksek Lisans' : 'Doktora';
         return {
           success: true,
-          message: `${dept.name} — ${label} programı YÖK'e başvuruldu. Onay süresi: ${turnsRemaining} dönem.`,
+          message: `${dept.name} için ${label} programı YÖK'e başvuruldu. Onay süresi: ${turnsRemaining} dönem.`,
           turnsRemaining,
           cost,
         };
@@ -6670,14 +6670,14 @@ export function applyDecision(decision) {
         return {
           success: true,
           accepted: true,
-          message: `✅ ${app.callType} — "${app.projectName}" kabul edildi! PI: ${app.facultyName}`,
+          message: `✅ ${app.callType}: "${app.projectName}" kabul edildi. Yürütücü: ${app.facultyName}`,
           project: activeProj,
         };
       } else {
         return {
           success: true,
           accepted: false,
-          message: `❌ ${app.callType} — "${app.projectName}" fon kurumu tarafından reddedildi.`,
+          message: `❌ ${app.callType}: "${app.projectName}" fon kurumu tarafından reddedildi.`,
         };
       }
     }
@@ -6798,7 +6798,7 @@ export function applyDecision(decision) {
 
       return {
         success: true,
-        message: `BAP projesi onaylandı: "${app.projectName}" — PI: ${app.facultyName}`,
+        message: `BAP projesi onaylandı: "${app.projectName}", yürütücü ${app.facultyName}.`,
         project: activeProj,
       };
     }

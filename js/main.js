@@ -8,8 +8,8 @@ console.log('[main] main.js modülü yükleniyor...');
 // IMPORT
 // ─────────────────────────────────────────────────────────────────────────────
 
-import { initGame, nextTurn, getState, setState, applyDecision, assignCourses, applyQuotas, assignDeptHead, reassignFacultyToDept, generateAdminCandidates, hireAdminStaff, upgradeAdminUnit, promoteAdminStaff, fireAdminStaff, updateAdminStaffSalary, assignUnitManager, RANDOM_EVENTS, ACHIEVEMENTS, getAchievementStats, organizeAlumniEvent, applyRandomEventChoice, ACCREDITATION_BODIES, applyForAccreditation, checkAccreditationRequirements, establishTTO, upgradeTTO, acceptDeal, rejectDeal, foundClub, upgradeClub, dissolveClub, CLUB_TYPES, CLUB_CATEGORIES, SPORTS, foundTeam, upgradeTeam, dissolveTeam, setCourseDifficulty, getUnitTitles, getUnitTitleSalary, isUnitManagerTitle, enableFreeMode } from './game.js?v=0.5.2';
-import { ADMIN_TITLES, SCENARIOS } from './data.js?v=0.5.2';
+import { initGame, nextTurn, getState, setState, applyDecision, assignCourses, applyQuotas, assignDeptHead, reassignFacultyToDept, generateAdminCandidates, hireAdminStaff, upgradeAdminUnit, promoteAdminStaff, fireAdminStaff, updateAdminStaffSalary, assignUnitManager, RANDOM_EVENTS, ACHIEVEMENTS, getAchievementStats, organizeAlumniEvent, applyRandomEventChoice, ACCREDITATION_BODIES, applyForAccreditation, checkAccreditationRequirements, establishTTO, upgradeTTO, acceptDeal, rejectDeal, foundClub, upgradeClub, dissolveClub, CLUB_TYPES, CLUB_CATEGORIES, SPORTS, foundTeam, upgradeTeam, dissolveTeam, setCourseDifficulty, getUnitTitles, getUnitTitleSalary, isUnitManagerTitle, enableFreeMode } from './game.js?v=0.6.1';
+import { ADMIN_TITLES, SCENARIOS } from './data.js?v=0.6.1';
 
 import {
   showScreen,
@@ -60,17 +60,17 @@ import {
   hocaAyrintisiHtml,
   el,
   on,
-} from './ui.js?v=0.6.0';
+} from './ui.js?v=0.6.1';
 
-import { CHANGELOG, hasUnseenChanges, setLastSeenVersion } from './changelog.js?v=0.6.0';
+import { CHANGELOG, hasUnseenChanges, setLastSeenVersion } from './changelog.js?v=0.6.1';
 
 import { saveGame, loadGame, autoSave, getSaveSlots, deleteSave, exportSave, importSave, sanitizeForSave } from './save.js?v=0.4.63';
 import { calculateScore, scoreBreakdown, submitScore, getTopScores, initFirebase, isLeaderboardUnavailable, saveLocalScore, getLocalScores } from './leaderboard.js?v=0.4.45';
 import { showTutorialIfNeeded, replayTutorial } from './tutorial.js?v=0.5.2';
 import { initAudio, playSound, toggleMute, isMuted, startMusic, stopMusic, setMusicVolume, setSFXVolume, getAudioSettings } from './audio.js?v=0.4.24';
 
-import { generateTransferMarket, renderFacultyAvatar, calculateOverallRating } from './faculty.js?v=0.5.2';
-import { resolveDecision } from './events.js?v=0.4.24';
+import { generateTransferMarket, renderFacultyAvatar, calculateOverallRating } from './faculty.js?v=0.6.1';
+import { resolveDecision } from './events.js?v=0.6.1';
 
 // Uluslararası sıralama modülleri
 import { THE_2024 } from './intl_rankings_the2024.js?v=0.4.39';
@@ -1214,7 +1214,7 @@ function _showLeaderboardSubmitModal(isGameOver = false) {
                   padding:12px;border-radius:8px;font-size:13px;line-height:1.5;">
          ✅ Bu oyun için skor zaten gönderildi.<br>
          <span style="color:var(--text-muted,#aaa);font-size:12px;">
-           ${submittedName ? `<strong>${submittedName}</strong> — ` : ''}${submittedScore != null ? `${submittedScore.toLocaleString('tr-TR')} puan` : ''}${submittedDateStr ? ` · ${submittedDateStr}` : ''}
+           ${submittedName ? `<strong>${submittedName}</strong>: ` : ''}${submittedScore != null ? `${submittedScore.toLocaleString('tr-TR')} puan` : ''}${submittedDateStr ? ` · ${submittedDateStr}` : ''}
          </span><br>
          <span style="color:var(--text-muted,#aaa);font-size:12px;">
            Yeni bir kayıt için yeni bir oyun başlatman gerekiyor.
@@ -1304,17 +1304,17 @@ function _showLeaderboardSubmitModal(isGameOver = false) {
       const fmt = (n) => Number(n).toLocaleString('tr-TR');
       if (result?.status === 'updated') {
         showNotification(
-          `🏆 ${name} — ${fmt(result.score)} puan! En iyi skorun güncellendi (eski: ${fmt(result.oldScore)}).`,
+          `🏆 ${name}: ${fmt(result.score)} puan! En iyi skorun güncellendi (eski: ${fmt(result.oldScore)}).`,
           'success', 6000,
         );
       } else if (result?.status === 'not-improved') {
         showNotification(
-          `📊 ${fmt(result.score)} puan aldın. Küresel en iyi skorun ${fmt(result.oldScore)} — leaderboard güncellenmedi.`,
+          `📊 ${fmt(result.score)} puan aldın. Küresel en iyi skorun ${fmt(result.oldScore)}; tablo güncellenmedi.`,
           'info', 6000,
         );
       } else {
         // 'created' veya legacy
-        showNotification(`🏆 ${name} — ${fmt(result?.score ?? score)} puan kaydedildi!`, 'success', 5000);
+        showNotification(`🏆 ${name}: ${fmt(result?.score ?? score)} puan kaydedildi!`, 'success', 5000);
       }
 
       // Leaderboard sekmesine geç ve yenile
@@ -1337,7 +1337,7 @@ function _showLeaderboardSubmitModal(isGameOver = false) {
         saveLocalScore({ name, score, year: state?.meta?.year, prestige: state?.university?.prestige });
         hideModal();
         showNotification(
-          `🏆 ${name} — ${score.toLocaleString('tr-TR')} puan kaydedildi. (Çevrimiçi tablo geçici olarak bakımda; skor lokal yedeklendi.)`,
+          `🏆 ${name}: ${score.toLocaleString('tr-TR')} puan kaydedildi. (Çevrimiçi tablo geçici olarak bakımda; skor lokal yedeklendi.)`,
           'info',
           6000,
         );
@@ -2305,7 +2305,7 @@ window._onAdjustAdminSalary = function(staffId) {
   if (!staff) return;
   // Basit prompt ile maaş al
   const newSalaryStr = prompt(
-    `${staff.name} — ${staff.title}\nMevcut maaş: ${staff.salary.toLocaleString('tr-TR')} ₺/ay\nYeni maaş girin (₺):`,
+    `${staff.name} (${staff.title})\nMevcut maaş: ${staff.salary.toLocaleString('tr-TR')} ₺/ay\nYeni maaş girin (₺):`,
     String(staff.salary)
   );
   if (!newSalaryStr) return;

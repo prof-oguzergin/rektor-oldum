@@ -9,7 +9,7 @@ import {
   FACULTY_TITLES,
   DEPARTMENTS,
   SALARY_SCALES,
-} from './data.js?v=0.5.2';
+} from './data.js?v=0.6.1';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // YARDIMCI FONKSİYONLAR
@@ -361,7 +361,7 @@ export function generateFaculty(options = {}) {
   const usePrestigious = resolvedTitle === 'profesor' || (resolvedTitle === 'docent' && Math.random() < 0.4);
   const phdUni = usePrestigious ? pick(_phdPrestigiousPool) : pick(_prevUniPool);
   const education = {
-    phd:  `${phdUni} — ${mainField}`,
+    phd:  `${phdUni}, ${mainField}`,
     year: Math.max(1990, Math.min(new Date().getFullYear() - 1, phdYear)),
   };
 
@@ -1188,7 +1188,7 @@ export function generateApplicants(position, state) {
       : pick(PHD_UNIVERSITY_POOL_NORMAL);
     const phdField = fac.field || (DEPARTMENT_MAIN_FIELD[position.department] || 'Mühendislik');
     const education = {
-      phd: `${phdUniversity} — ${phdField}`,
+      phd: `${phdUniversity}, ${phdField}`,
       year: Math.max(1990, Math.min(new Date().getFullYear() - 1, phdYear)),
     };
 

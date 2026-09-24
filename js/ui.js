@@ -4,10 +4,10 @@
  * Vanilla JS, framework yok.
  */
 
-import { DEPARTMENTS, DEPARTMENT_CURRICULA, UNIVERSITY_TYPES, UNIVERSITY_MODELS, USD_TO_TL, DIFFICULTY_SETTINGS, BUILDINGS, SEMESTER_MONTHS, FACULTIES, DEPT_TO_FACULTY, SALARY_SCALES, ADMIN_UNITS, ADMIN_TITLES, ADMIN_UNIT_BUILDINGS, ACCREDITATION_BODIES, SCENARIOS, BANKS } from './data.js?v=0.5.2';
-import { DEPARTMENT_FIELDS, getSalaryRange, renderFacultyAvatar, renderFacultyPortrait, calculateOverallRating, getFacultyRatingTrend } from './faculty.js?v=0.5.2';
-import { AVAILABLE_NEW_DEPARTMENTS, getCourseEffectiveDifficulty, getUnitTitles, getUnitTitleSalary, isUnitManagerTitle, calculateCampusUsageSummary, kaliciSayginlikEtkisi, checkAccreditationRequirements } from './game.js?v=0.5.2';
-import { calculateIncome, calculateExpenses, calculateLoanPayment } from './economy.js?v=0.4.24';
+import { DEPARTMENTS, DEPARTMENT_CURRICULA, UNIVERSITY_TYPES, UNIVERSITY_MODELS, USD_TO_TL, DIFFICULTY_SETTINGS, BUILDINGS, SEMESTER_MONTHS, FACULTIES, DEPT_TO_FACULTY, SALARY_SCALES, ADMIN_UNITS, ADMIN_TITLES, ADMIN_UNIT_BUILDINGS, ACCREDITATION_BODIES, SCENARIOS, BANKS } from './data.js?v=0.6.1';
+import { DEPARTMENT_FIELDS, getSalaryRange, renderFacultyAvatar, renderFacultyPortrait, calculateOverallRating, getFacultyRatingTrend } from './faculty.js?v=0.6.1';
+import { AVAILABLE_NEW_DEPARTMENTS, getCourseEffectiveDifficulty, getUnitTitles, getUnitTitleSalary, isUnitManagerTitle, calculateCampusUsageSummary, kaliciSayginlikEtkisi, checkAccreditationRequirements } from './game.js?v=0.6.1';
+import { calculateIncome, calculateExpenses, calculateLoanPayment } from './economy.js?v=0.6.1';
 import { renderCampusMap, handleCampusClick, handleCampusHover, clearHover } from './campus-renderer.js?v=0.5.1';
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -6717,7 +6717,7 @@ function _renderTransferRightPanel(fac, depts, state) {
 
       ${fac.education ? `
         <div class="ob-kart">
-          ${_obSatir('Doktora', `${_veriMetni(fac.education.phd)} <span class="ob-soluk">(${fac.education.year})</span>`)}
+          ${_obSatir('Doktora', `${_veriMetni(String(fac.education.phd || '').replace(' — ', ', '))} <span class="ob-soluk">(${fac.education.year})</span>`)}
           ${fac.yearsExperience != null ? _obSatir('Deneyim', `${fac.yearsExperience} yıl`) : ''}
         </div>` : ''}
 

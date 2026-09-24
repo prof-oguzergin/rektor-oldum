@@ -7,7 +7,7 @@ import {
   EVENTS_POOL,
   DIFFICULTY_SETTINGS,
   TREND_CYCLES,
-} from './data.js?v=0.5.2';
+} from './data.js?v=0.6.1';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // YARDIMCI: 0-100 aralığına sıkıştır
@@ -588,7 +588,7 @@ export function generateEventDescription(event, state) {
   const year      = state.meta.year;
 
   // Üniversite adını ve dönemi metne ekle
-  desc = `[${uniName} — ${year}. yıl, ${semester} dönemi] ${desc}`;
+  desc = `[${uniName}, ${year}. yıl, ${semester} dönemi] ${desc}`;
 
   // Olay tipine göre ek bağlam
   switch (event.type) {

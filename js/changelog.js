@@ -6,6 +6,16 @@
 
 export const CHANGELOG = [
   {
+    version: '0.6.1',
+    date: '2026-09-24',
+    title: 'Tutarlı görünüm',
+    items: [
+      { type: 'feat', text: 'Bütün sekmeler ve pencereler Bölüm Sayfası\'yla aynı görünümde: tablolar, rozetler, gösterge kutuları ve bilgi notları ortak.' },
+      { type: 'fix', text: 'Ders tablosunda zorunlu ve seçmeli dersler ile hoca eşleşmesi yazıyla gösteriliyor. Telefonda hiçbir sekme yana taşmıyor.' },
+      { type: 'fix', text: 'Dünya Sırası\'nda ondalıklar ve komşu sıralaması, Spor bütçesi ve birkaç yazım kusuru düzeltildi.' },
+    ],
+  },
+  {
     version: '0.6.0',
     date: '2026-09-24',
     title: 'Bölüm Sayfası',
