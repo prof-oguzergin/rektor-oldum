@@ -589,6 +589,8 @@ function _startGameWithState(state) {
   // v0.6: Bölüm Sayfası (Genel Bakış, Bölümler, Fakülteler, Kadro, Öğrenciler satırlarından açılır)
   _bolumSayfasi = null;
   window._openDeptPage = _bolumSayfasiniAc;
+  // v0.7: dönem özetindeki "Doğrudan yönetime al" düğmesi
+  window._onSetDeptPolicy = _onSetDeptPolicy;
 
   // Kulüp verilerini ve callback'lerini global alana kaydet (ui.js butonları için)
   window._CLUB_TYPES      = CLUB_TYPES;
@@ -820,7 +822,27 @@ const _bolumSayfasiIslemleri = {
   onAcceptSpontaneous: (appId, targetDeptId) => _handleAcceptSpontaneous({ detail: { appId, targetDeptId } }),
   onRejectSpontaneous: (appId) => _handleRejectSpontaneous({ detail: { appId } }),
   onProjectDecision:   (tur, applicationId, ek) => _onProjectDecision(tur, applicationId, ek),
+  onSetPolicy:         (deptId, politika) => _onSetDeptPolicy(deptId, politika),
 };
+
+/**
+ * v0.7: bölümün yönetimi: doğrudan ya da başkana devret (baskan.js, applyDecision 'set_dept_policy').
+ * Bölüm Sayfası ve dönem özeti çağırır. Başkansız bölüm devredilemez (karar başarısız döner).
+ * @param {string} deptId
+ * @param {object} politika  { kip, odak, hocaOrani, donemlikAlimTavani, kontenjanKurali } (kısmi olabilir)
+ * @returns {{ success: boolean, message: string }|null}
+ */
+function _onSetDeptPolicy(deptId, politika) {
+  const result = applyDecision({ type: 'set_dept_policy', deptId, policy: politika });
+  if (result?.success) {
+    showNotification(result.message, 'success');
+    _persistState();
+  } else {
+    showNotification(result?.message || 'Bölümün yönetimi değiştirilemedi.', 'warning', 5000);
+  }
+  refreshGameUI();
+  return result;
+}
 
 // ─────────────────────────────────────────────────────────────────────────────
 // ULUSLARARASI SIRALAMA PANELİ

@@ -3307,3 +3307,116 @@ input[type="range"].ob-kaydirici:focus-visible { outline: 2px solid var(--gold-s
 .olay-secenek:focus-visible { outline: 2px solid var(--gold-soft); outline-offset: 2px; }
 .olay-secenek-ad { font-size: 14px; font-weight: 800; color: var(--ob-metin-guclu); }
 .olay-secenek-aciklama { font-size: 12.5px; line-height: 1.45; color: var(--ob-metin-soluk); }
+
+/* ═══════════════════════════════════════════════════════════════════════
+   v0.7: BÖLÜM BAŞKANINA DEVRETME (devretme)
+   Bölüm Sayfası başlığındaki yönetim seçimi (bs-yonetim), başkanın yetki
+   kartı ve politika formu (bs-devir), karar listesi (baskan-karar; Bölüm
+   Sayfası ve dönem özeti ortak), dönem özetindeki katlanır "Başkanların
+   kararları" (ozet-baskan). Ortak bileşenlerin (ob-anahtar, ob-kart,
+   ob-kimlik, ob-ayar, ob-kaydirici, ob-not, ob-rozet, ob-dugmeler) üstüne
+   yalnız düzen.
+═══════════════════════════════════════════════════════════════════════ */
+
+/* Başlıktaki yönetim seçimi: masaüstünde sağda, telefonda başlığın altında tam genişlik */
+.bs-yonetim { display: flex; flex-direction: column; align-items: flex-end; gap: 5px; margin-left: auto; }
+.bs-yonetim-e { font-size: 10.5px; font-weight: 800; letter-spacing: 0.08em; text-transform: uppercase; color: var(--ob-etiket); }
+.bs-yonetim .ob-anahtar > button { min-height: 36px; white-space: nowrap; }
+
+/* Başkanın yetki kartı */
+.bs-devir { display: flex; flex-direction: column; gap: 12px; }
+.bs-devir .ob-kart-baslik { margin-bottom: 0; }
+.bs-devir--etkin { border-color: rgba(143, 208, 255, 0.45); }
+.bs-devir .ob-aciklama { margin-top: 0; }
+.bs-devir .ob-dugmeler--alt { margin-top: 0; }
+.bs-devir-bas { flex-wrap: wrap; }
+.bs-devir-bas-ad { font-size: 14.5px; font-weight: 800; line-height: 1.3; color: var(--ob-metin-guclu); }
+.bs-devir-bas > .btn { margin-left: auto; }
+.bs-devir-kararlar { display: flex; flex-direction: column; gap: 8px; }
+.bs-devir-kararlar .bs-altbaslik { margin-bottom: 0; }
+.bs-devir-onceki > summary { cursor: pointer; font-size: 12.5px; font-weight: 700; color: var(--gold-soft); }
+.bs-devir-onceki[open] > summary { margin-bottom: 8px; }
+.bs-devir-onceki .baskan-kararlar { margin-bottom: 8px; }
+
+/* Politika formu */
+.bs-devir-form { display: flex; flex-direction: column; gap: 14px; padding-top: 12px; border-top: 1px solid var(--ob-cizgi); }
+.bs-devir-alan { min-width: 0; margin: 0; padding: 0; border: none; }
+.bs-devir-alan > legend { padding: 0; margin-bottom: 6px; }
+.bs-devir-secenekler { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+.bs-devir-secenek {
+  display: flex;
+  align-items: flex-start;
+  gap: 9px;
+  min-height: 44px;
+  padding: 9px 11px;
+  border-radius: 10px;
+  border: 1px solid var(--ob-cizgi-orta);
+  background: var(--ob-cukur);
+  cursor: pointer;
+}
+.bs-devir-secenek:hover { border-color: rgba(240, 192, 64, 0.4); }
+.bs-devir-secenek:has(input:checked) { border-color: var(--gold); background: rgba(240, 192, 64, 0.08); }
+.bs-devir-secenek:has(input:focus-visible) { outline: 2px solid var(--gold-soft); outline-offset: 2px; }
+.bs-devir-secenek input { flex-shrink: 0; width: 16px; height: 16px; margin: 2px 0 0; accent-color: var(--gold); }
+.bs-devir-secenek > span { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.bs-devir-secenek b { font-size: 13.5px; color: var(--ob-metin-guclu); }
+.bs-devir-secenek small { font-size: 12px; line-height: 1.4; color: var(--ob-metin-soluk); }
+.bs-devir-form .ob-ayar + .ob-ayar { margin-top: 0; }
+.bs-devir-form .ob-ayar .ob-aciklama { grid-column: 1 / -1; margin-top: 0; }
+.bs-devir-form .ob-kaydirici { margin: 6px 0; }
+
+/* Karar listesi: tür rozeti, ne yapıldı, neden */
+.baskan-kararlar { display: flex; flex-direction: column; gap: 7px; margin: 0; padding: 0; list-style: none; }
+.baskan-karar { display: flex; align-items: flex-start; gap: 8px; font-size: 12.5px; line-height: 1.45; color: var(--ob-metin); }
+.baskan-karar + .baskan-karar { padding-top: 7px; border-top: 1px solid var(--ob-cizgi); }
+.baskan-karar > .ob-rozet { flex-shrink: 0; min-width: 76px; justify-content: center; margin-top: 1px; }
+.baskan-karar-govde { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+.baskan-karar-govde .ob-aciklama { margin-top: 2px; font-size: 12px; }
+.baskan-karar--bilgi .baskan-karar-govde > div:first-child { color: var(--ob-metin-soluk); }
+
+/* Dönem özeti: katlanır "Başkanların kararları" */
+.ozet-baskan { padding: 0; }
+.ozet-baskan-ozet {
+  position: relative;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 10px;
+  min-height: 44px;
+  padding: 10px 38px 10px 14px;
+  list-style: none;
+  cursor: pointer;
+  font-size: 11.5px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ob-etiket);
+}
+.ozet-baskan-ozet::-webkit-details-marker { display: none; }
+/* Aç/kapa oku sağ üstte sabit: rozetler alt satıra kaysa da ok başlıkla aynı satırda kalır */
+.ozet-baskan-ozet::after { content: '▾'; position: absolute; top: 12px; right: 14px; font-size: 14px; line-height: 1; color: var(--gold-soft); transition: transform 0.15s ease; }
+.ozet-baskan[open] > .ozet-baskan-ozet::after { transform: rotate(180deg); }
+.ozet-baskan-ozet:focus-visible { outline: 2px solid var(--gold-soft); outline-offset: -2px; border-radius: 14px; }
+.ozet-baskan-ozet .ob-dizi { letter-spacing: 0; text-transform: none; }
+.ozet-baskan-govde { display: flex; flex-direction: column; gap: 10px; padding: 0 14px 14px; }
+.ozet-baskan-bolum { padding: 10px 12px; border-radius: 12px; border: 1px solid var(--ob-cizgi-orta); background: var(--ob-cukur); }
+.ozet-baskan-ust { display: flex; flex-wrap: wrap; align-items: flex-start; justify-content: space-between; gap: 6px 12px; margin-bottom: 8px; }
+.ozet-baskan-kimlik { display: flex; flex-direction: column; gap: 1px; min-width: 0; }
+.ozet-baskan-kimlik b { font-size: 14px; color: var(--ob-metin-guclu); }
+.ozet-baskan-kimlik .ob-aciklama { margin-top: 0; font-size: 12px; }
+
+@media (max-width: 900px) {
+  .bs-sayfa > .bs-devir { order: 2; }
+  .bs-yonetim { flex: 1 1 100%; align-items: stretch; margin-left: 0; }
+  .bs-yonetim .ob-anahtar { display: flex; }
+  .bs-yonetim .ob-anahtar > button { flex: 1; min-height: 44px; }
+}
+@media (max-width: 600px) {
+  .bs-devir-secenekler { grid-template-columns: minmax(0, 1fr); }
+  .bs-devir-bas > .btn { margin-left: 0; }
+  .bs-devir .ob-dugmeler > .btn { flex: 1 1 auto; min-height: 44px; }
+  /* Dar ekranda tür rozeti metnin üstünde; metin bütün genişliği kullanır */
+  .baskan-karar { flex-direction: column; gap: 4px; }
+  .baskan-karar > .ob-rozet { min-width: 0; }
+  .ozet-baskan-ust .ob-dugmeler > .btn { min-height: 36px; }
+}
