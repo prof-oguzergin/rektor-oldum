@@ -8,6 +8,11 @@ import { DEPARTMENTS, DEPARTMENT_CURRICULA, UNIVERSITY_TYPES, UNIVERSITY_MODELS,
 import { DEPARTMENT_FIELDS, getSalaryRange, renderFacultyAvatar, renderFacultyPortrait, calculateOverallRating, getFacultyRatingTrend } from './faculty.js?v=0.6.1';
 import { AVAILABLE_NEW_DEPARTMENTS, getCourseEffectiveDifficulty, getUnitTitles, getUnitTitleSalary, isUnitManagerTitle, calculateCampusUsageSummary, kaliciSayginlikEtkisi, checkAccreditationRequirements } from './game.js?v=0.6.1';
 import { calculateIncome, calculateExpenses, calculateLoanPayment } from './economy.js?v=0.6.1';
+// v0.7 ekonomi: Bütçe sekmesinin harcama kararları ve devlet kısıtları, kontenjan penceresinin
+// alım yeri ve vakıf başvuru tahmini, Genel Bakış'ın Hazine iadesi tahmini
+import { harcamaKararlari, arastirmaFonuCarpani, ogrenciHizmetiEtkisi, tanitimEtkisi, kadroDurumu, maasGelirDurumu, hazineIadesiTahmini } from './economy.js?v=0.6.1';
+import { bolumAlimYeri, vakifBasvuruTahmini } from './students.js?v=0.6.1';
+import { HARCAMA_KARARLARI } from './data.js?v=0.6.1';
 import { renderCampusMap, handleCampusClick, handleCampusHover, clearHover } from './campus-renderer.js?v=0.5.1';
 import { ODAKLAR, KONTENJAN_KURALLARI, POLITIKA_SINIRLARI, KARAR_TURLERI, politikaOku, devirDurumu, yonetimKademesi, donemAdi } from './baskan.js?v=0.6.1';
 
@@ -1462,6 +1467,7 @@ export function renderDashboard(state) {
           ${tahmin.gelirler.map(k => `<div class="gb-forecast-row"><span>${k.ad}</span><b class="positive">${formatMoney(k.tutar)}</b></div>`).join('')}
           ${tahmin.giderler.map(k => `<div class="gb-forecast-row"><span>${k.ad}</span><b class="negative">-${formatMoney(k.tutar)}</b></div>`).join('')}
           <div class="gb-forecast-row gb-forecast-net"><span>Net</span><b class="${netBalance >= 0 ? 'positive' : 'negative'}">${netBalance >= 0 ? '+' : ''}${formatMoney(netBalance)}</b></div>
+          ${tahmin.hazineIadesi > 0 ? `<div class="gb-forecast-row gb-forecast-hazine" title="Bahar dönemi kapanırken kasada bir dönemlik gideri ve kredi borcunu aşan para Hazine'ye döner (Bütçe sekmesi)."><span>Yıl sonu Hazine'ye iade (tahmini)</span><b class="negative">-${formatMoney(tahmin.hazineIadesi)}</b></div>` : ''}
         </div>
         ${warnings.length > 0 ? `
           <div class="gb-warnings">
@@ -4521,22 +4527,12 @@ export function renderQuotaModal(state, onConfirm, secenek = {}) {
   // yeri koltuk × 4'tür; üst sınıflar (2-4) bununla kıyaslanır (game.js bölüm kapasitesiyle aynı ölçü)
   const dortSinifKoltuk = totalClassroomCap * 4;
 
-  // Toplam etkin kapasite (sınıf ve hoca kapasitesinin küçüğü)
-  const effectiveCapacity  = Math.max(
-    50, // en az bir şey göster
-    dortSinifKoltuk > 0 && maxStudentsByFaculty > 0
-      ? Math.min(dortSinifKoltuk, maxStudentsByFaculty)
-      : dortSinifKoltuk > 0
-        ? dortSinifKoltuk
-        : maxStudentsByFaculty
-  );
-
-  // Mevcut toplam kayıtlı öğrenci (yıl 2-4; yıl 1 yeni alımla doldurulacak)
-  let currentEnrolledUpperYears = 0;
-  for (const d of Object.values(byDept)) {
-    currentEnrolledUpperYears += (d.year2?.count || 0) + (d.year3?.count || 0) + (d.year4?.count || 0);
-  }
-  const remainingCapacity = Math.max(0, effectiveCapacity - currentEnrolledUpperYears);
+  // v0.7: "Yeni alım için yer" bölüm bölüm oyunun uyguladığı sayıdır (students.js bolumAlimYeri:
+  // bölümün dört sınıflık derslik kapasitesi eksi gelecek yıl 2-4. sınıf olacak öğrenciler).
+  // Alım bu sayıyla sınırlıdır; eskiden pencere hoca kapasitesiyle "yer 0" deyip alımı sınırlamıyordu.
+  const bolumYeri = {};
+  for (const dept of depts) bolumYeri[dept.id] = bolumAlimYeri(state, dept);
+  const remainingCapacity = Object.values(bolumYeri).reduce((s, v) => s + v, 0);
 
   // Devlet modelinde YKS sıralaması var ama burs kategorisi yok; ABD modeli farklı
   const isDevlet    = uniType === 'devlet';
@@ -4617,8 +4613,9 @@ export function renderQuotaModal(state, onConfirm, secenek = {}) {
       <div class="ob-kutular">
         ${_obKutu('Sınıf kapasitesi', dortSinifKoltuk > 0 ? formatNumber(dortSinifKoltuk) : '—', '4 sınıf, bitmiş binalar')}
         ${_obKutu('Hoca kapasitesi', formatNumber(maxStudentsByFaculty), `${totalFaculty} hoca × 30 öğrenci`)}
-        ${_obKutu('Yeni alım için yer', formatNumber(remainingCapacity), 'kapasite eksi üst sınıflar', capClass)}
+        ${_obKutu('Yeni alım için yer', formatNumber(remainingCapacity), 'derslik yeri eksi üst sınıflar', capClass)}
       </div>
+      <div class="ob-aciklama">Bir bölüme en çok "yeni alım için yer" kadar öğrenci alınır; fazlası kırpılır. Yer, bölümün derslik payı (atanmış binalar ya da ortak derslikler, dört sınıf) eksi gelecek yıl 2-4. sınıfa geçecek öğrencilerdir.${isVakif ? ' Vakıfta kontenjan, beklenen başvuru kadar dolar; başvuruyu harç, saygınlık, tanıtım ve bölüm talebi belirler.' : ''}</div>
 
       <div id="quota-form" class="kont-liste" data-remaining-cap="${remainingCapacity}">
         ${depts.map(dept => {
@@ -4628,30 +4625,36 @@ export function renderQuotaModal(state, onConfirm, secenek = {}) {
           const mult   = (isVakif ? (dept.tuitionMultiplier || 1.0) : 1.0);
           const net    = netRevenue(q.tamBurslu||0, q.yariBurslu||0, q.ucretli||0, mult);
 
+          // v0.7: bölümün alım yeri (oyunun uyguladığı sınır) ve vakıfta beklenen başvuru
+          const yer     = bolumYeri[dept.id] ?? 0;
+          const basvuru = isVakif ? vakifBasvuruTahmini(state, dept) : null;
+
           // Devlet modelinde üç girdi yerine tek "Toplam kontenjan"
           const inputCols = isDevlet
             ? `<div class="kont-girdiler kont-girdiler--tek">
-                 ${girdi('Toplam kontenjan', 'devlet kontenjanı', 'ucretli', (q.tamBurslu||0)+(q.yariBurslu||0)+(q.ucretli||0), 500, yksRange('ucretli'))}
+                 ${girdi('Toplam kontenjan', 'devlet kontenjanı', 'ucretli', (q.tamBurslu||0)+(q.yariBurslu||0)+(q.ucretli||0), Math.min(800, yer), yksRange('ucretli'))}
                </div>`
             : `<div class="kont-girdiler">
-                 ${girdi(col1Label, 'harç yok', 'tamBurslu', q.tamBurslu||0, 200, yksRange('tam_burslu'))}
-                 ${girdi(col2Label, 'yarı harç', 'yariBurslu', q.yariBurslu||0, 200, yksRange('yari_burslu'))}
-                 ${girdi(col3Label, 'tam harç', 'ucretli', q.ucretli||0, 500, yksRange('ucretli'))}
+                 ${girdi(col1Label, basvuru ? `harç yok · başvuru ~${formatNumber(basvuru.tamBurslu)}` : 'harç yok', 'tamBurslu', q.tamBurslu||0, Math.min(200, yer), yksRange('tam_burslu'))}
+                 ${girdi(col2Label, basvuru ? `yarı harç · başvuru ~${formatNumber(basvuru.yariBurslu)}` : 'yarı harç', 'yariBurslu', q.yariBurslu||0, Math.min(200, yer), yksRange('yari_burslu'))}
+                 ${girdi(col3Label, basvuru ? `tam harç · başvuru ~${formatNumber(basvuru.ucretli)}` : 'tam harç', 'ucretli', q.ucretli||0, Math.min(500, yer), yksRange('ucretli'))}
                </div>`;
 
           const netLabel = isDevlet
             ? `<span>Katkı payı <b class="qs-net ob-iyi">${formatMoney(net)}/dönem</b></span>`
             : `<span>Net etki <b class="qs-net ${net >= 0 ? 'ob-iyi' : 'ob-kritik'}">${formatMoney(net)}/dönem</b></span>`;
 
-          // Bölüm hocası sayısı ve bölüm kapasitesi
+          // Bölüm hocası sayısı: gelecek yıl hoca başına öğrenci (öneri en çok 30)
           const deptFacultyCount = (state.faculty || []).filter(f => (f.departmentId || f.department) === dept.id).length;
           const deptMaxByFaculty = deptFacultyCount * 30;
           const thisQuotaTotal   = (q.tamBurslu||0) + (q.yariBurslu||0) + (q.ucretli||0);
-          const exceedsCapacity  = deptMaxByFaculty > 0 && thisQuotaTotal > deptMaxByFaculty;
+          const ustSinif         = (d.year1?.count||0) + (d.year2?.count||0) + (d.year3?.count||0);
+          const exceedsCapacity  = deptMaxByFaculty > 0 && ustSinif + thisQuotaTotal > deptMaxByFaculty;
+          const exceedsDersklik  = thisQuotaTotal > yer;
+          const talepAsimi       = !!basvuru && ((q.ucretli||0) > basvuru.ucretli || (q.yariBurslu||0) > basvuru.yariBurslu || (q.tamBurslu||0) > basvuru.tamBurslu);
 
-          // Gerçek derslik kapasitesi (atanmış binalardan)
+          // Atanmış binaların derslik koltuğu (bilgi amaçlı)
           const deptSeats = deptClassroomCapacity[dept.id] || 0;
-          const exceedsDersklik = deptSeats > 0 && thisQuotaTotal > deptSeats;
 
           // Atanmış binalar
           const assignedBuildingDetails = completedBuildings
@@ -4677,15 +4680,23 @@ export function renderQuotaModal(state, onConfirm, secenek = {}) {
                 </div>
               </header>
               <div class="ob-dizi kont-kapasite">
-                <span class="ob-rozet ob-rozet--kucuk ${deptMaxByFaculty > 0 ? (exceedsCapacity ? 'ob-rozet--kritik' : 'ob-rozet--iyi') : ''}"
-                      title="Bölüm hocası × 30 öğrenci">Hoca kapasitesi ${deptMaxByFaculty > 0 ? formatNumber(deptMaxByFaculty) : '—'}</span>
-                <span class="ob-rozet ob-rozet--kucuk ${deptSeats > 0 ? (exceedsDersklik ? 'ob-rozet--kritik' : 'ob-rozet--iyi') : ''}"
-                      ${assignedBuildingDetails ? `title="${assignedBuildingDetails}"` : ''}>${deptSeats > 0 ? `Derslik ${formatNumber(deptSeats)} koltuk` : 'Bina atanmamış'}</span>
+                <span class="ob-rozet ob-rozet--kucuk kont-yer ${exceedsDersklik ? 'ob-rozet--kritik' : 'ob-rozet--iyi'}"
+                      title="Dört sınıflık derslik kapasitesi (${formatNumber(dept.studentCapacity || 0)}) eksi 1-3. sınıflar (${formatNumber(ustSinif)})">Yeni alım için yer ${formatNumber(yer)}</span>
+                <span class="ob-rozet ob-rozet--kucuk ${deptMaxByFaculty > 0 ? (exceedsCapacity ? 'ob-rozet--uyari' : 'ob-rozet--iyi') : ''}"
+                      title="Bölüm hocası × 30 öğrenci; gelecek yılın öğrenci sayısıyla kıyaslanır">Hoca kapasitesi ${deptMaxByFaculty > 0 ? formatNumber(deptMaxByFaculty) : '—'}</span>
+                <span class="ob-rozet ob-rozet--kucuk"
+                      ${assignedBuildingDetails ? `title="${assignedBuildingDetails}"` : ''}>${deptSeats > 0 ? `Derslik ${formatNumber(deptSeats)} koltuk` : 'Ortak derslikler'}</span>
               </div>
               ${assignedBuildingDetails ? `<div class="ob-aciklama kont-binalar">${assignedBuildingDetails}</div>` : ''}
 
-              <div class="dept-cap-warning ob-not ob-not--kritik kont-uyari"${exceedsCapacity || exceedsDersklik ? '' : ' hidden'}>
-                ${exceedsDersklik ? `Kontenjan (${thisQuotaTotal}) derslik kapasitesini (${deptSeats} koltuk) aşıyor; daha fazla bina ya da amfi gerekebilir.` : exceedsCapacity ? `Kontenjan (${thisQuotaTotal}) hoca kapasitesini (${deptMaxByFaculty}) aşıyor; eğitim kalitesi düşebilir.` : ''}
+              <div class="dept-cap-warning ob-not ob-not--kritik kont-uyari"${exceedsDersklik ? '' : ' hidden'}>
+                ${exceedsDersklik ? `Kontenjan (${thisQuotaTotal}) bölümün yerini (${yer}) aşıyor; fazlası alınmaz. Derslik binası yapın ya da bölüme bina atayın.` : ''}
+              </div>
+              <div class="dept-hoca-uyari ob-not ob-not--uyari kont-uyari"${exceedsCapacity ? '' : ' hidden'}>
+                ${exceedsCapacity ? `Gelecek yıl hoca başına ${Math.round((ustSinif + thisQuotaTotal) / Math.max(1, deptFacultyCount))} öğrenci düşer (öneri en çok 30): eğitim puanı düşer, dışarıdan ders ücreti artar.` : ''}
+              </div>
+              <div class="dept-talep-uyari ob-not ob-not--uyari kont-uyari"${talepAsimi ? '' : ' hidden'}>
+                ${talepAsimi ? 'Beklenen başvurunun üstündeki kontenjan dolmaz; harcı düşürmek, tanıtım ve saygınlık başvuruyu artırır.' : ''}
               </div>
 
               ${inputCols}
@@ -4702,7 +4713,7 @@ export function renderQuotaModal(state, onConfirm, secenek = {}) {
 
       <!-- Toplam kontenjan uyarısı -->
       <div id="quota-total-warning" class="ob-not ob-not--kritik" hidden>
-        Toplam yeni alım öğrenci kapasitesini aşıyor; kontenjanları düşürmeniz önerilir.
+        Toplam yeni alım, bölümlerin yerinin toplamını (${formatNumber(remainingCapacity)}) aşıyor; yeri aşan kontenjan alınmaz.
       </div>
 
       <div class="onay-dugmeler">
@@ -4746,17 +4757,36 @@ export function renderQuotaModal(state, onConfirm, secenek = {}) {
       netEl.classList.toggle('ob-kritik', !olumlu);
     }
 
-    // Bölüm kapasitesi uyarısı
+    // v0.7: bölümün yeri (kesin sınır), hoca başına öğrenci (öneri) ve vakıfta beklenen başvuru
+    const yer          = bolumYeri[deptId] ?? 0;
+    const bd           = byDept[deptId] || {};
+    const ust          = (bd.year1?.count || 0) + (bd.year2?.count || 0) + (bd.year3?.count || 0);
     const deptFacCount = (state.faculty || []).filter(f => (f.departmentId || f.department) === deptId).length;
     const deptMaxFac   = deptFacCount * 30;
     const capWarnEl    = deptEl.querySelector('.dept-cap-warning');
     if (capWarnEl) {
-      if (deptMaxFac > 0 && total > deptMaxFac) {
-        capWarnEl.hidden = false;
-        capWarnEl.textContent = `Kontenjan (${total}) hoca kapasitesini (${deptMaxFac}) aşıyor.`;
-      } else {
-        capWarnEl.hidden = true;
-      }
+      capWarnEl.hidden = !(total > yer);
+      capWarnEl.textContent = total > yer
+        ? `Kontenjan (${total}) bölümün yerini (${yer}) aşıyor; fazlası alınmaz. Derslik binası yapın ya da bölüme bina atayın.` : '';
+    }
+    const yerRozet = deptEl.querySelector('.kont-yer');
+    if (yerRozet) {
+      yerRozet.classList.toggle('ob-rozet--kritik', total > yer);
+      yerRozet.classList.toggle('ob-rozet--iyi', total <= yer);
+    }
+    const hocaUyari = deptEl.querySelector('.dept-hoca-uyari');
+    if (hocaUyari) {
+      const asim = deptMaxFac > 0 && ust + total > deptMaxFac;
+      hocaUyari.hidden = !asim;
+      hocaUyari.textContent = asim
+        ? `Gelecek yıl hoca başına ${Math.round((ust + total) / Math.max(1, deptFacCount))} öğrenci düşer (öneri en çok 30): eğitim puanı düşer, dışarıdan ders ücreti artar.` : '';
+    }
+    const talepUyari = deptEl.querySelector('.dept-talep-uyari');
+    const basvuru    = isVakif && dept ? vakifBasvuruTahmini(state, dept) : null;
+    if (talepUyari && basvuru) {
+      const asim = uret > basvuru.ucretli || yari > basvuru.yariBurslu || tam > basvuru.tamBurslu;
+      talepUyari.hidden = !asim;
+      talepUyari.textContent = asim ? 'Beklenen başvurunun üstündeki kontenjan dolmaz; harcı düşürmek, tanıtım ve saygınlık başvuruyu artırır.' : '';
     }
 
     // Toplam kapasite uyarısı
@@ -5808,10 +5838,11 @@ function _showDepartmentAssignModal(state, building, onDecision) {
 // ─────────────────────────────────────────────────────────────────────────────
 
 /**
- * Bütçe sekmesi: özet göstergeler, gelir/gider tablosu, bütçe dağılımı (pasta ve kaydırıcılar),
- * harç ayarı, banka kredileri ve yeni kredi formu (v0.6.1: ortak bileşenler).
+ * Bütçe sekmesi: özet göstergeler, gelir/gider tablosu, harcama kararları (v0.7: eski bütçe
+ * dağılımı yerine), harç ayarı, devlet kısıtları (v0.7), banka kredileri ve yeni kredi formu.
  * @param {object}   state           — Oyun durumu
- * @param {Function} onAllocChange   — Bütçe dağılımı değişim callback (allocation alır)
+ * @param {Function} onAllocChange   — Bütçe kararı işleyicisi (v0.7: karar nesnesi alır, sonucu döner:
+ *                                     'research_budget', 'set_harcama', 'kadro_talebi')
  * @param {Function} onLoanAction    — Kredi kararı ({ type: 'take_loan' | 'repay_loan_early', ... })
  * @param {Function} onTuitionChange — Harç değişimi
  * @param {Function} onAidChange     — Burs indirimi oranı değişimi (ABD özel üniversitesi)
@@ -5821,15 +5852,15 @@ export function renderBudgetPanel(state, onAllocChange, onLoanAction, onTuitionC
   if (!panel) return;
 
   const uni    = state.university || {};
-  const alloc  = uni.budgetAllocation || {};
   const budget = uni.budget ?? 0;
 
   // Bütçe sayfası, dönem özetindeki gerçek ekonomi hesabıyla aynı kaynağı kullanır
-  const incomeDetail  = calculateIncome(state);
-  const expenseDetail = calculateExpenses(state);
+  // (v0.7: zorluk çarpanları da uygulanır; dönem sonunda kasaya yazılan tutarlar)
+  const { incomeDetail, expenseDetail } = _zorlukluGelirGider(state);
   const revenue = incomeDetail.total || 0;
   const costs   = expenseDetail.total || 0;
   const net     = revenue - costs;
+  const tipDevlet = (state.meta?.universityType || uni.type) === 'devlet';
 
   // Kredi borcu: aşağıdaki kredi tablosuyla aynı kaynak (kalan anaparaların toplamı).
   // uni.debt yalnız kasa eksiye düştüğünde dolar; o ayrıca "kasa açığı" olarak yazılır.
@@ -5841,16 +5872,6 @@ export function renderBudgetPanel(state, onAllocChange, onLoanAction, onTuitionC
   const borcAltYazi = kasaAcigi > 0
     ? `ayrıca kasa açığı ${formatMoney(kasaAcigi)}`
     : krediler.length > 0 ? `${krediler.length} etkin kredi` : 'etkin kredi yok';
-
-  const allocDefs = [
-    { key: 'faculty',   label: 'Kadro ve maaşlar',    color: '#e94560' },
-    { key: 'research',  label: 'Araştırma fonu',      color: '#9b59b6' },
-    { key: 'students',  label: 'Öğrenci hizmetleri',  color: '#4ecca3' },
-    { key: 'marketing', label: 'Pazarlama',           color: '#f0a500' },
-    { key: 'it',        label: 'BT altyapısı',        color: '#4fa3e0' },
-    { key: 'reserve',   label: 'Acil durum payı',     color: '#888' },
-  ];
-  const dagilimToplami = Math.round(Object.values(alloc).reduce((s, v) => s + v, 0) * 100);
 
   const giderSatiri = (ad, tutar, id = '') =>
     `<tr><td>${ad}</td><td class="n ob-kritik ob-tek"${id ? ` id="${id}"` : ''}>${_eksiPara(tutar)}</td></tr>`;
@@ -5868,34 +5889,41 @@ export function renderBudgetPanel(state, onAllocChange, onLoanAction, onTuitionC
           <tr class="ob-grup"><td colspan="2">Giderler</td></tr>
           ${giderSatiri('Hoca maaşları', expenseDetail.salariesAcademic)}
           ${giderSatiri('Yerleşke bakımı', expenseDetail.maintenance)}
-          ${giderSatiri('İdari harcamalar', (expenseDetail.salariesAdmin || 0) + (expenseDetail.partTime || 0))}
-          ${giderSatiri('Araştırma yatırımı', expenseDetail.researchInvestment, 'budget-research-cost')}
-          ${giderSatiri('Burs ödemeleri', expenseDetail.scholarships, 'budget-scholarship-cost')}
+          ${giderSatiri('İdari harcamalar', (expenseDetail.salariesAdmin || 0) + (expenseDetail.adminOperating || 0) + (expenseDetail.partTime || 0))}
+          ${giderSatiri('Araştırma fonu', expenseDetail.researchInvestment, 'budget-research-cost')}
+          ${giderSatiri('Öğrenci hizmetleri', expenseDetail.studentServices || 0, 'budget-services-cost')}
+          ${giderSatiri('Tanıtım ve uluslararası ilişkiler', expenseDetail.promotion || 0, 'budget-promotion-cost')}
+          ${tipDevlet ? '' : giderSatiri('Burs ödemeleri', expenseDetail.scholarships, 'budget-scholarship-cost')}
           ${giderSatiri('Genel giderler', (expenseDetail.overhead || 0) + (expenseDetail.construction || 0))}
           <tr class="ob-toplam"><td>Toplam gider</td><td class="n ob-kritik ob-tek">${_eksiPara(costs)}</td></tr>
         </tbody>
       </table>
-    </div>`;
+    </div>
+    ${tipDevlet ? '<div class="ob-tablo-dip">Devlette öğrenciler harçsız okur; üniversite burs ödemez.</div>' : ''}`;
 
-  const dagilim = `
-    <div class="ob-kart butce-dagilim">
-      <div class="pie-chart-wrapper">
-        ${createPieChart(allocDefs.map(a => ({
-          label: a.label, value: alloc[a.key] ?? 0, color: a.color
-        })), 100)}
-      </div>
-      ${allocDefs.map(a => `
-        <div class="ob-ayar ob-ayar--satir">
-          <label class="ob-ayar-e" for="alloc-${a.key}">${a.label}</label>
-          <input type="range" class="alloc-slider ob-kaydirici" id="alloc-${a.key}"
-                 data-alloc-key="${a.key}"
-                 min="0" max="60" step="5"
-                 value="${Math.round((alloc[a.key] ?? 0) * 100)}">
-          <div class="ob-ayar-d alloc-value" id="alloc-val-${a.key}">%${Math.round((alloc[a.key] ?? 0) * 100)}</div>
-        </div>
-      `).join('')}
-      <div class="butce-toplam ${dagilimToplami === 100 ? 'ob-iyi' : 'ob-kritik'}" id="alloc-total-label">Toplam: %${dagilimToplami}</div>
-      <button class="btn btn-success" id="btn-apply-alloc">Dağılımı uygula</button>
+  // v0.7: Harcama kararları. Eski "bütçe dağılımı" yüzdeleri hiçbir hesaba girmiyordu;
+  // yerine gidere yazılan ve etkisi burada yazan üç karar geldi.
+  const hk      = harcamaKararlari(state);
+  const HKS     = HARCAMA_KARARLARI;
+  const hocaSay = (state.faculty || []).length;
+  const ogrSay  = state.students?.totalEnrolled || 0;
+  const tipVakif = (state.meta?.universityType || uni.type) === 'vakif';
+  const harcamaAyari = (anahtar, etiket, deger, s) => `
+    <div class="ob-ayar">
+      <label class="ob-ayar-e" for="harcama-${anahtar}">${etiket}</label>
+      <input type="range" class="ob-kaydirici harcama-kaydirici" id="harcama-${anahtar}" data-harcama="${anahtar}"
+             min="${s.enAz}" max="${s.enCok}" step="${s.adim}" value="${deger}">
+      <div class="ob-ayar-d" id="harcama-${anahtar}-deger">${formatMoney(deger)}</div>
+      <div class="ob-aciklama harcama-etki" id="harcama-${anahtar}-etki"></div>
+    </div>`;
+  const harcamalar = `
+    <div class="ob-kart harcama-kart">
+      ${harcamaAyari('arastirmaFonu', 'Araştırma fonu (hoca başına, dönemlik)', hk.arastirmaFonu, HKS.arastirmaFonu)}
+      ${harcamaAyari('ogrenciHizmetleri', 'Öğrenci hizmetleri (öğrenci başına, dönemlik)', hk.ogrenciHizmetleri, HKS.ogrenciHizmetleri)}
+      ${harcamaAyari('tanitim', 'Tanıtım ve uluslararası ilişkiler (dönemlik)', hk.tanitim, HKS.tanitim)}
+      <div class="ob-satir harcama-toplam"><span>Bu kararların dönemlik gideri</span><b class="ob-kritik" id="harcama-toplam">${_eksiPara((expenseDetail.researchFund || 0) + (expenseDetail.studentServices || 0) + (expenseDetail.promotion || 0))}</b></div>
+      <button class="btn btn-success" id="btn-apply-harcama">Harcamaları uygula</button>
+      <div class="ob-aciklama">Tutarlar dönem sonunda gidere yazılır. Eski bütçe dağılımı yüzdeleri hiçbir hesaba girmediği için kaldırıldı: maaşlar kişi başına belirlenir, BT hizmetini İdari Birimler'deki Bilgi Teknolojileri birimi görür, acil durum payı kasanın kendisidir.</div>
     </div>`;
 
   const harcAyari = (uni.type === 'vakif' || uni.type === 'us_private') ? `
@@ -5924,16 +5952,48 @@ export function renderBudgetPanel(state, onAllocChange, onLoanAction, onTuitionC
       </div>
     </section>` : '';
 
-  const devletBilgisi = uni.type === 'devlet' ? `
-    <div class="ob-not">
-      <div class="ob-not-baslik">Devlet üniversitesi</div>
-      <ul>
-        <li>Harç yok; sembolik katkı payını YÖK belirler.</li>
-        <li>Ana gelir <b>YÖK bütçe tahsisi</b>.</li>
-        <li>Yeni kadro pozisyonu için hükümet onayı gerekir (2 dönem).</li>
-        <li>Yıl sonu bütçe fazlası Hazine'ye döner.</li>
-      </ul>
-    </div>` : '';
+  // v0.7: devlet kısıtları uygulanıyor; önceden ve açıkça burada gösterilir
+  // (eskiden bu notta yazılıydı ama hiçbir hesap okumuyordu)
+  const kd = tipDevlet ? kadroDurumu(state) : null;
+  const mg = tipDevlet ? maasGelirDurumu(state) : null;
+  const hz = tipDevlet ? hazineIadesiTahmini(state) : null;
+  let devletBilgisi = '';
+  if (kd && mg && hz) {
+    const bekleyen   = kd.bekleyen[0];
+    const turSimdi   = state.meta?.turn ?? 1;
+    const kalanDonem = bekleyen ? Math.max(1, (bekleyen.onayDonemi ?? turSimdi) - turSimdi + 1) : 0;
+    const oranYuzde  = Math.round(mg.oran * 100);
+    const sinirYuzde = Math.round(mg.sinir * 100);
+    const oranKademe = mg.oran > mg.sinir ? 'kritik' : mg.oran > mg.sinir * 0.9 ? 'uyari' : 'iyi';
+    const devreden   = Math.max(0, Number(uni.devredenBirikim) || 0);
+    devletBilgisi = `
+      <section class="ob-bolum">
+        <div class="section-title"><i class="ikon ikon--kadro" aria-hidden="true"></i>Devlet kısıtları</div>
+        <div class="ob-kart devlet-kisit">
+          <div class="ob-kart-baslik"><span>Norm kadro</span></div>
+          <div class="ob-satir"><span>Dolu / norm kadro</span><b>${formatNumber(kd.dolu)} / ${formatNumber(kd.norm)}</b></div>
+          <div class="ob-satir"><span>Boş kadro</span><b class="${kd.bos > 0 ? 'ob-iyi' : 'ob-kritik'}" id="kadro-bos">${formatNumber(kd.bos)}</b></div>
+          ${bekleyen ? `<div class="ob-satir"><span>Onay bekleyen talep</span><b>${bekleyen.adet} kadro, ${kalanDonem} dönem sonra</b></div>` : ''}
+          <div class="ob-ayar ob-ayar--satir kadro-talep">
+            <label class="ob-ayar-e" for="kadro-talep-adet">Yeni kadro talebi</label>
+            <input type="number" class="ob-arama kadro-talep-adet" id="kadro-talep-adet" min="1" max="${kd.talepEnCok}"
+                   value="${kd.talepEnCok}"${bekleyen ? ' disabled' : ''}>
+            <button class="btn btn-primary btn-sm" id="btn-kadro-talep"${bekleyen ? ' disabled title="Onay bekleyen talep var"' : ''}>Talep et</button>
+          </div>
+          <div class="ob-aciklama">Öğretim elemanı yalnız boş kadroya alınır (ilan, transfer ve ilan dışı başvuru). Bir talepte en çok ${kd.talepEnCok} kadro istenir, onay ${kd.bekleme} dönem sürer; yeni bölüm açılınca kurucu kadro ayrıca verilir.</div>
+
+          <div class="ob-kart-baslik"><span>Maaş sınırı</span></div>
+          <div class="ob-satir"><span>Hoca maaşları / dönem geliri</span><b class="ob-${oranKademe}" id="maas-gelir-orani">%${oranYuzde} (sınır %${sinirYuzde})</b></div>
+          <div class="ob-cubuk ob-cubuk--${oranKademe}"><span style="width:${Math.max(0, Math.min(100, oranYuzde / Math.max(1, sinirYuzde) * 100))}%"></span></div>
+          <div class="ob-aciklama">Maaşların dönem gelirinin %${sinirYuzde}'ını aşmasına yol açacak işe alım, zam ve kadro talebi yapılamaz.</div>
+
+          <div class="ob-kart-baslik"><span>Yıl sonu Hazine iadesi</span></div>
+          <div class="ob-satir"><span>Bahar sonunda Hazine'ye dönecek (tahmini)</span><b class="${hz.iade > 0 ? 'ob-kritik' : 'ob-iyi'}" id="hazine-iadesi">${hz.iade > 0 ? _eksiPara(hz.iade) : 'yok'}</b></div>
+          <div class="ob-aciklama">Bahar dönemi kapanırken kasada bir dönemlik gideri (${formatMoney(hz.gider)}) ve kredi borcunu aşan para Hazine'ye döner. Tahmin, yılın kalan ${hz.kalanDonem === 1 ? 'dönemi' : 'iki dönemi'} bugünkü gelir ve giderle geçerse kasanın ${formatMoney(hz.yilSonuKasa)} olacağını varsayar.${devreden > 0 ? ` Önceki sürümden devreden ${formatMoney(devreden)} iadeden muaftır; harcadıkça azalır.` : ''}</div>
+          <div class="ob-aciklama">Harç yok; sembolik katkı payını YÖK belirler. YÖK tahsisi taban ödenek, öğrenci, kadro ve açık bölüm sayısından oluşur.</div>
+        </div>
+      </section>`;
+  }
 
   const krediTablosu = krediler.length === 0
     ? '<div class="ob-bos ob-bos--kucuk">Etkin kredi yok.</div>'
@@ -6029,6 +6089,14 @@ export function renderBudgetPanel(state, onAllocChange, onLoanAction, onTuitionC
         ${_obKutu('Net', `${net >= 0 ? '+' : ''}${formatMoney(net)}`, net >= 0 ? 'artı bakiye' : 'açık', net >= 0 ? 'ob-iyi' : 'ob-kritik')}
         ${_obKutu('Kredi borcu', formatMoney(krediBorcu), borcAltYazi, krediBorcu > 0 ? 'ob-kritik' : '')}
       </div>
+      ${budget < -30_000_000 ? `
+      <div class="ob-not ob-not--kritik">
+        <div class="ob-not-baslik">Derin kasa açığı</div>
+        <p>${tipDevlet
+          ? 'Kasa açığı 30 M ₺ sınırını aştı: YÖK denetimi sürüyor, yeni işe alım ve inşaat donduruldu.'
+          : `Kasa açığı 30 M ₺ sınırını aştı (${(state._internal?.consecutiveDeficitTurns || 0)}. dönem). Açık 3 dönem üst üste sürerse vakıf üniversitesi kapanır; yeni işe alım ve inşaat donduruldu.`}
+          Kredi çekmek ya da harcama kararlarını azaltmak açığı kapatır.</p>
+      </div>` : ''}
 
       <div class="ob-iki">
         <section class="ob-bolum">
@@ -6038,8 +6106,8 @@ export function renderBudgetPanel(state, onAllocChange, onLoanAction, onTuitionC
 
         <div class="ob-yigin">
           <section class="ob-bolum">
-            <div class="section-title"><i class="ikon ikon--kasa" aria-hidden="true"></i>Bütçe dağılımı</div>
-            ${dagilim}
+            <div class="section-title"><i class="ikon ikon--kasa" aria-hidden="true"></i>Harcama kararları</div>
+            ${harcamalar}
           </section>
           ${harcAyari}
           ${devletBilgisi}
@@ -6056,35 +6124,65 @@ export function renderBudgetPanel(state, onAllocChange, onLoanAction, onTuitionC
     </div>
   `;
 
-  // Dağılım slider'ları
-  qsa('.alloc-slider').forEach(s => {
-    on(s, 'input', () => {
-      const valEl = el(`alloc-val-${s.dataset.allocKey}`);
-      if (valEl) valEl.textContent = `%${s.value}`;
-
-      // Toplam güncelle
-      const total = qsa('.alloc-slider').reduce((sum, sl) => sum + parseInt(sl.value), 0);
-      const totalLabel = el('alloc-total-label');
-      if (totalLabel) {
-        totalLabel.textContent = `Toplam: %${total}`;
-        totalLabel.classList.toggle('ob-iyi', total === 100);
-        totalLabel.classList.toggle('ob-kritik', total !== 100);
-      }
+  // v0.7: Harcama kararları. Kaydırıcı her oynadığında tutar, gider ve etki yazılır;
+  // "Harcamaları uygula" kararları oyun motoruna gönderir (onAllocChange: karar işleyicisi).
+  const ir = Number(uni.internationalRatio) || 0.02;
+  const yuzdeYaz = (x) => `%${ondalikYaz(Math.round(x * 1000) / 10, 1)}`;
+  const harcamaEtkisi = (anahtar, v) => {
+    if (anahtar === 'arastirmaFonu') {
+      const c  = arastirmaFonuCarpani(v);
+      const c0 = arastirmaFonuCarpani(HKS.arastirmaFonu.varsayilan);
+      const mutluluk = Math.abs(c - c0) < 0.01 ? 'hoca mutluluğuna etkisi yok'
+        : c > c0 ? 'hoca mutluluğu her dönem artar' : 'hoca mutluluğu her dönem düşer';
+      return {
+        gider: v * hocaSay,
+        metin: `${formatNumber(hocaSay)} hoca × ${formatMoney(v)} = ${formatMoney(v * hocaSay)}/dönem. Yayın ve dış proje başvurusu ×${ondalikYaz(Math.round(c * 100) / 100, 2)}; ${mutluluk}.`,
+      };
+    }
+    if (anahtar === 'ogrenciHizmetleri') {
+      return {
+        gider: v * ogrSay,
+        metin: `${formatNumber(ogrSay)} öğrenci × ${formatMoney(v)} = ${formatMoney(v * ogrSay)}/dönem. Öğrenci memnuniyetine +${ondalikYaz(Math.round(ogrenciHizmetiEtkisi(v) * 10) / 10, 1)} puan.`,
+      };
+    }
+    const t = tanitimEtkisi(v);
+    return {
+      gider: v,
+      metin: `Yabancı öğrenci oranı hedefine +${yuzdeYaz(t.yabanci).slice(1)} puan (oran şu an ${yuzdeYaz(ir)}; Uluslararası Ofis birimi en çok 2 puan ekler); aday öğrencilerin YKS sırası iyileşir.${tipVakif ? ` Başvurular +%${Math.round(t.talep * 100)}.` : ''}`,
+    };
+  };
+  const harcamaYenile = () => {
+    let toplam = 0;
+    qsa('.harcama-kaydirici').forEach(sl => {
+      const v = parseInt(sl.value) || 0;
+      const e = harcamaEtkisi(sl.dataset.harcama, v);
+      toplam += e.gider;
+      const d = el(`harcama-${sl.dataset.harcama}-deger`);
+      if (d) d.textContent = formatMoney(v);
+      const m = el(`harcama-${sl.dataset.harcama}-etki`);
+      if (m) m.textContent = e.metin;
     });
+    const t = el('harcama-toplam');
+    if (t) t.textContent = _eksiPara(toplam);
+  };
+  qsa('.harcama-kaydirici').forEach(sl => on(sl, 'input', harcamaYenile));
+  harcamaYenile();
+
+  on(el('btn-apply-harcama'), 'click', () => {
+    const deger = (a) => parseInt(el(`harcama-${a}`)?.value) || 0;
+    if (!onAllocChange) return;
+    const r1 = onAllocChange({ type: 'research_budget', amount: deger('arastirmaFonu') }, { sessiz: true });
+    const r2 = onAllocChange({ type: 'set_harcama', ogrenciHizmetleri: deger('ogrenciHizmetleri'), tanitim: deger('tanitim') });
+    const hata = [r1, r2].find(r => r && r.success === false);
+    showNotification(hata ? (hata.message || 'Harcama kararları uygulanamadı.') : 'Harcama kararları güncellendi; dönem sonunda gidere yazılır.', hata ? 'warning' : 'success');
   });
 
-  on(el('btn-apply-alloc'), 'click', () => {
-    const newAlloc = {};
-    qsa('.alloc-slider').forEach(s => {
-      newAlloc[s.dataset.allocKey] = parseInt(s.value) / 100;
-    });
-    const total = Object.values(newAlloc).reduce((s, v) => s + v, 0);
-    if (Math.abs(total - 1.0) > 0.05) {
-      showNotification(`Dağılımın toplamı %${Math.round(total * 100)}; %100 olmalı.`, 'warning');
-      return;
-    }
-    if (onAllocChange) onAllocChange(newAlloc);
-    showNotification('Bütçe dağılımı güncellendi.', 'success');
+  // v0.7: kadro talebi (devlet)
+  on(el('btn-kadro-talep'), 'click', () => {
+    const adet = parseInt(el('kadro-talep-adet')?.value) || 0;
+    if (!onAllocChange) return;
+    const r = onAllocChange({ type: 'kadro_talebi', adet });
+    showNotification(r?.message || 'Kadro talebi gönderilemedi.', r?.success ? 'success' : 'warning');
   });
 
   // Harç slider
@@ -6561,7 +6659,7 @@ export function renderResearchPanel(state, onResearchBudget, onProjectDecision) 
 
       <div class="ob-kutular">
         ${_obKutu('Toplam yayın', formatNumber(research.publications ?? 0), 'makale')}
-        ${_obKutu('h-indeksi', research.hIndex ?? 0, 'üniversite geneli')}
+        ${_obKutu('h-indeksi', ondalikYaz(research.hIndex ?? 0, 1), 'öğretim üyesi ortalaması')}
         ${_obKutu('Etkin proje', formatNumber(activeProjects.length), 'devam ediyor')}
         ${_obKutu('Tamamlanan', formatNumber(completedProjs.filter(p => p.status === 'completed').length), 'başarılı proje')}
         ${_obKutu('Üniversite payı', formatMoney(uniShareTotal), 'dönemlik genel gider kesintisi', 'ob-iyi')}
@@ -8016,11 +8114,23 @@ function _qualityBar(val) {
  * Kalem adları üniversite tipine göre (devlette harç yok, YÖK tahsisi var).
  * @returns {{ gelirler: {ad, tutar}[], giderler: {ad, tutar}[], gelir: number, gider: number, net: number }}
  */
+/**
+ * v0.7: gelir ve gider ayrıntısı zorluk çarpanlarıyla (dönem sonunda calculateEconomy'nin
+ * kasaya yazacağı tutarlar). Eskiden Bütçe sekmesi ve Genel Bakış çarpansız tutar gösteriyordu.
+ */
+function _zorlukluGelirGider(state) {
+  const d  = DIFFICULTY_SETTINGS[state.meta?.difficulty || 'normal'] || DIFFICULTY_SETTINGS.normal;
+  const gc = d.incomeMultiplier ?? 1;
+  const xc = d.expenseMultiplier ?? 1;
+  const olcekle = (o, c) => Object.fromEntries(Object.entries(o || {}).map(([k, v]) =>
+    [k, (typeof v === 'number' && !k.startsWith('_')) ? Math.round(v * c) : v]));
+  return { incomeDetail: olcekle(calculateIncome(state), gc), expenseDetail: olcekle(calculateExpenses(state), xc) };
+}
+
 function _donemTahmini(state) {
   let gelir = null, gider = null;
   try {
-    gelir = calculateIncome(state);
-    gider = calculateExpenses(state);
+    ({ incomeDetail: gelir, expenseDetail: gider } = _zorlukluGelirGider(state));
   } catch (e) {
     console.warn('[ui] Dönem tahmini hesaplanamadı:', e);
   }
@@ -8043,10 +8153,18 @@ function _donemTahmini(state) {
 
   const giderler = [{ ad: 'Hoca maaşları', tutar: gider?.salariesAcademic || 0 }];
   if ((gider?.scholarships || 0) > 0) giderler.push({ ad: 'Burs ödemeleri', tutar: gider.scholarships });
+  // v0.7: harcama kararları (araştırma fonu, öğrenci hizmetleri, tanıtım) ayrı satırda
+  const kararGideri = (gider?.researchFund || 0) + (gider?.studentServices || 0) + (gider?.promotion || 0);
+  if (kararGideri > 0) giderler.push({ ad: 'Harcama kararları', tutar: kararGideri });
   const anaGider = giderler.reduce((s, k) => s + k.tutar, 0);
   giderler.push({ ad: 'Diğer giderler', tutar: Math.max(0, toplamGider - anaGider) });
 
-  return { gelirler, giderler, gelir: toplamGelir, gider: toplamGider, net: toplamGelir - toplamGider };
+  // v0.7: devlette yıl sonu Hazine iadesi (Bahar sonunda kasada bir dönemlik gideri aşan para)
+  let hazine = null;
+  try { hazine = hazineIadesiTahmini(state); } catch (e) { hazine = null; }
+
+  return { gelirler, giderler, gelir: toplamGelir, gider: toplamGider, net: toplamGelir - toplamGider,
+           hazineIadesi: hazine && hazine.iade > 0 ? hazine.iade : 0 };
 }
 
 /** Bütçe sekmesi — Hoca maaş gideri (akademik, dönemlik) */

@@ -78,48 +78,128 @@ export function calculateEducationScore(state) {
   }
   const graduationRate = totalStudents > 0 ? passingStudents / totalStudents : 0.75;
 
-  const score = (avgTeaching / 100) * sizeMultiplier * graduationRate * 100;
+  // v0.7: akreditasyon eğitim kalitesinin dış kanıtıdır. Açık bölümlerin geçerli
+  // akreditasyonlarından en güçlüsü sayılır (THEQA 0,7, MÜDEK 0,85, ABET 1); bölüm
+  // ortalaması en çok 12 puan ekler. Eskiden akreditasyonun kalıcı etkisi yoktu.
+  const score = (avgTeaching / 100) * sizeMultiplier * graduationRate * 100 + akreditasyonPuani(state);
   return clamp(Math.round(score));
+}
+
+const AKREDITASYON_AGIRLIK = { theqa: 0.7, mudek: 0.85, abet: 1.0 };
+export const AKREDITASYON_TAVAN = 12;
+
+/** v0.7: açık bölümlerin geçerli akreditasyonlarından eğitim puanına katkı (0-12). */
+export function akreditasyonPuani(state) {
+  const acik = (state.departments || []).filter(d => d && d.isOpen !== false);
+  if (acik.length === 0) return 0;
+  const tur = state.meta?.turn ?? 0;
+  const toplam = acik.reduce((s, d) => {
+    let en = 0;
+    for (const [id, a] of Object.entries(d.accreditation || {})) {
+      const gecerli = a && a.status === 'granted' && (a.expiresAt == null || a.expiresAt > tur);
+      if (gecerli) en = Math.max(en, AKREDITASYON_AGIRLIK[id] || 0);
+    }
+    return s + en;
+  }, 0);
+  return AKREDITASYON_TAVAN * toplam / acik.length;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
 // calculateResearchScore — Araştırma bileşeni puanı
 // ─────────────────────────────────────────────────────────────────────────────
 
+// v0.7: araştırma puanının bileşen ölçekleri. Dördü de hoca (öğretim üyesi) başına
+// ölçülür; üniversite büyüdükçe kendiliğinden şişmez. Her bileşen taban değerde 0,
+// tam değerde tavan puanı verir (arası doğrusal). Tabanlar, oyuncu hiçbir şey yapmazken
+// kendiliğinden oluşan düzeyin biraz altında; tam puan fon, altyapı ve kadro kararı ister.
+export const ARASTIRMA_OLCEK = {
+  yayin:  { tavan: 35, taban: 1.0, tam: 5.0  },  // hoca başına yıllık yayın
+  proje:  { tavan: 25, taban: 0.8, tam: 2.4  },  // öğretim üyesi başına etkin proje
+  h:      { tavan: 30, taban: 8,   tam: 20   },  // öğretim üyelerinin ortalama h-indeksi
+  patent: { tavan: 10, taban: 0,   tam: 0.15 },  // öğretim üyesi başına yıllık patent
+  hKisiTavan: 40,                                // tek hocanın ortalamaya katkısı en çok 40 sayılır
+};
+
+/** Bileşen puanı: taban → 0, tam → tavan, arası doğrusal. */
+function _bilesenPuani(deger, o) {
+  return clamp(o.tavan * (deger - o.taban) / (o.tam - o.taban), 0, o.tavan);
+}
+
+/** Öğretim üyeleri (Dr. Öğr. Üyesi, Doçent, Profesör); araştırma görevlileri hariç. */
+function _ogretimUyeleri(state) {
+  return (state.faculty || []).filter(f => f && f.title !== 'argö');
+}
+
 /**
- * Araştırma puanı:
- *   yayın sayısı, aktif proje sayısı, h-indeks ortalaması, patent sayısı
- *   bileşenlerinden ağırlıklı hesaplanır.
+ * v0.7: üniversitenin h-indeksi değeri: öğretim üyelerinin h-indekslerinin ortalaması
+ * (bir kişinin katkısı en çok 40). Hoca başına olduğundan kadro büyüdükçe şişmez;
+ * güçlü araştırmacı almak yükseltir, zayıf kadro sulandırır. Araştırma sekmesindeki
+ * h-indeksi kartı da bu değeri gösterir (game.js research.hIndex'e yazar).
+ */
+export function universiteHIndeksi(state) {
+  const uyeler = _ogretimUyeleri(state);
+  if (uyeler.length === 0) return 0;
+  const toplam = uyeler.reduce((s, f) => s + Math.min(ARASTIRMA_OLCEK.hKisiTavan, Math.max(0, Number(f.hIndex) || 0)), 0);
+  return Math.round(toplam / uyeler.length * 10) / 10;
+}
+
+/**
+ * Araştırma puanı (0-100), v0.7:
+ *   yayın (35): son iki yılın hoca başına yıllık yayın hızı
+ *   proje (25): öğretim üyesi başına etkin araştırma projesi (dış çağrı + BAP)
+ *   h-indeksi (30): öğretim üyelerinin ortalama h-indeksi
+ *   patent (10): son iki yılda öğretim üyesi başına yıllık patent
+ * Eskiden proje bileşeni artık dolmayan research.activeProjects'i, h-indeksi hiç
+ * hesaplanmayan research.hIndex'i sayıyordu (45 puan ulaşılamazdı); yayın ve patent
+ * bileşenleri ise edilgen oyunda bile tavana dayanıyordu.
  *
  * @param {object} state — Oyun durumu
  * @returns {number} 0-100 araştırma puanı
  */
 export function calculateResearchScore(state) {
-  const research = state.research;
-  if (!research) return 0;
+  return arastirmaPuaniAyrintisi(state).toplam;
+}
 
-  // Yayın bileşeni (v0.5.1): toplam yayın değil, son iki yılın hoca başına
-  // yıllık yayın hızı. Toplam sayı birkaç dönemde tavana vuruyordu.
+/** Araştırma puanının bileşenleri (dönem özeti ve sınamalar için). */
+export function arastirmaPuaniAyrintisi(state) {
+  const research = state.research;
+  if (!research) return { yayin: 0, proje: 0, h: 0, patent: 0, toplam: 0 };
+  const O = ARASTIRMA_OLCEK;
+  const hoca = Math.max(1, (state.faculty || []).length);
+  const uye  = Math.max(1, _ogretimUyeleri(state).length);
+
+  // Son iki yılın (dört dönem) kaydı; kayıt azsa eldeki en eski kayıt
   const gecmis    = state.stats?.history || [];
   const L         = gecmis.length;
   const eskiKayit = L >= 4 ? gecmis[L - 4] : (L > 0 ? gecmis[0] : null);
-  const eskiYayin = eskiKayit ? (eskiKayit.publications || 0) : 0;
   const donemSay  = L >= 4 ? 4 : Math.max(1, L);
+
+  // Yayın bileşeni: hoca başına yıllık yayın hızı
+  const eskiYayin = eskiKayit ? (eskiKayit.publications || 0) : 0;
   const yillik    = Math.max(0, (research.publications || 0) - eskiYayin) / donemSay * 2;
-  const hiz       = yillik / Math.max(1, (state.faculty || []).length);
-  const pubScore  = clamp(40 * (1 - Math.exp(-hiz / 1.2)), 0, 40);
+  const yayin     = _bilesenPuani(yillik / hoca, O.yayin);
 
-  // Proje bileşeni: aktif proje başına 4 puan (tavan 20)
-  const projCount = (research.activeProjects || []).length;
-  const projScore = clamp(projCount * 4, 0, 20);
+  // Proje bileşeni: öğretim üyesi başına etkin proje
+  const etkin = (research.activeResearchProjects || []).filter(p => !p.status || p.status === 'active').length;
+  const proje = _bilesenPuani(etkin / uye, O.proje);
 
-  // H-indeks bileşeni: h-indeks puanı (tavan 25)
-  const hScore    = clamp((research.hIndex || 0) * 2.5, 0, 25);
+  // h-indeksi bileşeni: öğretim üyelerinin ortalama h-indeksi
+  const hOrt = universiteHIndeksi(state);
+  const h    = _bilesenPuani(hOrt, O.h);
 
-  // Patent bileşeni: patent başına 3 puan (tavan 15)
-  const patScore  = clamp((research.patents || 0) * 3, 0, 15);
+  // Patent bileşeni: son iki yılın patent hızı. Eski kayıtta dönem kaydında patent
+  // yoksa oyun başından bu yana ortalama hız kullanılır.
+  const patentSimdi = research.patents || 0;
+  let patentYillik;
+  if (eskiKayit && Number.isFinite(eskiKayit.patents)) {
+    patentYillik = Math.max(0, patentSimdi - eskiKayit.patents) / donemSay * 2;
+  } else {
+    patentYillik = patentSimdi / Math.max(1, (state.meta?.turn || 1) / 2);
+  }
+  const patent = _bilesenPuani(patentYillik / uye, O.patent);
 
-  return clamp(pubScore + projScore + hScore + patScore);
+  const toplam = clamp(yayin + proje + h + patent);
+  return { yayin, proje, h, patent, toplam, hOrt, etkinProje: etkin, yayinHizi: yillik / hoca };
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -180,10 +260,11 @@ export function calculateSatisfactionScore(state) {
       return tot > 0 ? cohorts.reduce((s, c) => s + c.satisfaction * c.count, 0) / tot : 50;
     })();
 
-  // Hoca mutluluğu: hoca ortalaması
+  // Hoca mutluluğu: hoca ortalaması. v0.7: oyunun güncellediği alan f.happiness;
+  // eskiden hiç yazılmayan f.happinessScore okunuyor, herkes 50 sayılıyordu.
   const faculty       = state.faculty || [];
   const avgFacultyHappy = faculty.length > 0
-    ? faculty.reduce((s, f) => s + (f.happinessScore || 50), 0) / faculty.length
+    ? faculty.reduce((s, f) => s + (Number.isFinite(f.happiness) ? f.happiness : (f.happinessScore || 50)), 0) / faculty.length
     : 50;
 
   return clamp(Math.round(avgStudentSat * 0.70 + avgFacultyHappy * 0.30));
@@ -211,6 +292,15 @@ export function kurumsalTavan(yas) {
 }
 
 /**
+ * v0.7: kalite puanının üst bölgesi. Bileşenlerin ağırlıklı toplamının eşiği aşan kısmı
+ * (1 + çarpan) katıyla sayılır: 45 → 45, 60 → 62, 70 → 76, 80 → 90. Üstün kalite itibara
+ * orantısından fazla yansır. Edilgen oyunun düzeyi (35-45) etkilenmez; v0.6'da dürüst
+ * ölçülen iyi yönetim 70 dolayında kalıp ilk 10'daki rakiplerin (72-85) altında takılıyordu.
+ */
+export const KALITE_UST_ESIK   = 55;
+export const KALITE_UST_CARPAN = 0.4;
+
+/**
  * v0.5.1: üniversitenin o anki kalite puanı (0-100). Saygınlık bu puana her dönem
  * yavaşça yaklaşır (game.js _updatePrestige); kurumsal tavanı aşamaz.
  */
@@ -223,10 +313,9 @@ export function calculateQualityScore(state) {
   const hasConference = state.buildings.some(b => b.type === 'konferans' && b.isCompleted);
   const internationalization = clamp(intlRatio * 500 + (hasConference ? 15 : 0));
   const w = RANKING_WEIGHTS;
-  return clamp(
-    education * w.education + research * w.research + alumni * w.alumni +
-    satisfaction * w.satisfaction + internationalization * w.internationalization
-  );
+  const ham = education * w.education + research * w.research + alumni * w.alumni +
+    satisfaction * w.satisfaction + internationalization * w.internationalization;
+  return clamp(ham + Math.max(0, ham - KALITE_UST_ESIK) * KALITE_UST_CARPAN);
 }
 
 export function calculatePrestige(state) {

@@ -129,12 +129,15 @@ export const UNIVERSITY_MODELS = {
     name:         'Devlet Üniversitesi (Türkiye)',
     tuitionModel: 'free',   // öğrenci ücretten muaf; sadece sembolik katkı payı
     revenueStreams: {
-      // YÖK bütçe tahsisi
+      // YÖK bütçe tahsisi. v0.7: eskiden 50 M ₺ taban ödenek giderlerin iki katını
+      // karşılıyordu, kasa karar vermeden şişiyordu. Tahsis artık kadroya (maaşların
+      // büyük bölümü), öğrenciye ve açık bölüme bağlı; taban küçük.
       yokTahsisi: {
-        base:          50_000_000,   // ₺/dönem temel ödenek
-        perStudent:    15_000,       // ₺/dönem öğrenci başı
-        perFaculty:    80_000,       // ₺/dönem hoca başı
-        researchBonus: 5_000_000,   // araştırma üniversitesi bonusu
+        base:          4_000_000,    // ₺/dönem temel ödenek
+        perStudent:    8_000,        // ₺/dönem öğrenci başı
+        perFaculty:    220_000,      // ₺/dönem öğretim elemanı başı (personel ödeneği)
+        perDept:       1_500_000,    // ₺/dönem açık bölüm başı (bölüm işletme ödeneği)
+        researchBonus: 3_000_000,    // araştırma üniversitesi bonusu
       },
       // Öğrenci katkı payı (tam harç değil, sembolik)
       ogrenciKatkiPayi: {
@@ -187,10 +190,12 @@ export const UNIVERSITY_MODELS = {
         // Her bölüm için tuitionMultiplier × baseTuition × öğrenci sayısı
         // tam_burslu → 0, yari_burslu → %50, ucretli → tam
       },
-      // Vakıf katkısı (endowment benzeri)
+      // Vakıf katkısı (endowment benzeri). v0.7: dönem başına %2 bileşik büyüme 30 yılda
+      // katkıyı 3,3 katına çıkarıyordu; artık büyüme yok, katkı saygınlıkla artar
+      // (economy.js: taban × (0,8 + saygınlık/125)).
       vakifKatkisi: {
-        base:       10_000_000,   // ₺/dönem
-        growthRate: 0.02,         // dönem başı büyüme
+        base:       2_000_000,    // ₺/dönem
+        growthRate: 0,            // dönem başı büyüme
       },
       // Araştırma fonları
       arastirmaFonlari: {
@@ -276,6 +281,33 @@ export const UNIVERSITY_MODELS = {
 
 // USD → TL dönüşüm sabiti (oyun içi sabit kur)
 export const USD_TO_TL = 34;
+
+// ─────────────────────────────────────────────────────────────────────────────
+// v0.7 EKONOMİ: HARCAMA KARARLARI
+// Eskiden Bütçe Dağılımı'nın altı yüzde kaydırıcısı hiçbir hesaba girmiyordu. Yerine
+// her biri gidere yazılan, etkisi Bütçe sekmesinde yazan üç harcama kararı geldi
+// (formüller economy.js'te). "Kadro ve maaşlar" (maaş kişi başına belirlenir),
+// "BT altyapısı" (İdari Birimler'deki Bilgi Teknolojileri birimi aynı işi görür) ve
+// "Acil durum payı" (kasanın kendisi) kaldırıldı.
+// ─────────────────────────────────────────────────────────────────────────────
+
+export const HARCAMA_KARARLARI = {
+  // Hoca başına dönemlik araştırma fonu (state.researchBudgetPerFaculty); bütün hocalar için ödenir
+  arastirmaFonu:     { enAz: 0, enCok: 500_000,    adim: 10_000,  varsayilan: 50_000 },
+  // Öğrenci başına dönemlik öğrenci hizmetleri (danışmanlık, etkinlik, kariyer, sağlık)
+  ogrenciHizmetleri: { enAz: 0, enCok: 6_000,      adim: 250,     varsayilan: 0 },
+  // Dönemlik tanıtım ve uluslararası ilişkiler harcaması
+  tanitim:           { enAz: 0, enCok: 10_000_000, adim: 250_000, varsayilan: 0 },
+};
+
+// v0.7: devlet üniversitesi kadro sistemi (UNIVERSITY_MODELS.devlet.constraints ile birlikte)
+export const DEVLET_KADRO = {
+  baslangicBosOrani: 0.10,  // oyun başında dolu kadronun %10'u kadar boş (onaylı) kadro
+  baslangicEnAzBos:  2,
+  talepEnAz:         3,     // bir talepte istenebilecek en çok kadro: en az 3,
+  talepOrani:        0.15,  // ya da kadronun %15'i
+  yeniBolumKadrosu:  true,  // YÖK'ün onayladığı yeni bölüm kurucu kadrosu kadar norm kadro getirir
+};
 
 // ─────────────────────────────────────────────────────────────────────────────
 // BÖLÜMLER

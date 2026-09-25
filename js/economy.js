@@ -17,6 +17,8 @@ import {
   TUITION_MULTIPLIER_FEN,
   TUITION_MULTIPLIER_SOS,
   DIFFICULTY_SETTINGS,
+  HARCAMA_KARARLARI,
+  DEVLET_KADRO,
 } from './data.js?v=0.6.1';
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -50,7 +52,8 @@ const INDUSTRY_TIE_PER_POINT        = 50_000;       // sektör bağlantı puanı
 
 // Maaşlar
 const ADMIN_SALARY_RATIO            = 0.25;         // idari maaş = akademik toplam maaş × oran
-const PART_TIME_COST_PER_COURSE     = 15_000;       // yarı zamanlı ders başı ücret (₺/dönem)
+const PART_TIME_COST_PER_COURSE     = 75_000;       // yarı zamanlı ek şube ders ücreti (₺/dönem; v0.7: 15.000'den, dışarıdan ders ücretiyle aynı)
+const DIS_DERS_UCRETI               = 75_000;       // v0.7: hocasız ders başına dışarıdan öğretim görevlisi (₺/dönem)
 
 // Bina bakım
 const MAINTENANCE_QUALITY_SCALE     = 0.5;          // kalite düşükse bakım artar
@@ -61,7 +64,7 @@ const SCHOLARSHIP_AMOUNT_NEED       = 20_000;       // ihtiyaç bursu (₺/döne
 const SCHOLARSHIP_AMOUNT_MIXED      = 25_000;       // karma burs (₺/dönem)
 
 // Genel giderler (öğrenci başı)
-const OVERHEAD_PER_STUDENT          = 3_500;        // ₺/dönem enerji+su+temizlik vb.
+const OVERHEAD_PER_STUDENT          = 5_000;        // ₺/dönem enerji+su+temizlik vb. (v0.7: 3.500'den)
 const OVERHEAD_FIXED                = 1_500_000;    // sabit genel gider (₺/dönem)
 
 // Borç faiz oranları
@@ -90,6 +93,51 @@ const TUITION_REFERENCE_VAKIF       = 65_000;       // ₺ — referans harç tu
 function safeNum(val) {
   const n = Number(val);
   return (isFinite(n) && !isNaN(n)) ? n : 0;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// v0.7: HARCAMA KARARLARININ ETKİLERİ (Bütçe sekmesi aynı formülleri gösterir)
+// ─────────────────────────────────────────────────────────────────────────────
+
+const BINA_DUZEY_BAKIM_ARTISI = 0.25;   // her düzey m² başına bakımı %25 artırır
+
+/**
+ * Hoca başı araştırma fonunun yayın olasılığı ve dış proje başvurusu çarpanı.
+ * Azalan getirili: 0 ₺ → 0,85; 50.000 ₺ → 0,99; 150.000 ₺ → 1,17; 500.000 ₺ → 1,33.
+ * @param {number} fon  hoca başına dönemlik fon (₺)
+ */
+export function arastirmaFonuCarpani(fon) {
+  const f = Math.max(0, safeNum(fon));
+  return 0.85 + 0.5 * (1 - Math.exp(-f / 150_000));
+}
+
+/**
+ * Öğrenci başı hizmet harcamasının öğrenci memnuniyetine katkısı (puan, en çok ~10).
+ * 1.000 ₺ → 3,3; 2.000 ₺ → 5,5; 4.000 ₺ → 8,0.
+ */
+export function ogrenciHizmetiEtkisi(duzey) {
+  const x = Math.max(0, safeNum(duzey));
+  return 10 * (1 - Math.exp(-x / 2_500));
+}
+
+/**
+ * Dönemlik tanıtım harcamasının etkisi.
+ *  - yabanci: yabancı öğrenci oranı hedefine eklenen pay (en çok 0,10; 4 M ₺ → 0,063)
+ *  - talep:   vakıfta ücretli ve burslu başvurulara çarpan artışı (en çok %50; 4 M ₺ → %32)
+ */
+export function tanitimEtkisi(tutar) {
+  const e = 1 - Math.exp(-Math.max(0, safeNum(tutar)) / 4_000_000);
+  return { yabanci: 0.10 * e, talep: 0.5 * e };
+}
+
+/** Oyuncunun harcama kararları (eski kayıtta yoksa varsayılanlar). */
+export function harcamaKararlari(state) {
+  const h = state?.university?.harcama || {};
+  return {
+    arastirmaFonu:     Math.max(0, safeNum(state?.researchBudgetPerFaculty ?? HARCAMA_KARARLARI.arastirmaFonu.varsayilan)),
+    ogrenciHizmetleri: Math.max(0, safeNum(h.ogrenciHizmetleri ?? HARCAMA_KARARLARI.ogrenciHizmetleri.varsayilan)),
+    tanitim:           Math.max(0, safeNum(h.tanitim ?? HARCAMA_KARARLARI.tanitim.varsayilan)),
+  };
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -210,11 +258,12 @@ export function calculateIncome(state) {
   let stateGrant = 0;
 
   if (uniType === 'devlet') {
-    // YÖK bütçe tahsisi: baz + öğrenci başı + hoca başı
+    // YÖK bütçe tahsisi: baz + öğrenci başı + kadro (hoca) başı + açık bölüm başı (v0.7)
     const yokCfg    = uniModel.revenueStreams.yokTahsisi;
     stateGrant = safeNum(yokCfg.base)
       + safeNum(state.students?.totalEnrolled) * safeNum(yokCfg.perStudent)
-      + safeNum(state.faculty?.length)         * safeNum(yokCfg.perFaculty);
+      + safeNum(state.faculty?.length)         * safeNum(yokCfg.perFaculty)
+      + openDeptCount                          * safeNum(yokCfg.perDept);
 
     // Araştırma üniversitesi bonusu
     const isResearchUni = safeNum(state.research?.publications) > 50
@@ -228,12 +277,13 @@ export function calculateIncome(state) {
     stateGrant    = endSize * safeNum(endCfg.returnRate) / 2;
 
   } else if (uniType === 'vakif') {
-    // Vakıf katkısı (dönemlik)
+    // Vakıf katkısı (dönemlik). v0.7: bileşik büyüme yerine saygınlıkla artar:
+    // saygınlık 15 → tabanın 0,92'si, 50 → 1,2'si, 75 → 1,4'ü
     const vkCfg    = uniModel.revenueStreams.vakifKatkisi;
     const turn     = safeNum(state.meta?.turn ?? 1);
     const base     = safeNum(vkCfg.base);
     const growth   = safeNum(vkCfg.growthRate);
-    stateGrant     = base * Math.pow(1 + growth, Math.floor(turn / 2));
+    stateGrant     = base * Math.pow(1 + growth, Math.floor(turn / 2)) * (0.8 + prestige / 125);
     if (!isFinite(stateGrant)) stateGrant = base;
   }
 
@@ -255,7 +305,8 @@ export function calculateIncome(state) {
   let projectOverhead = 0;
   const uniOverheadRate = safeNum(state.universitySettings?.overheadRate ?? 0.15);
   (state.research.activeResearchProjects || []).forEach(project => {
-    if (project.status === 'active') {
+    // v0.7: BAP üniversitenin kendi fonudur; kendine genel gider kesintisi ödemez
+    if (project.status === 'active' && project.callType !== 'BAP') {
       const semesterFunding = safeNum(project.requestedFunding || project.funding || 0)
         / Math.max(1, safeNum(project.duration || 4));
       // Proje türüne özgü overhead oranı varsa onu kullan, yoksa üniversite ayarını kullan
@@ -335,9 +386,11 @@ export function calculateIncome(state) {
 
   // ── 7. PATENT LİSANS GELİRİ (TR modelleri) ──────────────────────────────────
   // ABD modeli techLicensing'i döner sermayeye dahil ettik; TR için ayrı
+  // v0.7: lisansı süren (etkin) patentler; eski kayıtta alan yoksa toplam patent
+  const etkinPatent = Number.isFinite(state.research?.etkinPatent) ? state.research.etkinPatent : safeNum(state.research?.patents);
   const patents = uniType === 'us_private'
     ? 0
-    : safeNum(state.research?.patents) * PATENT_LICENSE_FEE;
+    : etkinPatent * PATENT_LICENSE_FEE;
 
   // ── 8. TTO GELİRİ (sadece görüntüleme — processTTO() bütçeye zaten ekledi) ──
   // TTO geliri processTTO() tarafından doğrudan bütçeye yazılır.
@@ -542,8 +595,10 @@ export function calculateExpenses(state) {
   }
 
   // ── 3. YARI ZAMANLI ÜCRETLER ─────────────────────────────────────────────────
-  // Her açık bölüm için teorik ders sayısı üzerinden tahmin
-  // (faculty.js entegrasyonuna kadar bölüm başı sabit)
+  // Öğrenci sayısı hoca kapasitesini (hoca başına ~30) aşan bölümde ek şube dersleri.
+  // v0.7: ayrıca hocası olmayan her ders (dept.uncoveredCourses) dışarıdan öğretim
+  // görevlisiyle verilir ve dönemlik ücreti ödenir (öğrencisi olan bölümde). Eskiden
+  // hocasız dersin bedeli yoktu; emekliliklerle kadro erirken gider düşüyordu.
   let partTime = 0;
 
   state.departments.forEach(dept => {
@@ -556,6 +611,7 @@ export function calculateExpenses(state) {
     const hoursNeeded       = Math.max(0, studentCount / 30 - deptFacultyCount);   // ~30 öğrenci/hoca
     const coursesNeeded     = Math.ceil(hoursNeeded);
     partTime += coursesNeeded * PART_TIME_COST_PER_COURSE;
+    if (studentCount > 0) partTime += (dept.uncoveredCourses || []).length * DIS_DERS_UCRETI;
   });
 
   // ── 4. ALTYAPI BAKIMI ───────────────────────────────────────────────────────
@@ -587,8 +643,10 @@ export function calculateExpenses(state) {
     // Kalite düşükse bakım artar
     const qualityScore      = safeNum(building.condition || 80);
     const qualityMultiplier = 1 + (1 - qualityScore / 100) * MAINTENANCE_QUALITY_SCALE;
+    // v0.7: yükseltilen bina yalnız büyümez, işletmesi de pahalanır (m² başına düzey başı %25)
+    const duzeyCarpani      = 1 + BINA_DUZEY_BAKIM_ARTISI * Math.max(0, safeNum(building.level || 1) - 1);
 
-    maintenance += semesterMaintenance * qualityMultiplier;
+    maintenance += semesterMaintenance * qualityMultiplier * duzeyCarpani;
   });
 
   // Bina yoksa bile bölüm işletme maliyetlerini ekle
@@ -604,15 +662,20 @@ export function calculateExpenses(state) {
   const scholarships = _calculateNewScholarshipCost(state);
 
   // ── 6. ARAŞTIRMA YATIRIMI ───────────────────────────────────────────────────
-  // Oyuncunun budgetAllocation.research oranına göre tahsis edilen araştırma fonu
-  const researchAllocationRate  = state.university.budgetAllocation.research || 0.20;
-  // Dönem harcanacak araştırma bütçesi (toplam mevcut bütçenin oranı değil, gider kalemine dahil)
-  // Bölümlerin aktif araştırma bütçelerini topla
-  let researchInvestment = 0;
+  // v0.7: hoca başı araştırma fonu gidere yazılır (Araştırma ve Bütçe sekmelerindeki
+  // "hoca sayısı × fon" hesabı). Eskiden ekranda gider gibi görünüp ödenmiyordu.
+  // Bölümlerin eski aktif araştırma bütçeleri (varsa) de eklenir.
+  const kararlar = harcamaKararlari(state);
+  const researchFund = kararlar.arastirmaFonu * safeNum(state.faculty?.length);
+  let researchInvestment = researchFund;
 
   state.departments.forEach(dept => {
     researchInvestment += safeNum(dept.activeResearchBudget);
   });
+
+  // ── 6b. HARCAMA KARARLARI (v0.7) ────────────────────────────────────────────
+  const studentServices = kararlar.ogrenciHizmetleri * safeNum(state.students?.totalEnrolled);
+  const promotion       = kararlar.tanitim;
 
   // ── 7. İNŞAAT GİDERİ ────────────────────────────────────────────────────────
   // Devam eden inşaatların dönem maliyeti: toplam maliyet / inşaat süresi
@@ -640,7 +703,7 @@ export function calculateExpenses(state) {
 
   // ── TOPLAM ──────────────────────────────────────────────────────────────────
   const rawExpTotal = salariesAcademic + salariesAdmin + (adminOperating || 0) + partTime + maintenance
-    + scholarships + researchInvestment + construction + overhead;
+    + scholarships + researchInvestment + construction + overhead + studentServices + promotion;
   const total = isFinite(rawExpTotal) ? rawExpTotal : 0;
 
   return {
@@ -651,6 +714,9 @@ export function calculateExpenses(state) {
     maintenance:        Math.round(maintenance),
     scholarships:       Math.round(scholarships),
     researchInvestment: Math.round(researchInvestment),
+    researchFund:       Math.round(researchFund),       // v0.7: researchInvestment'ın hoca başı fon payı
+    studentServices:    Math.round(studentServices),    // v0.7
+    promotion:          Math.round(promotion),          // v0.7: tanıtım ve uluslararası ilişkiler
     construction:       Math.round(construction),
     overhead:           Math.round(overhead),
     total:              Math.round(total),
@@ -849,6 +915,8 @@ export function getFinancialReport(state, income, expenses, budgetResult) {
     maintenancePct:     ((expenses.maintenance         / expenses.total) * 100).toFixed(1),
     scholarshipsPct:    ((expenses.scholarships        / expenses.total) * 100).toFixed(1),
     researchPct:        ((expenses.researchInvestment  / expenses.total) * 100).toFixed(1),
+    studentServicesPct: (((expenses.studentServices || 0) / expenses.total) * 100).toFixed(1),
+    promotionPct:       (((expenses.promotion || 0)       / expenses.total) * 100).toFixed(1),
     constructionPct:    ((expenses.construction        / expenses.total) * 100).toFixed(1),
     overheadPct:        ((expenses.overhead            / expenses.total) * 100).toFixed(1),
   } : {};
@@ -999,6 +1067,11 @@ function _calculateNewScholarshipCost(state) {
   const byDepartment = state.students?.byDepartment || {};
   let cost = 0;
 
+  // v0.7: devlet üniversitesinde bütün öğrenciler harçsız okur, üniversite burs ödemez
+  // (kontenjan penceresi de böyle yazar). Eskiden eski kayıtlardaki "burslu" sayıları
+  // üzerinden dönemde ~0,9 M ₺ burs gideri görünüyordu.
+  if (uniType === 'devlet') return 0;
+
   state.departments?.forEach(dept => {
     if (!dept.isOpen) return;
     const deptData = byDepartment[dept.id];
@@ -1083,4 +1156,114 @@ export function calculateEconomy(state) {
     report,
     netCashFlow: budget.netCashFlow,
   };
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// v0.7: DEVLET KISITLARI (UNIVERSITY_MODELS.devlet.constraints)
+// Eskiden tanımlı ve ekranda yazılıydı, hiçbir hesap okumuyordu. game.js uygular,
+// Bütçe sekmesi ve Genel Bakış aynı fonksiyonlarla önceden gösterir.
+// ─────────────────────────────────────────────────────────────────────────────
+
+/** Devlet üniversitesiyse kısıtlar, değilse null. */
+export function devletKisitlari(state) {
+  if (state?.meta?.universityType !== 'devlet') return null;
+  return UNIVERSITY_MODELS.devlet.constraints || null;
+}
+
+/**
+ * Bu dönemin zorluk çarpanlı gelir ve gideri (dönem sonunda calculateEconomy'nin
+ * uygulayacağı tutarlar).
+ */
+export function donemGelirGider(state) {
+  const diff  = DIFFICULTY_SETTINGS[state?.meta?.difficulty || 'normal'] || DIFFICULTY_SETTINGS.normal;
+  const gelir = calculateIncome(state);
+  const gider = calculateExpenses(state);
+  const g = safeNum(gelir.total) * safeNum(diff.incomeMultiplier ?? 1);
+  const x = safeNum(gider.total) * safeNum(diff.expenseMultiplier ?? 1);
+  return { gelir: g, gider: x, net: g - x, gelirAyrinti: gelir, giderAyrinti: gider,
+           gelirCarpani: safeNum(diff.incomeMultiplier ?? 1), giderCarpani: safeNum(diff.expenseMultiplier ?? 1) };
+}
+
+/** Kredilerin bir dönemlik taksit toplamı. */
+export function donemTaksiti(state) {
+  return (state?.university?.loans || []).reduce((s, l) => s + safeNum(l.semesterPayment), 0);
+}
+
+/**
+ * maxFacultyBudgetRatio: hoca maaşları dönem gelirinin en çok %60'ı olabilir (devlet).
+ * @param {object} state
+ * @param {number} [ekAylikMaas=0]  işe alınacak hocanın aylık maaşı (öngörü için)
+ * @param {number} [ekHoca=0]       eklenecek hoca sayısı (devlette gelir kadro başı artar)
+ * @returns {null|{ oran, sinir, maas, gelir, bosluk }} bosluk: sınıra kadar kalan dönemlik maaş payı
+ */
+export function maasGelirDurumu(state, ekAylikMaas = 0, ekHoca = 0) {
+  const k = devletKisitlari(state);
+  if (!k || !Number.isFinite(k.maxFacultyBudgetRatio)) return null;
+  const { gelir, gelirCarpani, giderCarpani } = donemGelirGider(state);
+  const yok = UNIVERSITY_MODELS.devlet.revenueStreams.yokTahsisi;
+  const gelirSonra = gelir + safeNum(ekHoca) * safeNum(yok.perFaculty) * gelirCarpani;
+  const maasSimdi = (state.faculty || []).reduce((s, f) => s + safeNum(f.salary), 0) * SEMESTER_MONTHS * giderCarpani;
+  const maas = maasSimdi + safeNum(ekAylikMaas) * SEMESTER_MONTHS * giderCarpani;
+  const sinir = k.maxFacultyBudgetRatio;
+  return {
+    oran:   gelirSonra > 0 ? maas / gelirSonra : 1,
+    sinir,
+    maas,
+    gelir:  gelirSonra,
+    bosluk: gelirSonra * sinir - maas,
+  };
+}
+
+/**
+ * kadroSystem: devlet üniversitesinde öğretim elemanı yalnız onaylı (norm) kadroya alınır.
+ * @returns {null|{ norm, dolu, bos, bekleyen, talepEnCok, bekleme }}
+ */
+export function kadroDurumu(state) {
+  const k = devletKisitlari(state);
+  if (!k || !k.kadroSystem) return null;
+  const kadro = state.university?.kadro || {};
+  const dolu  = (state.faculty || []).length;
+  const norm  = Number.isFinite(kadro.norm) ? kadro.norm : dolu;
+  return {
+    norm,
+    dolu,
+    bos:        Math.max(0, norm - dolu),
+    bekleyen:   Array.isArray(kadro.talepler) ? kadro.talepler : [],
+    talepEnCok: Math.max(DEVLET_KADRO.talepEnAz, Math.ceil(dolu * DEVLET_KADRO.talepOrani)),
+    bekleme:    Math.max(1, safeNum(k.kadroWaitTurns) || 2),
+  };
+}
+
+/**
+ * budgetSurplusLoss: yıl sonunda (Bahar dönemi kapanırken) kasada kalan paranın bir
+ * dönemlik gideri ve kalan kredi borcunu aşan kısmı Hazine'ye döner (devlet).
+ * v0.7 öncesi kayıtlardan devreden birikim (university.devredenBirikim) iadeden
+ * muaftır; harcandıkça azalır.
+ */
+export function hazineDevirSiniri(state, donemGideri) {
+  return Math.max(0, safeNum(donemGideri))
+    + Math.max(0, safeNum(state?.university?.totalDebt))
+    + Math.max(0, safeNum(state?.university?.devredenBirikim));
+}
+
+/** Şu anki kasayla yıl sonu iadesi (devlet değilse 0). */
+export function hazineIadesi(state, donemGideri) {
+  const k = devletKisitlari(state);
+  if (!k || !k.budgetSurplusLoss) return 0;
+  return Math.max(0, safeNum(state.university?.budget) - hazineDevirSiniri(state, donemGideri));
+}
+
+/**
+ * Bütçe sekmesi ve Genel Bakış için yıl sonu iadesi tahmini: yılın kalan dönemleri
+ * bugünkü gelir, gider ve kredi taksitleriyle geçerse Bahar sonunda Hazine'ye dönecek tutar.
+ * @returns {null|{ iade, yilSonuKasa, sinir, kalanDonem, gider }}
+ */
+export function hazineIadesiTahmini(state) {
+  const k = devletKisitlari(state);
+  if (!k || !k.budgetSurplusLoss) return null;
+  const { gider, net } = donemGelirGider(state);
+  const kalanDonem  = state.meta?.semester === 'bahar' ? 1 : 2;
+  const yilSonuKasa = safeNum(state.university?.budget) + kalanDonem * (net - donemTaksiti(state));
+  const sinir       = hazineDevirSiniri(state, gider);
+  return { iade: Math.max(0, yilSonuKasa - sinir), yilSonuKasa, sinir, kalanDonem, gider };
 }
