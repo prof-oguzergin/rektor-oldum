@@ -4,17 +4,17 @@
  * Vanilla JS, framework yok.
  */
 
-import { DEPARTMENTS, DEPARTMENT_CURRICULA, UNIVERSITY_TYPES, UNIVERSITY_MODELS, USD_TO_TL, DIFFICULTY_SETTINGS, BUILDINGS, SEMESTER_MONTHS, FACULTIES, DEPT_TO_FACULTY, SALARY_SCALES, ADMIN_UNITS, ADMIN_TITLES, ADMIN_UNIT_BUILDINGS, ACCREDITATION_BODIES, SCENARIOS, BANKS } from './data.js?v=0.6.1';
-import { DEPARTMENT_FIELDS, getSalaryRange, renderFacultyAvatar, renderFacultyPortrait, calculateOverallRating, getFacultyRatingTrend } from './faculty.js?v=0.6.1';
-import { AVAILABLE_NEW_DEPARTMENTS, getCourseEffectiveDifficulty, getUnitTitles, getUnitTitleSalary, isUnitManagerTitle, calculateCampusUsageSummary, kaliciSayginlikEtkisi, checkAccreditationRequirements } from './game.js?v=0.6.1';
-import { calculateIncome, calculateExpenses, calculateLoanPayment } from './economy.js?v=0.6.1';
+import { DEPARTMENTS, DEPARTMENT_CURRICULA, UNIVERSITY_TYPES, UNIVERSITY_MODELS, USD_TO_TL, DIFFICULTY_SETTINGS, BUILDINGS, SEMESTER_MONTHS, FACULTIES, DEPT_TO_FACULTY, SALARY_SCALES, ADMIN_UNITS, ADMIN_TITLES, ADMIN_UNIT_BUILDINGS, ACCREDITATION_BODIES, SCENARIOS, BANKS } from './data.js?v=0.7.0';
+import { DEPARTMENT_FIELDS, getSalaryRange, renderFacultyAvatar, renderFacultyPortrait, calculateOverallRating, getFacultyRatingTrend } from './faculty.js?v=0.7.0';
+import { AVAILABLE_NEW_DEPARTMENTS, getCourseEffectiveDifficulty, getUnitTitles, getUnitTitleSalary, isUnitManagerTitle, calculateCampusUsageSummary, kaliciSayginlikEtkisi, checkAccreditationRequirements } from './game.js?v=0.7.0';
+import { calculateIncome, calculateExpenses, calculateLoanPayment } from './economy.js?v=0.7.0';
 // v0.7 ekonomi: Bütçe sekmesinin harcama kararları ve devlet kısıtları, kontenjan penceresinin
 // alım yeri ve vakıf başvuru tahmini, Genel Bakış'ın Hazine iadesi tahmini
-import { harcamaKararlari, arastirmaFonuCarpani, ogrenciHizmetiEtkisi, tanitimEtkisi, kadroDurumu, maasGelirDurumu, hazineIadesiTahmini } from './economy.js?v=0.6.1';
-import { bolumAlimYeri, vakifBasvuruTahmini } from './students.js?v=0.6.1';
-import { HARCAMA_KARARLARI } from './data.js?v=0.6.1';
+import { harcamaKararlari, arastirmaFonuCarpani, ogrenciHizmetiEtkisi, tanitimEtkisi, kadroDurumu, maasGelirDurumu, hazineIadesiTahmini } from './economy.js?v=0.7.0';
+import { bolumAlimYeri, vakifBasvuruTahmini } from './students.js?v=0.7.0';
+import { HARCAMA_KARARLARI } from './data.js?v=0.7.0';
 import { renderCampusMap, handleCampusClick, handleCampusHover, clearHover } from './campus-renderer.js?v=0.5.1';
-import { ODAKLAR, KONTENJAN_KURALLARI, POLITIKA_SINIRLARI, KARAR_TURLERI, politikaOku, devirDurumu, yonetimKademesi, donemAdi } from './baskan.js?v=0.6.1';
+import { ODAKLAR, KONTENJAN_KURALLARI, POLITIKA_SINIRLARI, KARAR_TURLERI, politikaOku, devirDurumu, yonetimKademesi, donemAdi } from './baskan.js?v=0.7.0';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // DOM YARDIMCILARI

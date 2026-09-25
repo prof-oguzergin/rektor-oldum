@@ -37,15 +37,15 @@ import {
   HARCAMA_KARARLARI,
   DEVLET_KADRO,
   SALARY_SCALES,
-} from './data.js?v=0.6.1';
+} from './data.js?v=0.7.0';
 
 import {
   calculateEconomy, applyBudget, calculateLoanPayment, processLoanPayments,
   // v0.7 ekonomi: harcama kararlarının etkileri ve devlet kısıtları
   arastirmaFonuCarpani, tanitimEtkisi, harcamaKararlari, devletKisitlari,
   maasGelirDurumu, kadroDurumu, hazineIadesi,
-} from './economy.js?v=0.6.1';
-import { generateInitialFaculty, updateAllFacultyHappiness, generateApplicants, generateFaculty, getSalaryRange, calculateOverallRating, getFacultyRatingTrend } from './faculty.js?v=0.6.1';
+} from './economy.js?v=0.7.0';
+import { generateInitialFaculty, updateAllFacultyHappiness, generateApplicants, generateFaculty, getSalaryRange, calculateOverallRating, getFacultyRatingTrend } from './faculty.js?v=0.7.0';
 import {
   generateInitialStudents,
   getTotalEnrolled,
@@ -63,11 +63,11 @@ import {
   updateCohorts,
   processGraduation,
   processAdmissions,
-} from './students.js?v=0.6.1';
-import { calculatePrestige, calculateQualityScore, kurumsalTavan, updateRivals, updateRankings, universiteHIndeksi } from './ranking.js?v=0.6.1';
-import { calculateIntlPillars, calculateIntlTotalScore, findIntlRank } from './intl_ranking.js?v=0.4.39';
+} from './students.js?v=0.7.0';
+import { calculatePrestige, calculateQualityScore, kurumsalTavan, updateRivals, updateRankings, universiteHIndeksi } from './ranking.js?v=0.7.0';
+import { calculateIntlPillars, calculateIntlTotalScore, findIntlRank } from './intl_ranking.js?v=0.7.0';
 import { THE_2024 } from './intl_rankings_the2024.js?v=0.4.39';
-import { checkForEvents, applyEventEffects } from './events.js?v=0.6.1';
+import { checkForEvents, applyEventEffects } from './events.js?v=0.7.0';
 import {
   initAlumniState,
   processGraduatesForAlumni,
@@ -81,7 +81,7 @@ import {
   secimSayginlikEtkisi,
   RANDOM_EVENTS,
   ACHIEVEMENTS,
-} from './alumni_events_achievements.js?v=0.6.1';
+} from './alumni_events_achievements.js?v=0.7.0';
 
 export { RANDOM_EVENTS, ACHIEVEMENTS, getAchievementStats, organizeAlumniEvent, applyRandomEventChoice, ACCREDITATION_BODIES };
 
@@ -98,7 +98,7 @@ import { initCampusState, ensureCampusLayout, assignBuildingPosition, BUILDING_F
 
 // v0.7: bölüm başkanına devretme. Başkan kararlarını bu dosyanın karar işlevleriyle alır;
 // işlevler baskanDonemi'ne parametre olarak geçer (döngüsel içe aktarma yok).
-import { baskanDonemi, politikaAyarla, politikaTamamla } from './baskan.js?v=0.6.1';
+import { baskanDonemi, politikaAyarla, politikaTamamla } from './baskan.js?v=0.7.0';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // YARDİMCI: Derin kopya (state immutability için)

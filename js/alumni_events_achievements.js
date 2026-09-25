@@ -3,7 +3,7 @@
  * v0.2 — Üç yeni özellik tek modülde.
  */
 
-import { STUDENT_NAME_POOL, SAYGINLIK_OLAY_ETKI, SAYGINLIK_OLAY_SINIR } from './data.js?v=0.6.1';
+import { STUDENT_NAME_POOL, SAYGINLIK_OLAY_ETKI, SAYGINLIK_OLAY_SINIR } from './data.js?v=0.7.0';
 import { CLUB_TYPES } from './clubs.js?v=0.4.24';
 
 // ─────────────────────────────────────────────────────────────────────────────

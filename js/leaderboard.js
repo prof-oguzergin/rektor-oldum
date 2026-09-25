@@ -6,7 +6,7 @@
 
 import { firebaseConfig, APP_CHECK_SITE_KEY } from './firebase-config.js?v=0.4.27';
 import { THE_2024 } from './intl_rankings_the2024.js?v=0.4.39';
-import { calculateIntlPillars, calculateIntlTotalScore, findIntlRank } from './intl_ranking.js?v=0.4.39';
+import { calculateIntlPillars, calculateIntlTotalScore, findIntlRank } from './intl_ranking.js?v=0.7.0';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // TEKİL BAŞLATMA

@@ -8,8 +8,8 @@ console.log('[main] main.js modülü yükleniyor...');
 // IMPORT
 // ─────────────────────────────────────────────────────────────────────────────
 
-import { initGame, nextTurn, getState, setState, applyDecision, assignCourses, applyQuotas, assignDeptHead, reassignFacultyToDept, generateAdminCandidates, hireAdminStaff, upgradeAdminUnit, promoteAdminStaff, fireAdminStaff, updateAdminStaffSalary, assignUnitManager, RANDOM_EVENTS, ACHIEVEMENTS, getAchievementStats, organizeAlumniEvent, applyRandomEventChoice, ACCREDITATION_BODIES, applyForAccreditation, checkAccreditationRequirements, establishTTO, upgradeTTO, acceptDeal, rejectDeal, foundClub, upgradeClub, dissolveClub, CLUB_TYPES, CLUB_CATEGORIES, SPORTS, foundTeam, upgradeTeam, dissolveTeam, setCourseDifficulty, getUnitTitles, getUnitTitleSalary, isUnitManagerTitle, enableFreeMode } from './game.js?v=0.6.1';
-import { ADMIN_TITLES, SCENARIOS } from './data.js?v=0.6.1';
+import { initGame, nextTurn, getState, setState, applyDecision, assignCourses, applyQuotas, assignDeptHead, reassignFacultyToDept, generateAdminCandidates, hireAdminStaff, upgradeAdminUnit, promoteAdminStaff, fireAdminStaff, updateAdminStaffSalary, assignUnitManager, RANDOM_EVENTS, ACHIEVEMENTS, getAchievementStats, organizeAlumniEvent, applyRandomEventChoice, ACCREDITATION_BODIES, applyForAccreditation, checkAccreditationRequirements, establishTTO, upgradeTTO, acceptDeal, rejectDeal, foundClub, upgradeClub, dissolveClub, CLUB_TYPES, CLUB_CATEGORIES, SPORTS, foundTeam, upgradeTeam, dissolveTeam, setCourseDifficulty, getUnitTitles, getUnitTitleSalary, isUnitManagerTitle, enableFreeMode } from './game.js?v=0.7.0';
+import { ADMIN_TITLES, SCENARIOS } from './data.js?v=0.7.0';
 
 import {
   showScreen,
@@ -60,17 +60,17 @@ import {
   hocaAyrintisiHtml,
   el,
   on,
-} from './ui.js?v=0.6.1';
+} from './ui.js?v=0.7.0';
 
-import { CHANGELOG, hasUnseenChanges, setLastSeenVersion } from './changelog.js?v=0.6.1';
+import { CHANGELOG, hasUnseenChanges, setLastSeenVersion } from './changelog.js?v=0.7.0';
 
 import { saveGame, loadGame, autoSave, getSaveSlots, deleteSave, exportSave, importSave, sanitizeForSave } from './save.js?v=0.4.63';
-import { calculateScore, scoreBreakdown, submitScore, getTopScores, initFirebase, isLeaderboardUnavailable, saveLocalScore, getLocalScores } from './leaderboard.js?v=0.4.45';
+import { calculateScore, scoreBreakdown, submitScore, getTopScores, initFirebase, isLeaderboardUnavailable, saveLocalScore, getLocalScores } from './leaderboard.js?v=0.7.0';
 import { showTutorialIfNeeded, replayTutorial } from './tutorial.js?v=0.5.2';
 import { initAudio, playSound, toggleMute, isMuted, startMusic, stopMusic, setMusicVolume, setSFXVolume, getAudioSettings } from './audio.js?v=0.4.24';
 
-import { generateTransferMarket, renderFacultyAvatar, calculateOverallRating } from './faculty.js?v=0.6.1';
-import { resolveDecision } from './events.js?v=0.6.1';
+import { generateTransferMarket, renderFacultyAvatar, calculateOverallRating } from './faculty.js?v=0.7.0';
+import { resolveDecision } from './events.js?v=0.7.0';
 
 // Uluslararası sıralama modülleri
 import { THE_2024 } from './intl_rankings_the2024.js?v=0.4.39';
@@ -80,7 +80,7 @@ import {
   findIntlRank,
   getNeighbors as getIntlNeighbors,
   filterByCountry as filterIntlByCountry,
-} from './intl_ranking.js?v=0.4.39';
+} from './intl_ranking.js?v=0.7.0';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // UYGULAMA DURUMU

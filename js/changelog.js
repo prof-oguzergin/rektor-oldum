@@ -6,6 +6,17 @@
 
 export const CHANGELOG = [
   {
+    version: '0.7.0',
+    date: '2026-09-25',
+    title: 'Başkana devretme ve yeni ekonomi',
+    items: [
+      { type: 'feat', text: 'Bölümleri başkanlarına devredebilirsiniz: odağı, hoca hedefini, alım tavanını ve kontenjan kuralını siz belirlersiniz; başkan ilan verir, hoca alır, kontenjanı koyar ve kararlarını dönem özetine yazar.' },
+      { type: 'balance', text: 'Para artık gerçek bir kısıt. Devlette norm kadro ve kadro talebi, maaşlara %60 sınırı, yıl sonu fazlasının Hazine\'ye dönmesi var; vakıfta uzun süren açık üniversiteyi kapatır. Kayıtlı oyunlardaki birikim korunur.' },
+      { type: 'balance', text: 'Bütçe dağılımı kaydırıcıları kalktı; yerine hoca başı araştırma fonu, öğrenci hizmetleri ve tanıtım harcamaları geldi. Etkileri Bütçe sekmesinde yazıyor.' },
+      { type: 'balance', text: 'Araştırma puanı gerçek projelere ve hocaların h-indeksine bağlandı. İyi yönetilen bir devlet üniversitesi ilk 10\'a yaklaşık 15-18 yılda girebiliyor.' },
+    ],
+  },
+  {
     version: '0.6.1',
     date: '2026-09-24',
     title: 'Tutarlı görünüm',

@@ -22,8 +22,8 @@
  * Başkan ayrılırsa (ya da başka bölüme taşınırsa) bölüm doğrudan yönetime döner.
  */
 
-import { DEPARTMENT_CURRICULA, BUILDINGS } from './data.js?v=0.6.1';
-import { DEPARTMENT_FIELDS, calculateOverallRating, getSalaryScale } from './faculty.js?v=0.6.1';
+import { DEPARTMENT_CURRICULA, BUILDINGS } from './data.js?v=0.7.0';
+import { DEPARTMENT_FIELDS, calculateOverallRating, getSalaryScale } from './faculty.js?v=0.7.0';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // POLİTİKA

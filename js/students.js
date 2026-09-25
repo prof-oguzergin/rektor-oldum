@@ -8,8 +8,8 @@ import {
   STUDENT_NAME_POOL,
   TURNS_PER_YEAR,
   ADMIN_UNITS,
-} from './data.js?v=0.6.1';
-import { calculateTuitionEffect, harcamaKararlari, ogrenciHizmetiEtkisi, tanitimEtkisi } from './economy.js?v=0.6.1';
+} from './data.js?v=0.7.0';
+import { calculateTuitionEffect, harcamaKararlari, ogrenciHizmetiEtkisi, tanitimEtkisi } from './economy.js?v=0.7.0';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // v0.7: ALIM YERİ VE VAKIF BAŞVURU TALEBİ
