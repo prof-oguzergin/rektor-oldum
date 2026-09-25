@@ -87,6 +87,10 @@ export { SPORTS, foundTeam, upgradeTeam, dissolveTeam };
 
 import { initCampusState, ensureCampusLayout, assignBuildingPosition, BUILDING_FOOTPRINTS } from './campus-layout.js?v=0.5.0';
 
+// v0.7: bölüm başkanına devretme. Başkan kararlarını bu dosyanın karar işlevleriyle alır;
+// işlevler baskanDonemi'ne parametre olarak geçer (döngüsel içe aktarma yok).
+import { baskanDonemi, politikaAyarla, politikaTamamla } from './baskan.js?v=0.6.1';
+
 // ─────────────────────────────────────────────────────────────────────────────
 // YARDİMCI: Derin kopya (state immutability için)
 // ─────────────────────────────────────────────────────────────────────────────
@@ -4017,6 +4021,9 @@ export function nextTurn() {
     }
   }
 
+  // v0.7: başkana devredilen bölümlerde başkanın dönem sonu kararları (ayrılışlar ve yeniden ders atamasından sonra)
+  baskanDonemi(_state, simResults, { applyDecision, applyQuotas, setCourseDifficulty });
+
   // v0.5.2: kurucu kadro. En az öğretim üyesi sayısına (çoğu bölümde 3) ulaşmamış bölüm
   // yeni öğrenci almaz (students.js processNewEnrollment); oyuncu her dönem açıkça uyarılır.
   {
@@ -5160,6 +5167,8 @@ function migrateState(state) {
     }
     // v0.4.50: Müfredat zorluk geçersiz kılmaları
     if (!dept.curriculumOverrides) dept.curriculumOverrides = {};
+    // v0.7: yönetim politikası (baskan.js); eski kayıtlarda doğrudan yönetim
+    dept.policy = politikaTamamla(dept.policy);
   }
 
   // v0.3 Feature 3: TTO — initTTOState ayrıca çağrılıyor (setState içinde)
@@ -6971,6 +6980,11 @@ export function applyDecision(decision) {
     case 'dissolve_team': {
       const result = dissolveTeam(_state, decision.teamId);
       return result;
+    }
+
+    // ── v0.7: Bölüm Yönetimi (doğrudan / başkana devret, baskan.js) ─────────────
+    case 'set_dept_policy': {
+      return politikaAyarla(_state, decision.deptId, decision.policy);
     }
 
     // ── Bilinmeyen Karar Tipi ─────────────────────────────────────────────────

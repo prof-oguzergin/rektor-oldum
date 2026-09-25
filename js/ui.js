@@ -9,6 +9,7 @@ import { DEPARTMENT_FIELDS, getSalaryRange, renderFacultyAvatar, renderFacultyPo
 import { AVAILABLE_NEW_DEPARTMENTS, getCourseEffectiveDifficulty, getUnitTitles, getUnitTitleSalary, isUnitManagerTitle, calculateCampusUsageSummary, kaliciSayginlikEtkisi, checkAccreditationRequirements } from './game.js?v=0.6.1';
 import { calculateIncome, calculateExpenses, calculateLoanPayment } from './economy.js?v=0.6.1';
 import { renderCampusMap, handleCampusClick, handleCampusHover, clearHover } from './campus-renderer.js?v=0.5.1';
+import { ODAKLAR, KONTENJAN_KURALLARI, POLITIKA_SINIRLARI, KARAR_TURLERI, politikaOku, devirDurumu, yonetimKademesi, donemAdi } from './baskan.js?v=0.6.1';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // DOM YARDIMCILARI
@@ -1651,7 +1652,7 @@ export function renderDepartmentsPanel(state) {
           <div class="bolum-kart-kimlik">
             <button type="button" class="bs-link bs-link--baslik" data-bolum-git="${dept.id}" title="${dept.name}: Bölüm Sayfası">${dept.name}</button>
             <div class="bolum-kart-alt">${deptFaculty.length} hoca · ${dersYuku} ders yükü</div>
-            <div class="ob-dizi">${kapasiteRozeti}${akrRozetleri}</div>
+            <div class="ob-dizi">${_devirRozeti(dept)}${kapasiteRozeti}${akrRozetleri}</div>
           </div>
           <button type="button" class="btn btn-secondary btn-sm bs-git-dugme" data-bolum-git="${dept.id}">Bölüm Sayfası →</button>
         </header>
@@ -2729,6 +2730,13 @@ function _akreditasyonRozeti(dept) {
   return '';
 }
 
+/** v0.7: Bölümler ve Fakülteler listelerinde başkana devredilmiş bölümün rozeti (doğrudan yönetimde boş). */
+function _devirRozeti(dept) {
+  const p = politikaOku(dept);
+  if (p.kip !== 'devret') return '';
+  return `<span class="ob-rozet ob-rozet--bilgi bolum-devir-rozeti" title="Bölüm başkana devredildi; odak ${ODAKLAR[p.odak].ad.toLocaleLowerCase('tr')}, kararlar dönem özetinde">Başkanda</span>`;
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // 2b. FAKÜLTELER PANELİ (Fakülte yapısı + Bölüm başkanı + Kadro tablosu)
 // ─────────────────────────────────────────────────────────────────────────────
@@ -2836,6 +2844,7 @@ export function renderBolumlerPanel(state, onAssignHead, onReassignFaculty) {
             <span>${bolumIkonu(dept.id, 30, dept.icon || '🏛️')}</span>
             <button type="button" class="bs-link bs-link--baslik" data-bolum-git="${dept.id}" title="${dept.name}: Bölüm Sayfası">${dept.name}</button>
             ${_akreditasyonRozeti(dept)}
+            ${_devirRozeti(dept)}
           </div>
           <div class="fak-bolum-sag">
             <div class="fak-ort-puan ${_obKademe(deptAvgRating, 70, 55)}" title="Bölüm hocalarının ortalama genel puanı"><b>${deptAvgRating}</b><span>ort. puan</span></div>
@@ -2998,7 +3007,7 @@ const _BS_LISTE_SINIRI = 10;   // uzun listelerde önce ilk 10 satır, sonra "t�
  * Sayfanın arayüz durumu (oyun durumuna yazılmaz): seçili iç sekme, kadro sıralaması,
  * açılmış listeler ve son çizimin girdileri (iç sekme değişince aynı veriyle yeniden çizmek için).
  */
-const _bs = { bolumId: null, sekme: 'kadro', sirala: null, artan: false, tumu: {}, son: null };
+const _bs = { bolumId: null, sekme: 'kadro', sirala: null, artan: false, tumu: {}, son: null, devirTaslak: false, devirAcik: false };
 
 const _bsHocaBolumu = f => f?.department || f?.departmentId || null;
 const _bsDersSayisi = f => (f?.currentLoad?.assignedCourses || []).length;
@@ -3046,6 +3055,9 @@ function _bsVeri(state, dept) {
     projeler:   (state.research?.activeResearchProjects || []).filter(p => _bsKayitBolumu(p, faculty) === dept.id),
     tur:        state.meta?.turn || 1,
     bahar:      state.meta?.semester === 'bahar',
+    // v0.7: başkana devir (politika, başkan, geçerlilik) ve başkanın son dönem kararları
+    devir:      devirDurumu(state, dept),
+    gunluk:     Array.isArray(dept.baskanGunlugu) ? dept.baskanGunlugu : [],
   };
 }
 
@@ -3058,6 +3070,10 @@ function _bsUyarilar(dept, v) {
   const ekle = (metin, sekme) => u.push({ metin, sekme });
   const akr = dept.accreditation || {};
 
+  // v0.7: devrin başkanı ayrıldıysa bölüm dönem sonunda doğrudan yönetime döner
+  if (v.devir.devredildi && !v.devir.gecerli) {
+    ekle(`Başkana devir sona eriyor: ${v.devir.neden}. Bölüm dönem sonunda doğrudan yönetiminize döner.`, 'kadro');
+  }
   if (v.hocalar.length < v.enAz) {
     ekle(`Öğretim üyesi sayısı en az sayının altında (${v.hocalar.length}/${v.enAz}); bölüm bu sayıya ulaşmadan yeni öğrenci alamaz.`, 'kadro');
   }
@@ -3084,8 +3100,9 @@ function _bsUyarilar(dept, v) {
       ekle(`${kurum.name} akreditasyonunun süresi ${kalan > 0 ? `${kalan} dönem sonra` : 'bu dönem'} doluyor; yenileme şimdi yapılabilir.`, 'akreditasyon');
     }
   }
+  // Devredilmiş bölümün başvurularını başkan dönem sonunda değerlendirir; rektörün işi değil
   const bekleyen = v.basvurular.length + v.spontane.length;
-  if (bekleyen > 0) ekle(`${bekleyen} kadro başvurusu yanıt bekliyor.`, 'kadro');
+  if (bekleyen > 0 && !v.devir.devredildi) ekle(`${bekleyen} kadro başvurusu yanıt bekliyor.`, 'kadro');
   // Müfredattan çok hoca olunca birkaç boşta hoca olağandır; uyarı yalnız boşta kalanlar
   // en az 3 kişi ve kadronun en az %30'u olunca çıkar
   if (v.hocalar.length > 0 && v.mufredat.length > 0 &&
@@ -3166,6 +3183,9 @@ function _bsUst(dept, v, uyariSayisi) {
     ? `Başkan <b>${_BS_UNVAN[v.bas.title] || ''} ${v.bas.name}</b> (yönetim ${tamPuan(v.bas.stats?.management)}, mutluluk ${tamPuan(v.bas.happiness)})`
     : '<span class="bs-kotu-metin">Başkan atanmamış</span>';
   const akr = dept.accreditation || {};
+  const devirRozeti = !v.devir.devredildi ? ''
+    : v.devir.gecerli ? '<span class="bs-rozet ob-rozet--bilgi">Başkanda</span>'
+    : '<span class="bs-rozet bs-rozet--kotu">Devir sona eriyor</span>';
   return `
     <div class="bs-ust">
       <div class="bs-ikon">${bolumIkonu(dept.id, 50, dept.icon || '🏫')}</div>
@@ -3173,13 +3193,227 @@ function _bsUst(dept, v, uyariSayisi) {
         <h2 class="bs-baslik">${dept.name}</h2>
         <div class="bs-alt">${fakulte ? `${fakulte} · ` : ''}${bas}</div>
         <div class="bs-rozetler">
+          ${devirRozeti}
           ${v.kurumlar.map(([id, kurum]) => _bsAkrRozeti(kurum, akr[id], v.tur)).join('')}
           ${uyariSayisi > 0
             ? `<span class="bs-rozet bs-rozet--kotu">${uyariSayisi} uyarı</span>`
             : '<span class="bs-rozet bs-rozet--iyi">Uyarı yok</span>'}
         </div>
       </div>
+      ${_bsYonetimAnahtari(v)}
     </div>`;
+}
+
+// ── v0.7: Başkana devretme ──────────────────────────────────────────────────
+
+/** Başlıktaki yönetim seçimi: Doğrudan / Başkana devret (ob-anahtar). */
+function _bsYonetimAnahtari(v) {
+  const devir  = v.devir.devredildi;
+  const basYok = !devir && !v.bas;
+  return `
+    <div class="bs-yonetim">
+      <span class="bs-yonetim-e" id="bs-yonetim-e">Yönetim</span>
+      <div class="ob-anahtar" role="group" aria-labelledby="bs-yonetim-e">
+        <button type="button" class="${devir ? '' : 'secili'}" aria-pressed="${!devir}" data-bs-eylem="kip-dogrudan"
+                title="${devir ? 'Bölümü doğrudan yönetiminize alın' : 'Bölümü siz yönetiyorsunuz'}">Doğrudan</button>
+        <button type="button" class="${devir ? 'secili' : ''}${basYok ? ' btn--pasif' : ''}" aria-pressed="${devir}" data-bs-eylem="kip-devret"
+                title="${basYok ? 'Başkansız bölüm devredilemez' : devir ? 'Başkanın yetkilerini görün ve değiştirin' : 'Bölümü başkana devredin'}">Başkana devret</button>
+      </div>
+    </div>`;
+}
+
+/** Dönemlik alım tavanının yazısı: rozet için tam cümle, kaydırıcı için kısa. */
+function _bsTavanYazisi(n, kisa = false) {
+  if (kisa) return n > 0 ? `${n} hoca` : 'almaz';
+  return n > 0 ? `Dönemde en çok ${n} hoca` : 'Hoca almaz';
+}
+
+/** Turun dönem adı: 1. tur 1. Yıl Güz, 2. tur 1. Yıl Bahar (oyun Güz'de başlar). */
+function _bsTurDonemi(tur) {
+  const t = Math.max(1, Number(tur) || 1);
+  return `${Math.ceil(t / 2)}. Yıl ${t % 2 === 1 ? 'Güz' : 'Bahar'}`;
+}
+
+/** Başkanın karar listesi (Bölüm Sayfası ve dönem özeti ortak): tür rozeti, ne yapıldı, neden. */
+function _baskanKararListesi(kararlar = []) {
+  if (!Array.isArray(kararlar) || kararlar.length === 0) return '<p class="ob-aciklama">Bu dönem karar gerekmedi.</p>';
+  return `<ul class="baskan-kararlar">${kararlar.map(k => {
+    const t = KARAR_TURLERI[k.tur] || KARAR_TURLERI.bilgi;
+    return `
+      <li class="baskan-karar baskan-karar--${k.tur}">
+        <span class="ob-rozet ob-rozet--kucuk${t.sinif ? ` ob-rozet--${t.sinif}` : ''}">${t.ad}</span>
+        <div class="baskan-karar-govde"><div>${_escHtml(k.metin || '')}</div>${k.neden ? `<div class="ob-aciklama">Neden: ${_escHtml(k.neden)}</div>` : ''}</div>
+      </li>`;
+  }).join('')}</ul>`;
+}
+
+/** Devredilmiş bölümün son kararları (yalnız şimdiki devrin dönemleri); öncekiler katlanır. */
+function _bsSonKararlar(v) {
+  const baslangic = Number(v.devir.politika.devirTuru) || 0;
+  const gunluk = v.gunluk.filter(k => (Number(k?.tur) || 0) >= baslangic);
+  const son = gunluk[0];
+  if (!son) {
+    return '<p class="ob-aciklama">Başkan ilk kararlarını bu dönemin sonunda verecek; dönem özetinde "Başkanların kararları" bölümünde görünür.</p>';
+  }
+  const onceki = gunluk.slice(1);
+  return `
+    <div class="bs-devir-kararlar">
+      <div class="bs-altbaslik">Son kararlar · ${donemAdi(son)} sonu</div>
+      ${_baskanKararListesi(son.kararlar)}
+      ${onceki.length ? `
+        <details class="bs-devir-onceki">
+          <summary>Önceki dönemler (${onceki.length})</summary>
+          ${onceki.map(k => `<div class="bs-altbaslik">${donemAdi(k)} sonu</div>${_baskanKararListesi(k.kararlar)}`).join('')}
+        </details>` : ''}
+    </div>`;
+}
+
+/** Politika formu: odak, öğrenci/hoca hedefi, dönemlik alım tavanı, kontenjan kuralı ve kısa açıklama. */
+function _bsDevirFormu(p, v, taslak) {
+  const s    = POLITIKA_SINIRLARI;
+  const oran = v.hocalar.length > 0 ? v.ogrenci / v.hocalar.length : null;
+  const secenek = (ad, deger, secili, baslik, aciklama) => `
+    <label class="bs-devir-secenek">
+      <input type="radio" name="${ad}" value="${deger}"${secili ? ' checked' : ''}>
+      <span><b>${baslik}</b><small>${aciklama}</small></span>
+    </label>`;
+  return `
+    <div class="bs-devir-form" data-bs-devir-form>
+      <fieldset class="bs-devir-alan">
+        <legend class="ob-ayar-e">Odak</legend>
+        <div class="bs-devir-secenekler">
+          ${Object.entries(ODAKLAR).map(([id, o]) => secenek('bs-devir-odak', id, p.odak === id, o.ad, o.aciklama)).join('')}
+        </div>
+      </fieldset>
+      <div class="ob-ayar">
+        <label class="ob-ayar-e" for="bs-devir-oran">Öğrenci/hoca hedefi</label>
+        <input type="range" id="bs-devir-oran" class="ob-kaydirici" min="${s.hocaOrani.enAz}" max="${s.hocaOrani.enCok}" step="1"
+               value="${p.hocaOrani}" data-bs-devir-goster="oran">
+        <output class="ob-ayar-d" id="bs-devir-oran-d" for="bs-devir-oran">${p.hocaOrani}</output>
+        <div class="ob-aciklama">Şu an ${oran != null ? ondalikYaz(oran, 1) : '—'} (${formatNumber(v.ogrenci)} öğrenci, ${v.hocalar.length} hoca). Oran hedefi aşınca başkan hoca arar; tasarruf odağında yalnız hocasız ders ve kurucu kadro için arar.</div>
+      </div>
+      <div class="ob-ayar">
+        <label class="ob-ayar-e" for="bs-devir-tavan">Dönemlik alım tavanı</label>
+        <input type="range" id="bs-devir-tavan" class="ob-kaydirici" min="${s.donemlikAlimTavani.enAz}" max="${s.donemlikAlimTavani.enCok}" step="1"
+               value="${p.donemlikAlimTavani}" data-bs-devir-goster="tavan">
+        <output class="ob-ayar-d" id="bs-devir-tavan-d" for="bs-devir-tavan">${_bsTavanYazisi(p.donemlikAlimTavani, true)}</output>
+        <div class="ob-aciklama">Başkan bir dönemde bundan çok hoca almaz; 0 seçilirse hiç almaz.</div>
+      </div>
+      <fieldset class="bs-devir-alan">
+        <legend class="ob-ayar-e">Kontenjan kuralı</legend>
+        <div class="bs-devir-secenekler">
+          ${Object.entries(KONTENJAN_KURALLARI).map(([id, k]) => secenek('bs-devir-kontenjan', id, p.kontenjanKurali === id, k.ad, k.aciklama)).join('')}
+        </div>
+      </fieldset>
+      <div class="ob-not">
+        <div class="ob-not-baslik">Başkan ne yapar</div>
+        <ul>
+          <li>Her dönem sonunda hocasız ders, kurucu kadro eksiği ya da hedefi aşan öğrenci/hoca oranı varsa eşiği geçen başvuruları kabul eder; yetmezse eksik uzmanlık için ilan verir.</li>
+          <li>Bahar başında gelecek yılın kontenjanını kurala göre koyar.</li>
+          <li>Odağa göre bir dersin zorluğunu bir kademe değiştirir.</li>
+          <li>İşten çıkarmaz, bina kurmaz, program açmaz; bunlar sizde kalır.</li>
+        </ul>
+        <p>Yönetim puanı düşük başkan zayıf adayı kabul edebilir. Kararlar dönem özetinde yazar; istediğiniz an doğrudan yönetime dönebilirsiniz.</p>
+      </div>
+      <div class="ob-dugmeler">
+        <button type="button" class="btn btn-primary btn-sm" data-bs-eylem="devir-kaydet">${taslak ? 'Başkana devret' : 'Yetkileri kaydet'}</button>
+        <button type="button" class="btn btn-secondary btn-sm" data-bs-eylem="devir-vazgec">Vazgeç</button>
+      </div>
+    </div>`;
+}
+
+/** Formdaki seçimler (Bölüm Sayfası açıkken). */
+function _bsDevirFormuOku() {
+  const kok = qs('#tab-departments [data-bs-devir-form]');
+  if (!kok) return null;
+  const secili = ad => kok.querySelector(`input[name="${ad}"]:checked`)?.value;
+  return {
+    odak:               secili('bs-devir-odak'),
+    hocaOrani:          Number(kok.querySelector('#bs-devir-oran')?.value),
+    donemlikAlimTavani: Number(kok.querySelector('#bs-devir-tavan')?.value),
+    kontenjanKurali:    secili('bs-devir-kontenjan'),
+  };
+}
+
+/**
+ * Başkana devretme kartı (başlığın altında). Doğrudan yönetimde yalnız "Başkana devret"e basılınca açılır
+ * (taslak form); devredilmiş bölümde başkan, yetkiler ve son kararlar görünür, form "Yetkileri değiştir"
+ * ile açılır. Devrin başkanı ayrıldıysa uyarı ve iki seçenek.
+ */
+function _bsDevirKarti(dept, v) {
+  const d = v.devir;
+  if (!d.devredildi && !_bs.devirTaslak) return '';
+
+  if (!d.devredildi && !v.bas) {
+    return `
+      <section class="ob-kart ob-kart--uyari bs-devir" aria-label="Başkana devret">
+        <div class="ob-kart-baslik"><span>Başkana devret</span></div>
+        <p class="ob-aciklama">Başkansız bölüm devredilemez. Önce bölüme başkan atayın; başkan yalnız Prof. ya da Doç. olabilir.</p>
+        <div class="ob-dugmeler">
+          <button type="button" class="btn btn-primary btn-sm" data-bs-eylem="baskan">Başkan ata</button>
+          <button type="button" class="btn btn-secondary btn-sm" data-bs-eylem="devir-vazgec">Vazgeç</button>
+        </div>
+      </section>`;
+  }
+
+  if (d.devredildi && !d.gecerli) {
+    const yeni = v.bas ? `${_BS_UNVAN[v.bas.title] || ''} ${_escHtml(v.bas.name)}` : null;
+    const neden = String(d.neden || '');
+    return `
+      <section class="ob-kart ob-kart--uyari bs-devir" aria-label="Başkana devir">
+        <div class="ob-kart-baslik"><span>Başkana devir sona eriyor</span></div>
+        <p class="ob-aciklama">${_escHtml(neden.charAt(0).toLocaleUpperCase('tr') + neden.slice(1))}. Bölüm bu dönemin sonunda doğrudan yönetiminize döner.${yeni
+          ? ` Bölümün şimdiki başkanı ${yeni}; devri ona aktarabilirsiniz.` : ' Yeniden devretmek için önce başkan atayın.'}</p>
+        <div class="ob-dugmeler">
+          ${yeni
+            ? '<button type="button" class="btn btn-primary btn-sm" data-bs-eylem="devir-yenile">Yeni başkana devret</button>'
+            : '<button type="button" class="btn btn-primary btn-sm" data-bs-eylem="baskan">Başkan ata</button>'}
+          <button type="button" class="btn btn-secondary btn-sm" data-bs-eylem="kip-dogrudan">Şimdi doğrudan yönetime al</button>
+        </div>
+      </section>`;
+  }
+
+  const p      = d.politika;
+  const bas    = v.bas;
+  const kademe = yonetimKademesi(bas?.stats?.management);
+  const basSatiri = `
+    <div class="ob-kimlik bs-devir-bas">
+      ${renderFacultyPortrait(bas, 40, 'portre--yuvarlak')}
+      <div class="ob-kimlik-govde">
+        <div class="bs-devir-bas-ad">${_BS_UNVAN[bas.title] || ''} ${_escHtml(bas.name)}</div>
+        <div class="ob-kimlik-alt">yönetim ${tamPuan(bas.stats?.management)}/100 · <b class="ob-${kademe.sinif}">${kademe.ad}</b>: ${kademe.aciklama}</div>
+      </div>
+      <button type="button" class="btn btn-secondary btn-sm" data-bs-eylem="baskan">Başkanı değiştir</button>
+    </div>`;
+
+  if (!d.devredildi) {
+    return `
+      <section class="ob-kart bs-devir" aria-label="Başkana devret">
+        <div class="ob-kart-baslik"><span>Başkana devret</span></div>
+        ${basSatiri}
+        ${_bsDevirFormu(p, v, true)}
+      </section>`;
+  }
+
+  return `
+    <section class="ob-kart bs-devir bs-devir--etkin" aria-label="Bölüm başkanda">
+      <div class="ob-kart-baslik"><span>Bölüm başkanda</span>
+        <span class="ob-rozet ob-rozet--bilgi">${_bsTurDonemi(p.devirTuru)} döneminden beri</span></div>
+      ${d.baskanDegisti ? '<div class="ob-not ob-not--uyari">Başkan değişti; devir yeni başkanla sürüyor.</div>' : ''}
+      ${basSatiri}
+      <div class="ob-dizi">
+        <span class="ob-rozet">Odak: ${ODAKLAR[p.odak].ad}</span>
+        <span class="ob-rozet">Öğrenci/hoca hedefi ${p.hocaOrani}</span>
+        <span class="ob-rozet">${_bsTavanYazisi(p.donemlikAlimTavani)}</span>
+        <span class="ob-rozet">Kontenjan: ${KONTENJAN_KURALLARI[p.kontenjanKurali].ad.toLocaleLowerCase('tr')}</span>
+      </div>
+      ${_bsSonKararlar(v)}
+      ${_bs.devirAcik ? _bsDevirFormu(p, v, false) : `
+        <div class="ob-dugmeler ob-dugmeler--alt">
+          <button type="button" class="btn btn-secondary btn-sm" data-bs-eylem="devir-ayarlar">Yetkileri değiştir</button>
+          <button type="button" class="btn btn-warning btn-sm" data-bs-eylem="kip-dogrudan">Doğrudan yönetime dön</button>
+        </div>`}
+    </section>`;
 }
 
 function _bsKutu(etiket, deger, alt, sinif = '') {
@@ -3259,6 +3493,7 @@ function _bsYanKartlar(state, dept, v, butce, binalar) {
         <button type="button" class="bs-dugme" data-bs-sekme="akreditasyon">Akreditasyon</button>
       </div>
       ${v.bahar ? '' : '<div class="bs-not">Kontenjan Bahar döneminde belirlenir.</div>'}
+      ${v.devir.devredildi && v.devir.gecerli ? '<div class="bs-not">Bölüm başkanda: ilan, başvuru kabulü, kontenjan ve ders zorluğunu başkan dönem sonunda kararlaştırır; siz de bu eylemleri istediğiniz an yapabilirsiniz.</div>' : ''}
     </div>
     ${_bs.sekme === 'butce' ? '' : `
     <div class="bs-kart">
@@ -3377,14 +3612,16 @@ function _bsKadro(state, dept, v) {
         ${gosterilen.map(([a, spontane]) => basvuruSatiri(a, spontane)).join('')}
       </div>
       ${_bsTumuDugmesi('basvurular', tumBasvurular.length)}
-      <div class="bs-not">Yanıtlanmayan başvurular 2 dönem sonra geri çekilir.</div>
+      <div class="bs-not">Yanıtlanmayan başvurular 2 dönem sonra geri çekilir.${v.devir.devredildi && v.devir.gecerli
+        ? ' Bölüm başkanda: başvuruları başkan dönem sonunda değerlendirir; siz de şimdi kabul edebilir ya da reddedebilirsiniz.' : ''}</div>
     </div>`;
 
   const ilanlar = v.ilanlar.length === 0 ? '' : `
     <div class="bs-kart">
       <div class="bs-kart-baslik"><span>Açık kadro ilanları (${v.ilanlar.length})</span></div>
       ${v.ilanlar.map(p => `
-        <div class="bs-satir"><span>${_BS_UNVAN[p.title] || p.title} · ${p.allFields ? 'tüm alanlar' : (p.fields?.length ? p.fields.join(', ') : (p.field || ''))}</span>
+        <div class="bs-satir"><span>${_BS_UNVAN[p.title] || p.title} · ${p.allFields ? 'tüm alanlar' : (p.fields?.length ? p.fields.join(', ') : (p.field || ''))}${p.baskan
+          ? ' <span class="bs-rozet ob-rozet--bilgi ob-rozet--kucuk">başkanın ilanı</span>' : ''}</span>
           <b>${formatMoney(p.offeredSalary)}/ay</b></div>`).join('')}
       <div class="bs-not">İlana başvurular dönem sonunda gelir; ilan 2 dönem açık kalır.</div>
     </div>`;
@@ -3454,6 +3691,7 @@ function _bsOgrenciler(state, dept, v) {
       <div class="bs-satir"><span>Şu anki 1. sınıf</span><b>${formatNumber(v.sayilar[0])}</b></div>
       <div class="bs-satir"><span>Bölüm kapasitesi (4 sınıf)</span><b>${v.kapasite > 0 ? `${formatNumber(v.kapasite)} yer` : '—'}</b></div>
       ${v.hocalar.length < v.enAz ? `<div class="bs-not bs-not--uyari">Bölümün en az ${v.enAz} öğretim üyesi olmadıkça kontenjan uygulanmaz, yeni öğrenci alınmaz.</div>` : ''}
+      ${v.devir.devredildi && v.devir.gecerli ? `<div class="bs-not">Bölüm başkanda: gelecek yılın kontenjanını başkan Bahar başında koyar (kural: ${KONTENJAN_KURALLARI[v.devir.politika.kontenjanKurali].ad.toLocaleLowerCase('tr')}). Kontenjan penceresinde değiştirirseniz sizin değeriniz geçerli olur.</div>` : ''}
       <div class="bs-kontenjan">
         ${v.bahar
           ? `<button type="button" class="btn btn-primary btn-sm" data-bs-eylem="kontenjan">Kontenjan penceresini aç</button>
@@ -3727,7 +3965,8 @@ function _bsBaskanPenceresi(state, dept, islemler) {
   const adaylar = (state.faculty || [])
     .filter(f => _bsHocaBolumu(f) === dept.id && (f.title === 'profesor' || f.title === 'docent'))
     .sort((a, b) => (Number(b.stats?.management) || 0) - (Number(a.stats?.management) || 0));
-  const not = 'Başkanın yönetim puanı 75 ve üstündeyse bölümün eğitim kalitesi 5 puan artar, 50\'nin altındaysa 5 puan düşer; başkansız bölüm de 5 puan kaybeder.';
+  const not = 'Başkanın yönetim puanı 75 ve üstündeyse bölümün eğitim kalitesi 5 puan artar, 50\'nin altındaysa 5 puan düşer; başkansız bölüm de 5 puan kaybeder.'
+    + (politikaOku(dept).kip === 'devret' ? ' Bölüm başkanda: başkanı değiştirirseniz devir yeni başkanla sürer; yönetim puanı başkanın kararlarının niteliğini belirler.' : '');
   showModal(`Başkan Ata: ${dept.name}`, adaylar.length === 0 ? `
     <p style="margin:0 0 12px;font-size:13.5px;line-height:1.5;">Bölümde başkan olabilecek Prof. ya da Doç. yok. Kadro ilanında unvanı Doçent ya da Profesör seçerek aday arayabilirsiniz.</p>
     <div class="onay-dugmeler"><button class="btn btn-secondary" id="btn-bs-baskan-kapat" type="button">Kapat</button></div>` : `
@@ -3772,6 +4011,44 @@ function _bsEylem(ad, dugme, state, deptId, islemler) {
     case 'spontane-ret':   islemler.onRejectSpontaneous?.(id); break;
     case 'bap-onay':       islemler.onProjectDecision?.('approve_bap_application', id, {}); break;
     case 'bap-ret':        islemler.onProjectDecision?.('reject_bap_application', id, {}); break;
+    // v0.7: yönetim seçimi ve başkanın yetkileri (karar main.js üzerinden applyDecision 'set_dept_policy')
+    case 'kip-dogrudan':
+      if (politikaOku(dept).kip === 'devret') {
+        _bs.devirTaslak = false;
+        _bs.devirAcik = false;
+        islemler.onSetPolicy?.(deptId, { kip: 'dogrudan' });
+      } else if (_bs.devirTaslak) {
+        _bs.devirTaslak = false;
+        _bsYenidenCiz();
+      }
+      break;
+    case 'kip-devret':
+      if (politikaOku(dept).kip === 'devret') _bs.devirAcik = !_bs.devirAcik;
+      else _bs.devirTaslak = true;
+      _bsYenidenCiz();
+      qs('#tab-departments .bs-devir')?.scrollIntoView?.({ block: 'nearest' });
+      break;
+    case 'devir-ayarlar':
+      _bs.devirAcik = true;
+      _bsYenidenCiz();
+      qs('#tab-departments [data-bs-devir-form]')?.scrollIntoView?.({ block: 'nearest' });
+      break;
+    case 'devir-vazgec':
+      _bs.devirTaslak = false;
+      _bs.devirAcik = false;
+      _bsYenidenCiz();
+      break;
+    case 'devir-kaydet': {
+      const secim = _bsDevirFormuOku();
+      if (!secim) break;
+      _bs.devirTaslak = false;
+      _bs.devirAcik = false;
+      islemler.onSetPolicy?.(deptId, { ...secim, kip: 'devret' });
+      break;
+    }
+    case 'devir-yenile':
+      islemler.onSetPolicy?.(deptId, { kip: 'devret' });
+      break;
     case 'tumu':
       _bs.tumu[dugme.dataset.liste] = !_bs.tumu[dugme.dataset.liste];
       _bsYenidenCiz();
@@ -3837,6 +4114,15 @@ function _bsDinleyicileriKur(panel) {
     e.preventDefault();
     _bs.son.islemler.onFacultyDetail?.(satir.dataset.bsHoca);
   });
+  // v0.7: başkanın yetki formundaki kaydırıcılar sürüklenirken yanındaki değer güncellenir
+  panel.addEventListener('input', (e) => {
+    const kaydirici = e.target.closest?.('[data-bs-devir-goster]');
+    if (!kaydirici) return;
+    const cikti = panel.querySelector(`#${kaydirici.id}-d`);
+    if (!cikti) return;
+    const n = Number(kaydirici.value);
+    cikti.textContent = kaydirici.dataset.bsDevirGoster === 'tavan' ? _bsTavanYazisi(n, true) : String(n);
+  });
 }
 
 /**
@@ -3847,7 +4133,7 @@ function _bsDinleyicileriKur(panel) {
  * @param {object} [islemler]  main.js kararları: onGeri, onOpenPosition(deptId), onTransferMarket(deptId),
  *   onAssignHead(deptId, facId), onReassignFaculty(facId, deptId), onFacultyDetail(facId), onOpenQuota(deptId),
  *   onAccreditation(deptId, bodyId), onAcceptApplicant(id), onRejectApplicant(id), onAcceptSpontaneous(id, deptId),
- *   onRejectSpontaneous(id), onProjectDecision(tur, id, ek)
+ *   onRejectSpontaneous(id), onProjectDecision(tur, id, ek), onSetPolicy(deptId, politika) (v0.7 başkana devretme)
  * @param {object} [secenek]   { icSekme }: açılışta seçilecek iç sekme (kadro, dersler, ogrenciler, arastirma,
  *   yerleske, akreditasyon, butce); verilmezse son seçili sekme kalır
  */
@@ -3860,7 +4146,7 @@ export function renderDeptPage(state, deptId, islemler = {}, secenek = {}) {
     return;
   }
   if (_bs.bolumId !== deptId) {
-    Object.assign(_bs, { bolumId: deptId, sekme: 'kadro', sirala: null, artan: false, tumu: {} });
+    Object.assign(_bs, { bolumId: deptId, sekme: 'kadro', sirala: null, artan: false, tumu: {}, devirTaslak: false, devirAcik: false });
   }
   if (secenek.icSekme && _BS_SEKMELER.some(([id]) => id === secenek.icSekme)) _bs.sekme = secenek.icSekme;
   _bs.son = { state, deptId, islemler };
@@ -3874,6 +4160,7 @@ export function renderDeptPage(state, deptId, islemler = {}, secenek = {}) {
     <div class="bs-sayfa" data-bolum="${dept.id}">
       <button type="button" class="bs-geri" data-bs-eylem="geri">← Bölümler</button>
       ${_bsUst(dept, v, uyarilar.length)}
+      ${_bsDevirKarti(dept, v)}
       ${_bsGostergeler(dept, v)}
       ${_bsDikkat(uyarilar)}
       ${_bsSekmeCubugu(v)}
@@ -7206,7 +7493,8 @@ export function renderTurnSummary(summary, onNextTurn) {
     ${satir('Ortalama memnuniyet', `${tamPuan(stud.avgSatisfaction)}<span class="ob-soluk">/100</span>`)}`);
 
   // Olaylar: yalnız açıklaması olanlar (EfekanSalman Issue #21); yıldız öğrenci olayları ayrı kartta (iki kez görünüyordu)
-  const validEvents = events.filter(ev => !!(ev.description || ev.message || ev.title));
+  // v0.7: başkanların kararları olay listesinde değil, aşağıdaki katlanır bölümde
+  const validEvents = events.filter(ev => ev.type !== 'baskan_kararlari' && !!(ev.description || ev.message || ev.title));
   const olaylarKart = (() => {
     const otherEvents = validEvents.filter(ev => !_YILDIZ_OGRENCI_OLAYLARI.includes(ev.type));
     const starEvents  = otherEvents.filter(ev => ev.type === 'star_faculty_hired');
@@ -7281,6 +7569,43 @@ export function renderTurnSummary(summary, onNextTurn) {
       </section>`;
   })();
 
+  // v0.7: başkana devredilen bölümlerde başkanların bu dönemki kararları (katlanır; devir sona erdiyse açık gelir)
+  const baskanKarti = (() => {
+    const kayit    = events.find(ev => ev.type === 'baskan_kararlari');
+    const bolumler = Array.isArray(kayit?.bolumler) ? kayit.bolumler : [];
+    if (bolumler.length === 0) return '';
+    const say = (...turler) => bolumler.reduce((s, b) => s + (b.kararlar || []).filter(k => turler.includes(k.tur)).length, 0);
+    const rozetler = [
+      [say('kabul'), 'hoca alındı', 'iyi'], [say('ilan'), 'ilan', 'bilgi'], [say('kontenjan'), 'kontenjan', ''],
+      [say('zorluk'), 'zorluk ayarı', ''], [say('bap', 'proje'), 'araştırma onayı', 'iyi'], [say('uyari'), 'uyarı', 'kritik'],
+    ].filter(([n]) => n > 0)
+      .map(([n, ad, sinif]) => `<span class="ob-rozet ob-rozet--kucuk${sinif ? ` ob-rozet--${sinif}` : ''}">${n} ${ad}</span>`).join('');
+    const acik = say('uyari') > 0;
+    return `
+      <details class="ob-kart ozet-baskan"${acik ? ' open' : ''}>
+        <summary class="ozet-baskan-ozet">
+          <span class="ozet-baslik"><span class="ozet-ikon" aria-hidden="true">🏛️</span>Başkanların kararları</span>
+          <span class="ob-dizi"><span class="ob-rozet ob-rozet--kucuk">${bolumler.length} bölüm</span>${rozetler}</span>
+        </summary>
+        <div class="ozet-baskan-govde">
+          ${bolumler.map(b => `
+            <section class="ozet-baskan-bolum" data-bolum="${b.deptId}">
+              <div class="ozet-baskan-ust">
+                <div class="ozet-baskan-kimlik">
+                  <b>${_escHtml(b.ad || b.deptId)}</b>
+                  <span class="ob-aciklama">${b.baskan ? `Başkan ${_escHtml(b.baskan)}${Number.isFinite(b.yonetim) ? `, yönetim ${Math.round(b.yonetim)}` : ''} · ` : ''}odak ${(ODAKLAR[b.odak]?.ad || '').toLocaleLowerCase('tr')}</span>
+                </div>
+                <div class="ob-dugmeler">
+                  <button type="button" class="bs-link bs-link--kucuk" data-ozet-bolum="${b.deptId}">Bölüm Sayfası →</button>
+                  ${b.devirde ? `<button type="button" class="btn btn-secondary btn-xs" data-ozet-dogrudan="${b.deptId}">Doğrudan yönetime al</button>` : ''}
+                </div>
+              </div>
+              ${_baskanKararListesi(b.kararlar)}
+            </section>`).join('')}
+        </div>
+      </details>`;
+  })();
+
   bodyEl.innerHTML = `
     <div class="pencere-yigin">
       <div class="ozet-izgara">
@@ -7291,6 +7616,7 @@ export function renderTurnSummary(summary, onNextTurn) {
         ${olaylarKart}
         ${yildizKart}
       </div>
+      ${baskanKarti}
       ${projeKarti}
     </div>
   `;
@@ -7333,6 +7659,24 @@ export function renderTurnSummary(summary, onNextTurn) {
   };
   _ozetiKapat = kapat;
   on(el('btn-confirm-next-turn'), 'click', kapat);
+
+  // v0.7: başkanların kararları: bölümün sayfasına git (özet Devam gibi kapanır) ya da hemen doğrudan yönetime al
+  bodyEl.querySelectorAll('[data-ozet-bolum]').forEach(dugme => {
+    dugme.addEventListener('click', () => {
+      const id = dugme.dataset.ozetBolum;
+      kapat();
+      window._openDeptPage?.(id);
+    });
+  });
+  bodyEl.querySelectorAll('[data-ozet-dogrudan]').forEach(dugme => {
+    dugme.addEventListener('click', () => {
+      const sonuc = window._onSetDeptPolicy?.(dugme.dataset.ozetDogrudan, { kip: 'dogrudan' });
+      if (sonuc?.success) {
+        dugme.disabled = true;
+        dugme.textContent = 'Doğrudan yönetimde';
+      }
+    });
+  });
   overlay.onclick = (e) => {
     if (e.target === overlay || e.target.classList?.contains('modal-backdrop')) kapat();
   };
