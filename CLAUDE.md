@@ -2,7 +2,7 @@
 
 - GitHub: https://github.com/prof-oguzergin/rektor-oldum (private)
 - Yayında: https://prof-oguzergin.github.io/rektor-oldum/
-- Durum: v0.6.1 Tutarlı görünüm (24 Eyl 2026, canlıda); sırada başkana devretme, araştırma puanı ve ekonomi; aktif geliştirme, oyuncu rapor akışı (Erdinç, Emir, Burak, AkaDemi, Yusuf, Fatih)
+- Durum: v0.7.0 başkana devretme + yeni ekonomi + araştırma puanı (25 Eyl 2026, canlıda); aktif geliştirme, oyuncu rapor akışı (Erdinç, Emir, Burak, AkaDemi, Yusuf, Fatih)
 - Dizin: C:\Users\Z GAMES\Yapay Zeka\university-tycoon
 
 ## Teknik
