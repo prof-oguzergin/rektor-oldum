@@ -34,9 +34,17 @@ import {
   BANKS,
   SAYGINLIK_OLAY_ETKI,
   SAYGINLIK_OLAY_SINIR,
+  HARCAMA_KARARLARI,
+  DEVLET_KADRO,
+  SALARY_SCALES,
 } from './data.js?v=0.6.1';
 
-import { calculateEconomy, applyBudget, calculateLoanPayment, processLoanPayments } from './economy.js?v=0.6.1';
+import {
+  calculateEconomy, applyBudget, calculateLoanPayment, processLoanPayments,
+  // v0.7 ekonomi: harcama kararlarının etkileri ve devlet kısıtları
+  arastirmaFonuCarpani, tanitimEtkisi, harcamaKararlari, devletKisitlari,
+  maasGelirDurumu, kadroDurumu, hazineIadesi,
+} from './economy.js?v=0.6.1';
 import { generateInitialFaculty, updateAllFacultyHappiness, generateApplicants, generateFaculty, getSalaryRange, calculateOverallRating, getFacultyRatingTrend } from './faculty.js?v=0.6.1';
 import {
   generateInitialStudents,
@@ -50,12 +58,13 @@ import {
   discoverStarStudents,
   getDefaultQuotas,
   getStudentSummary,
+  bolumAlimYeri,
   // Uyumluluk alias'ları
   updateCohorts,
   processGraduation,
   processAdmissions,
 } from './students.js?v=0.6.1';
-import { calculatePrestige, calculateQualityScore, kurumsalTavan, updateRivals, updateRankings } from './ranking.js?v=0.6.1';
+import { calculatePrestige, calculateQualityScore, kurumsalTavan, updateRivals, updateRankings, universiteHIndeksi } from './ranking.js?v=0.6.1';
 import { calculateIntlPillars, calculateIntlTotalScore, findIntlRank } from './intl_ranking.js?v=0.4.39';
 import { THE_2024 } from './intl_rankings_the2024.js?v=0.4.39';
 import { checkForEvents, applyEventEffects } from './events.js?v=0.6.1';
@@ -1404,6 +1413,111 @@ function _autoAssignDeptHeads(state) {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+// v0.7 EKONOMİ: DEVLET KISITLARI, HARCAMA KARARLARI, YABANCI ÖĞRENCİ ORANI
+// Kısıtlar data.js UNIVERSITY_MODELS.devlet.constraints'te tanımlıydı, hiçbir hesap
+// okumuyordu. Formüller economy.js'te; burada oyun durumuna uygulanır.
+// ─────────────────────────────────────────────────────────────────────────────
+
+/** Devlet üniversitesinde norm kadroyu kurar (yoksa): dolu kadro + onaylı boş kadro. */
+function _kadroyuBaslat(state) {
+  const k = devletKisitlari(state);
+  if (!k || !k.kadroSystem || !state.university) return;
+  const u = state.university;
+  if (u.kadro && Number.isFinite(u.kadro.norm)) {
+    if (!Array.isArray(u.kadro.talepler)) u.kadro.talepler = [];
+    return;
+  }
+  const dolu = (state.faculty || []).length;
+  const bos  = Math.max(DEVLET_KADRO.baslangicEnAzBos, Math.ceil(dolu * DEVLET_KADRO.baslangicBosOrani));
+  u.kadro = { norm: dolu + bos, talepler: [] };
+}
+
+/**
+ * Devlette işe alım denetimi (kadroSystem, maxFacultyBudgetRatio) ve borç denetimindeki
+ * harcama dondurması. Uygunsa null, değilse oyuncuya gösterilecek ileti döner.
+ * @param {number} aylikMaas  işe alınacak hocanın aylık maaşı
+ */
+function _iseAlimEngeli(state, aylikMaas) {
+  if (state._internal?.spendingRestricted) {
+    return 'Kasa açığı nedeniyle YÖK denetimi sürüyor: yeni işe alım donduruldu. Açık kapanınca alım yeniden açılır.';
+  }
+  const kd = kadroDurumu(state);
+  if (kd && kd.bos <= 0) {
+    return `Boş kadro yok (dolu ${kd.dolu} / norm ${kd.norm}). Bütçe sekmesinden kadro talebinde bulunun; onay ${kd.bekleme} dönem sürer.`;
+  }
+  const mg = maasGelirDurumu(state, aylikMaas, 1);
+  if (mg && mg.oran > mg.sinir) {
+    return `Maaş gideri dönem gelirinin %${Math.round(mg.sinir * 100)}'ını aşamaz (bu işe alımla %${Math.round(mg.oran * 100)} olurdu).`;
+  }
+  return null;
+}
+
+/** Onay süresi dolan kadro taleplerini norm kadroya ekler (dönem sonunda). */
+function _kadroTalepleriniIsle(state, results) {
+  const kd = kadroDurumu(state);
+  if (!kd || !state.university?.kadro) return;
+  const kalan = [];
+  for (const t of state.university.kadro.talepler || []) {
+    if ((state.meta?.turn ?? 0) >= (t.onayDonemi ?? 0)) {
+      state.university.kadro.norm = (state.university.kadro.norm || 0) + (t.adet || 0);
+      results.events.push({
+        type:  'info',
+        icon:  '🏛️',
+        title: 'Kadro Onayı',
+        description: `${t.adet} yeni öğretim elemanı kadrosu onaylandı; artık ilan ve başvurularla doldurabilirsiniz.`,
+      });
+    } else {
+      kalan.push(t);
+    }
+  }
+  state.university.kadro.talepler = kalan;
+}
+
+/**
+ * budgetSurplusLoss: Bahar dönemi kapanırken kasada bir dönemlik gideri ve kredi borcunu
+ * aşan tutar Hazine'ye döner (devlet). Döndürülen tutarı verir.
+ */
+function _hazineIadesiUygula(state, donemGideri, results) {
+  const iade = Math.round(hazineIadesi(state, donemGideri));
+  const u = state.university;
+  if (iade > 0) {
+    u.budget -= iade;
+    results.events.push({
+      type:  'warning',
+      icon:  '🏦',
+      title: 'Yıl Sonu: Hazine İadesi',
+      description: `Harcanmayan ${formatMoneyShort(iade)} yıl sonunda Hazine'ye iade edildi. Kasada bir dönemlik gider ve kredi borcu kadar para kalabilir.`,
+    });
+  }
+  // Eski kayıttan devreden birikim harcandıkça azalır (bir daha dolmaz)
+  if (Number.isFinite(u.devredenBirikim) && u.devredenBirikim > 0) {
+    const serbest = Math.max(0, u.budget - Math.max(0, donemGideri) - Math.max(0, u.totalDebt || 0));
+    u.devredenBirikim = Math.min(u.devredenBirikim, serbest);
+  }
+  return iade;
+}
+
+/**
+ * Yabancı öğrenci oranı (uluslararasılaşma puanının ana girdisi) her dönem hedefine
+ * %15 yaklaşır. Hedef: %2 taban + tanıtım harcaması + Uluslararası Ofis biriminin başarımı.
+ * Eskiden oran oyun boyunca %2'de kalıyordu (hiçbir karar değiştirmiyordu).
+ */
+function _yabanciOraniniGuncelle(state) {
+  const u = state.university;
+  if (!u) return;
+  const simdi = Number.isFinite(u.internationalRatio) ? u.internationalRatio : 0.02;
+  const tanitim = tanitimEtkisi(harcamaKararlari(state).tanitim).yabanci;
+  let ofis = 0;
+  const birim = state.adminUnits?.uluslararasi_ofis;
+  if (birim && birim.isActive !== false && birim.staffNeeded > 0) {
+    const doluluk = Math.min(1, (birim.staffCount || 0) / birim.staffNeeded);
+    ofis = 0.02 * doluluk * Math.min(1, (birim.staffQuality || 0) / 70);
+  }
+  const hedef = Math.min(0.30, 0.02 + tanitim + ofis);
+  u.internationalRatio = Math.round((simdi + (hedef - simdi) * 0.15) * 10000) / 10000;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 // MERKEZI STATE (modül-özel — dışarıya doğrudan verilmez)
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -1552,6 +1666,14 @@ export function initGame(playerName, universityName, universityType, difficulty,
       loans:        [],               // aktif kredi listesi
       totalDebt:    0,                // toplam kalan borç (₺)
       loanDefault:  false,            // 3+ dönem ödeme atlanırsa true → iflas
+
+      // ── v0.7 harcama kararları (Bütçe sekmesi; araştırma fonu researchBudgetPerFaculty'de)
+      harcama: {
+        ogrenciHizmetleri: HARCAMA_KARARLARI.ogrenciHizmetleri.varsayilan,   // ₺/öğrenci/dönem
+        tanitim:           HARCAMA_KARARLARI.tanitim.varsayilan,             // ₺/dönem
+      },
+      // v0.7: v0.7 öncesi kayıttan devreden, Hazine iadesinden muaf kasa (yeni oyunda 0)
+      devredenBirikim: 0,
     },
 
     // ── Bölümler ───────────────────────────────────────────────────────────
@@ -1614,6 +1736,7 @@ export function initGame(playerName, universityName, universityType, difficulty,
       bapApplications:             [],   // BAP başvuruları
       publications:    0,
       patents:         0,
+      etkinPatent:     0,               // v0.7: lisansı süren patent (dönemde %5 eskir)
       patentRoyalties: 0,               // yıllık patent telif geliri toplamı (₺)
       totalCitations:  0,
       hIndex:          0,
@@ -1699,6 +1822,10 @@ export function initGame(playerName, universityName, universityType, difficulty,
 
   // Bölüm başkanı atama: her bölüme en yüksek yönetim statına sahip Prof/Doç ata
   _autoAssignDeptHeads(_state);
+
+  // v0.7: devlette norm kadro (dolu kadro + %10 onaylı boş kadro) ve üniversite h-indeksi
+  _kadroyuBaslat(_state);
+  _state.research.hIndex = universiteHIndeksi(_state);
 
   // Sayaçları sıfırla
   _bankruptcyTurns = 0;
@@ -1977,23 +2104,23 @@ export function applyQuotas(quotas) {
   if (!_state) throw new Error('Oyun başlatılmamış.');
   if (!quotas || typeof quotas !== 'object') return { success: false, message: 'Geçersiz kontenjan verisi.' };
 
-  // Bölüm başına makul tavan: 4 yıl × derslik kapasitesinin %110'u (yıllık kapasitenin biraz üzerine izin)
-  // Derslik kapasitesi hesaplanamıyorsa absolute 800 tavan kullan.
+  // v0.7: bölüm başına tavan, bölümün yeni alım için yeri (students.js bolumAlimYeri: dört
+  // sınıflık derslik kapasitesi eksi gelecek yıl 2-4. sınıf olacak öğrenciler). Kontenjan
+  // penceresi aynı sayıyı "Yeni alım için yer" diye gösterir. Eskiden yalnız atanmış
+  // binaların derslik sayısının %110'u (bina yoksa 800) tavandı; "yer 0" iken alım yapılıyordu.
   const ABS_MAX_PER_DEPT = 800;
   const sanitized = {};
+  const kirpilan  = [];
   let clampedAny = false;
+  _updateDeptCapacities(_state);
 
   for (const [deptId, q] of Object.entries(quotas)) {
     if (!q || typeof q !== 'object') continue;
     const dept = (_state.departments || []).find(d => d.id === deptId);
     if (!dept || !dept.isOpen) continue; // bilinmeyen veya kapalı bölüm
 
-    const classroomCap = _calcDeptClassroomCapacity(_state, deptId);
-    // Bir dönemde bir bölüme alınabilecek yeni öğrenci tavanı.
-    // Derslik kapasitesi mevcutsa onun %110'u (esnek), yoksa absolute tavan.
-    const deptCap = classroomCap > 0
-      ? Math.min(ABS_MAX_PER_DEPT, Math.ceil(classroomCap * 1.1))
-      : ABS_MAX_PER_DEPT;
+    // Bir yılda bir bölüme alınabilecek yeni öğrenci tavanı
+    const deptCap = Math.min(ABS_MAX_PER_DEPT, bolumAlimYeri(_state, dept));
 
     const tam  = _sanitizeQuotaField(q.tamBurslu,  deptCap);
     const yari = _sanitizeQuotaField(q.yariBurslu, deptCap);
@@ -2006,11 +2133,12 @@ export function applyQuotas(quotas) {
       const factor = deptCap / total;
       outTam  = Math.floor(tam  * factor);
       outYari = Math.floor(yari * factor);
-      outUret = Math.floor(uret * factor);
+      outUret = Math.max(0, Math.min(deptCap - outTam - outYari, Math.ceil(uret * factor)));
       clampedAny = true;
+      kirpilan.push({ departmentId: deptId, ad: dept.shortName || dept.name, istenen: total, yer: deptCap });
     }
     // Orijinal değerlerden herhangi biri klamplandıysa işaretle
-    if (outTam !== Number(q.tamBurslu) || outYari !== Number(q.yariBurslu) || outUret !== Number(q.ucretli)) {
+    if (outTam !== Number(q.tamBurslu || 0) || outYari !== Number(q.yariBurslu || 0) || outUret !== Number(q.ucretli || 0)) {
       clampedAny = true;
     }
 
@@ -2019,7 +2147,14 @@ export function applyQuotas(quotas) {
 
   _state.students.quotas = { ..._state.students.quotas, ...sanitized };
   _state.students.quotaScreenShown = true;
-  return { success: true, clamped: clampedAny };
+  return {
+    success: true,
+    clamped: clampedAny,
+    kirpilan,
+    message: kirpilan.length > 0
+      ? `Kontenjan bölümün yeriyle sınırlandı: ${kirpilan.map(k => `${k.ad} ${k.istenen} → ${k.yer}`).join(', ')}.`
+      : 'Kontenjanlar kaydedildi.',
+  };
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -2734,6 +2869,8 @@ function _generateFacultyApplications(state) {
   if (uniOverheadRate > 0.30) overheadPenalty = 0.4;
   else if (uniOverheadRate > 0.25) overheadPenalty = 0.6;
   else if (uniOverheadRate > 0.20) overheadPenalty = 0.8;
+  // v0.7: hoca başı araştırma fonu ön çalışma olanağı sağlar, başvuru isteğini artırır
+  overheadPenalty *= arastirmaFonuCarpani(harcamaKararlari(state).arastirmaFonu);
 
   state.faculty.forEach(f => {
     // ArGö'ler nadiren başvurur
@@ -2828,9 +2965,9 @@ function _advanceActiveProjects(state, results) {
       const roll = Math.random();
       if (roll < (proj.successChance || 0.4)) {
         proj.status = 'completed';
-        const projFunding = proj.requestedFunding || proj.funding || 0;
-        state.university.budget   = (isNaN(state.university.budget) ? 0 : state.university.budget)
-          + (isNaN(projFunding) ? 0 : projFunding);
+        // v0.7: proje bütçesi projenin kendisine harcanır; üniversitenin payı proje sürerken
+        // alınan genel gider kesintisidir (calculateIncome projectOverhead). Eskiden bitişte
+        // bütün proje bütçesi kasaya ekleniyordu, kasa karar vermeden şişiyordu.
         state.university.prestige = Math.min(MAX_PRESTIGE, (state.university.prestige || 0) + (proj.prestigeReward || 0));
         state.research.publications = (state.research.publications || 0) + (proj.publicationBonus || proj.estimatedPublications || 1);
 
@@ -2840,6 +2977,8 @@ function _advanceActiveProjects(state, results) {
         const patentChance = proj.isPrivateSector ? 0.15 : 0.05;
         if (Math.random() < patentChance) {
           state.research.patents += 1;
+          // v0.7: lisansı süren patent (gelir bunun üzerinden; her dönem %5 eskir)
+          state.research.etkinPatent = safeNum(state.research.etkinPatent) + 1;
           const royalty = proj.isPrivateSector
             ? (50_000 + Math.random() * 150_000)
             : (30_000 + Math.random() * 100_000);
@@ -2858,7 +2997,7 @@ function _advanceActiveProjects(state, results) {
 
         results.events.push({
           type: 'project_completed',
-          description: `${proj.callIcon || '📋'} ${proj.projectName} projesi başarıyla tamamlandı: ${formatMoneyShort(proj.requestedFunding || 0)} kazanıldı${(proj.prestigeReward || 0) > 0 ? ', saygınlığa katkı' : ''}.${proj.generatedPatent ? ' 🏅 Patent alındı!' : ''}`,
+          description: `${proj.callIcon || '📋'} ${proj.projectName} projesi (${formatMoneyShort(proj.requestedFunding || 0)}) başarıyla tamamlandı${(proj.prestigeReward || 0) > 0 ? ', saygınlığa katkı' : ''}.${proj.generatedPatent ? ' 🏅 Patent alındı!' : ''}`,
           hamSayginlik: proj.prestigeReward || 0,
         });
       } else {
@@ -3106,13 +3245,17 @@ function runSimulation() {
   }
 
   // ── 2. HOCA MUTLULUĞU ──────────────────────────────────────────────────────
-  // Ders yükü ve uzmanlık eşleşmesi mutluluğu etkiler
+  // Ders yükü ve uzmanlık eşleşmesi mutluluğu etkiler.
+  // v0.7: araştırma fonu da etkiler; varsayılan 50.000 ₺ etkisiz (fon yokken dönemde -0,6,
+  // 150.000 ₺'de +0,7)
+  const fonCarpani  = arastirmaFonuCarpani(harcamaKararlari(_state).arastirmaFonu);
+  const fonMutluluk = (fonCarpani - arastirmaFonuCarpani(HARCAMA_KARARLARI.arastirmaFonu.varsayilan)) * 4;
   _state.faculty.forEach(f => {
     const load = (f.currentLoad?.assignedCourses || []).length;
     const matchedCourses = (f.currentLoad?.assignedCourses || []).filter(c => c.matchQuality === 2).length;
     const mismatchPenalty = load > 0 ? ((load - matchedCourses) / load) * 8 : 0;
     const overloadPenalty = load > 2 ? (load - 2) * 5 : 0;
-    const delta = randInt(-2, 2) - mismatchPenalty - overloadPenalty;
+    const delta = randInt(-2, 2) - mismatchPenalty - overloadPenalty + fonMutluluk;
     f.happiness = Math.max(0, Math.min(100, (f.happiness || 60) + delta));
   });
 
@@ -3170,6 +3313,21 @@ function runSimulation() {
       if (!Number.isFinite(dept.minFaculty)) dept.minFaculty = _bolumEnAzHoca(dept.id);
     }
     admissionsResult = processNewEnrollment(_state);
+    // v0.7: dolmayan kontenjan açıkça yazılır (vakıfta başvuru yetmedi ya da yer yoktu)
+    const bosKalan = admissionsResult.bosKalan || [];
+    if (bosKalan.length > 0) {
+      const ad = (id) => { const d = _state.departments.find(x => x.id === id); return d ? (d.shortName || d.name) : id; };
+      const basvuru = bosKalan.filter(b => b.neden === 'başvuru');
+      const yer     = bosKalan.filter(b => b.neden === 'yer');
+      if (basvuru.length > 0) results.events.push({
+        type: 'warning', icon: '📉', title: 'Kontenjan Dolmadı',
+        description: `Başvuru yetmedi: ${basvuru.map(b => `${ad(b.departmentId)} ${b.istenen} kontenjana ${b.alinan} öğrenci`).join(', ')}. Başvuruyu harç, saygınlık ve tanıtım belirler.`,
+      });
+      if (yer.length > 0) results.events.push({
+        type: 'warning', icon: '🏫', title: 'Derslik Yetmedi',
+        description: `Yer olmadığı için kontenjan kırpıldı: ${yer.map(b => `${ad(b.departmentId)} ${b.istenen} → ${b.alinan}`).join(', ')}. Derslik binası yapın ya da bölüme bina atayın.`,
+      });
+    }
   }
   results.graduates = graduationResult.totalGraduates;
   results.newAlumni = graduationResult.newAlumni;
@@ -3254,6 +3412,12 @@ function runSimulation() {
   _state.departments.forEach(dept => {
     // Faculty objects use f.department (not f.departmentId) from faculty.js generator
     const deptFaculty = _state.faculty.filter(f => (f.department || f.departmentId) === dept.id);
+    // v0.7: yayın olasılığı araştırma fonuna, araştırma merkezine (atanan bölüme %15) ve
+    // laboratuvar gerektiren bölümde lab puanına bağlı (lab yokken 0,94, tam labda 1,15)
+    const merkezCarpani = _getResearchCenterBonus(_state, dept.id);
+    const labCarpani    = (dept.labRequirement || 0) >= 2
+      ? 0.85 + 0.30 * Math.max(0, Math.min(100, dept.labScore ?? 30)) / 100 : 1;
+    const bolumCarpani  = fonCarpani * merkezCarpani * labCarpani;
     deptFaculty.forEach(f => {
       const researchStatVal = (f.stats && f.stats.research) || f.researchScore || 40;
       const teachingStatVal = (f.stats && f.stats.teaching) || f.teachingScore || 40;
@@ -3263,11 +3427,14 @@ function runSimulation() {
       const baseChance    = (dept.avgPublicationPerFaculty / 2) * (researchStatVal / 100);
       // Araştırma 80+ ise ekstra +%30 yayın şansı
       const starBonus     = researchStatVal >= 80 ? 0.30 : researchStatVal >= 70 ? 0.15 : 0;
-      const pubChance     = Math.min(0.95, baseChance * (1 + starBonus));
-      if (Math.random() < pubChance) {
-        f.publications = (f.publications || 0) + 1;
-        newPubs++;
-        _state.research.publications++;
+      // v0.7: beklenen yayın sayısı (dönemde birden çok olabilir, en çok 2,5); eskiden
+      // olasılık 0,95'te kesiliyor, fon ve altyapı güçlü hocanın çıktısını değiştirmiyordu
+      const beklenen      = Math.min(2.5, baseChance * (1 + starBonus) * bolumCarpani);
+      const yayinSayisi   = Math.floor(beklenen) + (Math.random() < beklenen - Math.floor(beklenen) ? 1 : 0);
+      if (yayinSayisi > 0) {
+        f.publications = (f.publications || 0) + yayinSayisi;
+        newPubs += yayinSayisi;
+        _state.research.publications += yayinSayisi;
       }
 
       // ── Yıldız hoca: eğitim etkisi → öğrenci memnuniyetine katkı ──
@@ -3434,6 +3601,14 @@ function runSimulation() {
   const semesterEvents = generateSemesterEvents(_state);
   semesterEvents.forEach(ev => results.events.push(ev));
 
+  // ── 6b. v0.7: KADRO ONAYLARI, YABANCI ÖĞRENCİ ORANI, ÜNİVERSİTE H-İNDEKSİ ─────
+  _kadroTalepleriniIsle(_state, results);
+  _yabanciOraniniGuncelle(_state);
+  _state.research.hIndex = universiteHIndeksi(_state);
+  // Patent lisansları eskir: lisans geliri etkin patentten (eskiden her patent sonsuza dek
+  // dönemde 500.000 ₺ getiriyordu, geç oyunda gelirin en büyük kalemiydi)
+  _state.research.etkinPatent = Math.round(safeNum(_state.research.etkinPatent) * 0.95 * 100) / 100;
+
   // ── 7. RAKİP AI HAMLESİ ────────────────────────────────────────────────────
   const rivalChanges = updateRivals(_state);
   rivalChanges.forEach(change => {
@@ -3570,8 +3745,31 @@ function runSimulation() {
 
   // (v0.5.2: başarım denetimi nextTurn içinde saygınlık güncellemesinden sonra yapılır)
 
+  // ── v0.7: YIL SONU HAZİNE İADESİ (devlet, budgetSurplusLoss) ──────────────────
+  // Bahar dönemi kapanırken, dönemin bütün para hareketlerinden sonra uygulanır.
+  if (isSpring) {
+    const donemGideri = economyResult.expenses?.total || 0;
+    results.hazineIadesi = _hazineIadesiUygula(_state, donemGideri, results);
+  }
+  // Dönem özetindeki kasa, dönemin bütün hareketlerinden (proje, olay, iade) sonraki kasa
+  if (results.economyBudget) results.economyBudget.newBudget = Math.round(_state.university.budget);
+
+  // v0.7: vakıfta derin kasa açığı uyarısı (checkWinLose: 3 dönem üst üste sürerse kapanış)
+  if (_state.meta.universityType === 'vakif' && _state.university.budget < VAKIF_DERIN_ACIK) {
+    const sayac = (_state._internal?.consecutiveDeficitTurns || 0) + 1;
+    results.events.unshift({
+      type:  'warning',
+      icon:  '🚨',
+      title: 'Mütevelli Heyeti Uyarısı',
+      description: `Kasa ${formatMoneyShort(-_state.university.budget)} açıkta (${sayac}. dönem). Açık ${BANKRUPTCY_DEFICIT_TURNS} dönem üst üste ${formatMoneyShort(-VAKIF_DERIN_ACIK)} sınırını aşarsa vakıf üniversitesi kapanır; kredi çekin ya da giderleri kısın.`,
+    });
+  }
+
   return results;
 }
+
+/** v0.7: vakıfta bu açığın 3 dönem üst üste sürmesi kapanış sebebidir (checkWinLose). */
+const VAKIF_DERIN_ACIK = -30_000_000;
 
 // ─────────────────────────────────────────────────────────────────────────────
 // YARDİMCI: Trend ısılarını güncelle
@@ -3828,9 +4026,16 @@ function _processYokApplications(state, results) {
                 studentCount: 0,
               };
             }
+            // v0.7: devlette YÖK onayı kurucu kadro kadar norm kadro da getirir
+            let kadroNotu = '';
+            if (DEVLET_KADRO.yeniBolumKadrosu && state.university?.kadro && Number.isFinite(state.university.kadro.norm)) {
+              const kurucu = Number.isFinite(newDept.minFaculty) ? newDept.minFaculty : _bolumEnAzHoca(newDept.id);
+              state.university.kadro.norm += kurucu;
+              kadroNotu = ` Kurucu kadro için ${kurucu} yeni kadro tahsis edildi.`;
+            }
             results.events.push({
               type: 'dept_approved',
-              message: `YÖK onayı geldi: ${newDept.name} bölümü açıldı!`,
+              message: `YÖK onayı geldi: ${newDept.name} bölümü açıldı!${kadroNotu}`,
             });
           }
         }
@@ -4015,6 +4220,8 @@ export function nextTurn() {
       if (!simResults.events) simResults.events = [];
       simResults.events.push(...yasamOlaylari);
     }
+    // v0.7: ayrılanlarla üniversite h-indeksi değişir (Araştırma sekmesi kartı)
+    if (_state.research) _state.research.hIndex = universiteHIndeksi(_state);
   }
 
   // v0.5.2: kurucu kadro. En az öğretim üyesi sayısına (çoğu bölümde 3) ulaşmamış bölüm
@@ -4164,6 +4371,7 @@ function _saveStats(simResults) {
     totalStudents:   _state.students.totalEnrolled,
     facultyCount:    _state.faculty.length,
     publications:    _state.research.publications,
+    patents:         _state.research.patents || 0,   // v0.7: araştırma puanının patent hızı
     budgetDelta:     simResults.budgetDelta,
     prestigeDelta:   simResults.prestigeDelta,
   });
@@ -4462,8 +4670,9 @@ export function getAccreditationPrestigeBonus(dept) {
 // ─────────────────────────────────────────────────────────────────────────────
 
 const KURULUS_YASI     = { devlet: 25, vakif: 8, coop: 5, us_private: 8 };
-const SAYGINLIK_HIZ    = 0.05;   // kalite puanına dönemlik yaklaşma oranı
+const SAYGINLIK_HIZ    = 0.065;  // kalite puanına dönemlik yaklaşma oranı (v0.7: 0,05'ten)
 const SAYGINLIK_ADIM   = 1.0;    // kalite kaynaklı dönemlik en büyük değişim
+// (v0.7: kalite puanının üst bölgesi ranking.js calculateQualityScore'da genişletildi)
 const OLAY_ETKI        = SAYGINLIK_OLAY_ETKI;    // doğrudan eklemelerin kalıcı kalan payı (0,12)
 const OLAY_SINIR       = SAYGINLIK_OLAY_SINIR;   // kanal başına dönemlik en büyük değişim (0,4)
 
@@ -4578,9 +4787,31 @@ function _hocaYasiniTamamla(f) {
  * @param {object} state
  * @param {boolean} yeniYil  güz dönemine geçildiyse true
  */
+/**
+ * v0.7: kıdemle artan maaş. Her akademik yıl başında hocanın maaşı baremdeki kıdem
+ * artışı kadar (devlet %2, vakıf %3) artar; unvan bareminin üst sınırını (vakıfta en
+ * çok %50 üstünü) aşmaz. Eskiden maaş işe alındığı gibi kalıyordu; kadro yaşlandıkça
+ * gider artmıyor, emeklilikle azalıyordu.
+ */
+function _kidemZammi(state) {
+  const tip   = state.meta?.universityType || 'vakif';
+  const olcek = tip === 'devlet' ? SALARY_SCALES.tr_devlet
+              : tip === 'us_private' ? SALARY_SCALES.us_private : SALARY_SCALES.tr_vakif;
+  const oran  = Number.isFinite(olcek?.seniorityBonus) ? olcek.seniorityBonus : 0.02;
+  const ust   = Number.isFinite(olcek?.maxOverscale) ? olcek.maxOverscale : 1;
+  for (const f of state.faculty || []) {
+    const maas = safeNum(f.salary);
+    if (maas <= 0) continue;
+    const r = getSalaryRange(f.title, tip);
+    const tavan = Math.max(maas, safeNum(r?.max) * ust);
+    if (maas < tavan) f.salary = Math.min(tavan, Math.round(maas * (1 + oran) / 100) * 100);
+  }
+}
+
 function _processFacultyLifecycle(state, yeniYil) {
   const olaylar = [];
   const ayrilanlar = [];
+  if (yeniYil) _kidemZammi(state);
 
   for (const f of state.faculty || []) {
     _hocaYasiniTamamla(f);
@@ -4776,6 +5007,27 @@ export function checkWinLose() {
       gameWon:  false,
       reason:   'bankruptcy',
       message:  'Üniversite iflas etti! Bir kredi 3 dönem üst üste ödenemedi.',
+    };
+  }
+
+  // ── KAYBETME KOŞULU 1b (v0.7): Vakıfta süren derin kasa açığı ──────────────
+  // Kredisi olmayan üniversite eksi milyarlarda yaşayabiliyordu. Kasası BANKRUPTCY_DEFICIT_TURNS
+  // (3) dönem üst üste 30 M ₺'den fazla açıkta kalan vakıf üniversitesi kapanır; devlette
+  // kayyum dönemi (işe alım ve inşaat donar, economy.js applyBudget) oyun sürer.
+  if (!_state._internal) _state._internal = {};
+  if (safeNum(_state.university.budget) < VAKIF_DERIN_ACIK) {
+    _state._internal.consecutiveDeficitTurns = (_state._internal.consecutiveDeficitTurns || 0) + 1;
+  } else {
+    _state._internal.consecutiveDeficitTurns = 0;
+  }
+  if (_state.meta.universityType === 'vakif' && _state._internal.consecutiveDeficitTurns >= BANKRUPTCY_DEFICIT_TURNS) {
+    _gameOver = true;
+    _state._internal.gameOver = true;
+    return {
+      gameOver: true,
+      gameWon:  false,
+      reason:   'bankruptcy',
+      message:  `Vakıf üniversitesi kapandı: kasa açığı ${BANKRUPTCY_DEFICIT_TURNS} dönem üst üste ${formatMoneyShort(-VAKIF_DERIN_ACIK)} sınırını aştı.`,
     };
   }
 
@@ -5378,6 +5630,40 @@ function migrateState(state) {
       console.warn('[migrate] v0.5.2 birim yöneticisi ataması yapılamadı:', e);
     }
   }
+
+  // v0.7 ekonomi göçü: harcama kararları, devlet norm kadrosu, üniversite h-indeksi ve
+  // yumuşak geçiş. v0.7 öncesi devlet kaydının kasasındaki para "devreden birikim"
+  // sayılır ve yıl sonu Hazine iadesinden muaftır (harcandıkça azalır); eskiden şişmiş
+  // milyarlık kasalar ilk yıl sonunda birden alınmaz.
+  try {
+    const u = state.university;
+    if (u) {
+      if (!u.harcama || typeof u.harcama !== 'object') u.harcama = {};
+      for (const alan of ['ogrenciHizmetleri', 'tanitim']) {
+        const s = HARCAMA_KARARLARI[alan];
+        const v = Number(u.harcama[alan]);
+        u.harcama[alan] = Number.isFinite(v) ? Math.max(s.enAz, Math.min(s.enCok, v)) : s.varsayilan;
+      }
+      if (state.meta?.universityType === 'devlet' && !Number.isFinite(u.devredenBirikim)) {
+        u.devredenBirikim = Math.max(0, Math.round(safeNum(u.budget)));
+      } else if (!Number.isFinite(u.devredenBirikim)) {
+        u.devredenBirikim = 0;
+      }
+    }
+    {
+      const s = HARCAMA_KARARLARI.arastirmaFonu;
+      const v = Number(state.researchBudgetPerFaculty);
+      state.researchBudgetPerFaculty = Number.isFinite(v) ? Math.max(s.enAz, Math.min(s.enCok, v)) : s.varsayilan;
+    }
+    _kadroyuBaslat(state);
+    if (state.research) {
+      state.research.hIndex = universiteHIndeksi(state);
+      // Eski kayıtta bütün patentler lisanslı sayılır, sonra eskir (gelir birden düşmez)
+      if (!Number.isFinite(state.research.etkinPatent)) state.research.etkinPatent = safeNum(state.research.patents);
+    }
+  } catch (e) {
+    console.warn('[migrate] v0.7 ekonomi göçü tamamlanamadı:', e);
+  }
 }
 
 // setState — Yüklenen state'i doğrudan uygula (kayıt yükleme için)
@@ -5624,6 +5910,20 @@ export function applyDecision(decision) {
         };
       }
 
+      // v0.7: devlette norm kadro ve maaş/gelir sınırı; kasa açığında işe alım dondurulur
+      const iseAlimEngeli = _iseAlimEngeli(_state, facultyData.salary || 80_000);
+      if (iseAlimEngeli) return { success: false, message: iseAlimEngeli };
+
+      // v0.7: transfer ücreti (hocanın ayrıldığı üniversiteye tazminat) ödenir;
+      // eskiden transfer pazarında yazıyor ama alınmıyordu
+      const transferUcreti = Math.max(0, safeNum(facultyData.transferFee));
+      if (transferUcreti > 0 && safeNum(_state.university.budget) < transferUcreti) {
+        return {
+          success: false,
+          message: `Transfer ücreti için yeterli bütçe yok. Gereken: ₺${Math.round(transferUcreti).toLocaleString('tr-TR')}`,
+        };
+      }
+
       // İşe alma gecikmesi (devlet'te 1 dönem)
       const delay = uniTemplate.hiringDelay || 0;
 
@@ -5674,13 +5974,16 @@ export function applyDecision(decision) {
       _state.faculty.push(newFaculty);
       if (!Array.isArray(dept.assignedFacultyIds)) dept.assignedFacultyIds = [];
       dept.assignedFacultyIds.push(newFaculty.id);
+      if (transferUcreti > 0) _state.university.budget -= transferUcreti;
 
+      const ucretNotu = transferUcreti > 0 ? ` Transfer ücreti: ₺${Math.round(transferUcreti).toLocaleString('tr-TR')}.` : '';
       return {
         success:  true,
         message:  delay > 0
-          ? `${newFaculty.name} işe alındı. ${delay} dönem sonra göreve başlayacak.`
-          : `${newFaculty.name} göreve başladı.`,
+          ? `${newFaculty.name} işe alındı. ${delay} dönem sonra göreve başlayacak.${ucretNotu}`
+          : `${newFaculty.name} göreve başladı.${ucretNotu}`,
         facultyId: newFaculty.id,
+        transferUcreti,
       };
     }
 
@@ -5792,6 +6095,11 @@ export function applyDecision(decision) {
       const totalTurns = catalog.constructionTurns ?? catalog.constructionTime ?? 2;
       const baseArea   = catalog.baseArea ?? 1000;
 
+      // v0.7: borç denetimi iletisindeki dondurma gerçekten uygulanır (eskiden yalnız yazıydı)
+      if (_state._internal?.spendingRestricted) {
+        return { success: false, message: 'Kasa açığı nedeniyle YÖK denetimi sürüyor: yeni inşaat donduruldu.' };
+      }
+
       if (_state.university.budget < cost) {
         return {
           success: false,
@@ -5876,6 +6184,10 @@ export function applyDecision(decision) {
       const baseCost        = catalog.baseCost ?? catalog.constructionCost;
       const upgradeCost     = Math.round(baseCost * Math.pow(upgradeCostMult, building.level));
       const totalTurns      = catalog.constructionTurns ?? catalog.constructionTime ?? 2;
+
+      if (_state._internal?.spendingRestricted) {
+        return { success: false, message: 'Kasa açığı nedeniyle YÖK denetimi sürüyor: yükseltme donduruldu.' };
+      }
 
       if (_state.university.budget < upgradeCost) {
         return {
@@ -6102,15 +6414,74 @@ export function applyDecision(decision) {
     }
 
     // ── Araştırma Bütçesi (hoca başına dönemlik fon) ──────────────────────────
+    // v0.7: fon hoca sayısıyla çarpılıp gidere yazılır; yayın olasılığını, dış proje
+    // başvurusunu ve hoca mutluluğunu artırır (economy.js arastirmaFonuCarpani).
     case 'research_budget': {
       const { amount } = decision;
-      if (typeof amount !== 'number' || amount < 0) {
+      if (typeof amount !== 'number' || !Number.isFinite(amount) || amount < 0) {
         return { success: false, message: 'Geçersiz araştırma bütçesi miktarı.' };
       }
-      _state.researchBudgetPerFaculty = amount;
+      const sinir = HARCAMA_KARARLARI.arastirmaFonu;
+      const tutar = Math.round(Math.min(sinir.enCok, amount));
+      _state.researchBudgetPerFaculty = tutar;
+      const toplam = tutar * (_state.faculty || []).length;
       return {
         success: true,
-        message: `Araştırma bütçesi hoca başına ${amount.toLocaleString('tr-TR')} ₺ olarak güncellendi.`,
+        message: `Araştırma fonu hoca başına ${tutar.toLocaleString('tr-TR')} ₺ oldu (dönemde toplam ${formatMoneyShort(toplam)}).`,
+      };
+    }
+
+    // ── v0.7: Harcama Kararları (Bütçe sekmesi) ─────────────────────────────
+    case 'set_harcama': {
+      if (!_state.university.harcama) _state.university.harcama = { ogrenciHizmetleri: 0, tanitim: 0 };
+      const degisen = [];
+      for (const alan of ['ogrenciHizmetleri', 'tanitim']) {
+        if (decision[alan] === undefined) continue;
+        const v = Number(decision[alan]);
+        if (!Number.isFinite(v) || v < 0) return { success: false, message: 'Geçersiz harcama tutarı.' };
+        const s = HARCAMA_KARARLARI[alan];
+        _state.university.harcama[alan] = Math.round(Math.min(s.enCok, v));
+        degisen.push(alan);
+      }
+      if (degisen.length === 0) return { success: false, message: 'Değiştirilecek harcama yok.' };
+      return { success: true, message: 'Harcama kararları güncellendi; dönem sonunda gidere yazılır.', harcama: { ..._state.university.harcama } };
+    }
+
+    // ── v0.7: Kadro Talebi (devlet, kadroSystem) ────────────────────────────
+    case 'kadro_talebi': {
+      const kd = kadroDurumu(_state);
+      if (!kd) return { success: false, message: 'Kadro talebi yalnız devlet üniversitelerinde yapılır.' };
+      const adet = Math.floor(Number(decision.adet));
+      if (!Number.isFinite(adet) || adet < 1) return { success: false, message: 'Geçersiz kadro sayısı.' };
+      if (kd.bekleyen.length > 0) {
+        return { success: false, message: 'Onay bekleyen bir kadro talebiniz var; sonuçlanınca yenisini yapabilirsiniz.' };
+      }
+      if (adet > kd.talepEnCok) {
+        return { success: false, message: `Bir talepte en çok ${kd.talepEnCok} kadro istenebilir.` };
+      }
+      // Hazine, onaylanacak kadrolar ortalama maaşla dolunca maaşların dönem gelirinin
+      // %60'ını aşmayacağını görmek ister
+      const ortMaas = (_state.faculty || []).length > 0
+        ? (_state.faculty || []).reduce((s, f) => s + safeNum(f.salary), 0) / _state.faculty.length : 40_000;
+      const bosDolunca = Math.max(0, kd.bos);
+      const mg = maasGelirDurumu(_state, ortMaas * (bosDolunca + adet), bosDolunca + adet);
+      if (mg && mg.oran > mg.sinir) {
+        return {
+          success: false,
+          message: `Hazine onaylamadı: bu kadrolar dolunca maaşlar dönem gelirinin %${Math.round(mg.oran * 100)}'ı olur (sınır %${Math.round(mg.sinir * 100)}).`,
+        };
+      }
+      const talep = {
+        id:         `kadro_${_state.meta.turn}_${Math.random().toString(36).slice(2, 6)}`,
+        adet,
+        talepDonemi: _state.meta.turn,
+        onayDonemi:  _state.meta.turn + kd.bekleme - 1,   // bu dönem dahil kd.bekleme dönem sonra hazır
+      };
+      _state.university.kadro.talepler.push(talep);
+      return {
+        success: true,
+        message: `${adet} kadro için talep gönderildi; onay ${kd.bekleme} dönem sürer.`,
+        talep,
       };
     }
 
@@ -6208,6 +6579,9 @@ export function applyDecision(decision) {
       if (!dept) return { success: false, message: 'Uygun açık bölüm bulunamadı.' };
 
       const rawSalaryA = applicant.salaryExpectation || applicant.salary || 80_000;
+      // v0.7: devlette norm kadro ve maaş/gelir sınırı; kasa açığında işe alım dondurulur
+      const engelA = _iseAlimEngeli(_state, isNaN(rawSalaryA) ? 80_000 : rawSalaryA);
+      if (engelA) return { success: false, message: engelA };
       const newFaculty = {
         ...applicant,
         departmentId:  dept.id,
@@ -6263,6 +6637,9 @@ export function applyDecision(decision) {
       if (!dept) return { success: false, message: 'Uygun açık bölüm bulunamadı.' };
 
       const rawSalaryS = applicant.salaryExpectation || applicant.salary || 80_000;
+      // v0.7: devlette norm kadro ve maaş/gelir sınırı; kasa açığında işe alım dondurulur
+      const engelS = _iseAlimEngeli(_state, isNaN(rawSalaryS) ? 80_000 : rawSalaryS);
+      if (engelS) return { success: false, message: engelS };
       const newFaculty = {
         ...applicant,
         departmentId:  dept.id,
@@ -6510,6 +6887,16 @@ export function applyDecision(decision) {
 
       const oldSalary   = fac.salary || 0;
       const monthlyCost = newSalary - oldSalary;
+      // v0.7: devlette zam maaşların dönem gelirinin %60'ını aşmasına yol açamaz
+      if (monthlyCost > 0) {
+        const mg = maasGelirDurumu(_state, monthlyCost, 0);
+        if (mg && mg.oran > mg.sinir) {
+          return {
+            success: false,
+            message: `Maaş gideri dönem gelirinin %${Math.round(mg.sinir * 100)}'ını aşamaz (bu zamla %${Math.round(mg.oran * 100)} olurdu).`,
+          };
+        }
+      }
       fac.salary = newSalary;
 
       // Maaş artışı mutluluğu etkiler
@@ -6977,7 +7364,7 @@ export function applyDecision(decision) {
     default:
       return {
         success: false,
-        message: `Bilinmeyen karar tipi: ${decision.type}. Desteklenen tipler: hire_faculty, fire_faculty, set_tuition, start_construction, set_budget_allocation, open_department, close_department, set_scholarship_policy, post_open_position, accept_applicant, reject_applicant, approve_project_application, reject_project_application, open_bap_call, approve_bap_applications, reject_bap_application, set_overhead_rate, organize_alumni_event, apply_random_event, take_loan, repay_loan_early`,
+        message: `Bilinmeyen karar tipi: ${decision.type}. Desteklenen tipler: hire_faculty, fire_faculty, set_tuition, start_construction, set_budget_allocation, open_department, close_department, set_scholarship_policy, post_open_position, accept_applicant, reject_applicant, approve_project_application, reject_project_application, open_bap_call, approve_bap_applications, reject_bap_application, set_overhead_rate, organize_alumni_event, apply_random_event, take_loan, repay_loan_early, research_budget, set_harcama, kadro_talebi`,
       };
   }
 }

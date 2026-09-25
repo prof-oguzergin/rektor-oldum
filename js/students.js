@@ -9,6 +9,54 @@ import {
   TURNS_PER_YEAR,
   ADMIN_UNITS,
 } from './data.js?v=0.6.1';
+import { calculateTuitionEffect, harcamaKararlari, ogrenciHizmetiEtkisi, tanitimEtkisi } from './economy.js?v=0.6.1';
+
+// ─────────────────────────────────────────────────────────────────────────────
+// v0.7: ALIM YERİ VE VAKIF BAŞVURU TALEBİ
+// Eskiden kontenjan penceresi "Yeni alım için yer: 0" derken girilen kontenjanın
+// tamamı alınıyordu; vakıfta her kontenjan, harç ne olursa olsun doluyordu.
+// ─────────────────────────────────────────────────────────────────────────────
+
+const VAKIF_TALEP_TABAN = 24;   // saygınlık 20, talep çarpanı 1, harç referansta: bölüm başına yıllık ücretli başvuru
+
+/**
+ * Bölümün yeni alım için yeri: dört sınıflık derslik kapasitesi (game.js _updateDeptCapacities,
+ * dept.studentCapacity) eksi gelecek yıl üst sınıflara geçecek öğrenciler (1-3. sınıflar).
+ * Alım bu sayıyla sınırlıdır (applyQuotas ve processNewEnrollment).
+ */
+export function bolumAlimYeri(state, dept) {
+  if (!dept) return 0;
+  const bd = state?.students?.byDepartment?.[dept.id] || {};
+  const ust = (bd.year1?.count || 0) + (bd.year2?.count || 0) + (bd.year3?.count || 0);
+  const kap = Number.isFinite(dept.studentCapacity) && dept.studentCapacity > 0 ? dept.studentCapacity : 0;
+  return Math.max(0, Math.round(kap - ust));
+}
+
+/**
+ * Vakıfta bölüme bir yılda gelecek beklenen başvuru, kontenjan türüne göre. Devlette
+ * (ÖSYM yerleştirir) null döner: kontenjan yer olduğu sürece dolar.
+ * Başvuru: bölüm talebi (ve trend), saygınlık, tanıtım harcaması ve harç düzeyine bağlıdır.
+ * @returns {null|{ ucretli, yariBurslu, tamBurslu, fiyatCarpani }}
+ */
+export function vakifBasvuruTahmini(state, dept) {
+  if (!dept || state?.meta?.universityType !== 'vakif') return null;
+  const sablon   = DEPARTMENTS[dept.id];
+  const isi      = Number(state.university?.trendHeats?.[dept.id]);
+  const trend    = Number.isFinite(isi) ? Math.max(0.8, Math.min(1.25, 1 + (isi - 50) * 0.005)) : 1;
+  const talep    = (sablon?.baseStudentDemand ?? dept.baseStudentDemand ?? 1) * trend;
+  const saygin   = Math.max(0, Number(state.university?.prestige) || 0);
+  const tanitim  = tanitimEtkisi(harcamaKararlari(state).tanitim).talep;
+  const dusus    = state.meta?.scenarioRules?.decliningEnrollment ? 0.8 : 1;   // Vakıf Kurtarma
+  const temel    = VAKIF_TALEP_TABAN * talep * (0.5 + saygin / 40) * (1 + tanitim) * dusus;
+  const harc     = (Number(state.university?.tuitionPerSemester) || 65_000) * (dept.tuitionMultiplier || sablon?.tuitionMultiplier || 1);
+  const fiyat    = calculateTuitionEffect(harc, dept.id, saygin).demandMultiplier;
+  return {
+    ucretli:      Math.round(temel * fiyat),
+    yariBurslu:   Math.round(temel * 2.5 * Math.min(1.5, 0.5 + fiyat / 2)),
+    tamBurslu:    Math.round(temel * 6),
+    fiyatCarpani: fiyat,
+  };
+}
 
 // ─────────────────────────────────────────────────────────────────────────────
 // YARDIMCILAR
@@ -137,10 +185,10 @@ export function generateInitialStudents(departments, universityType, totalStuden
     const yr2 = Math.max(1, Math.floor(perYear * 0.94));
     const yr1 = perYear;
 
-    // Başlangıç burs dağılımı (yaklaşık)
+    // Başlangıç burs dağılımı (yaklaşık). v0.7: devlette herkes harçsız okur, burs türü yok
     function makeBurslu(count, prestige) {
-      const tamPct  = 0.15;
-      const yariPct = 0.20;
+      const tamPct  = universityType === 'devlet' ? 0 : 0.15;
+      const yariPct = universityType === 'devlet' ? 0 : 0.20;
       return {
         tamBurslu:   Math.round(count * tamPct),
         yariBurslu:  Math.round(count * yariPct),
@@ -191,12 +239,14 @@ export function generateInitialStudents(departments, universityType, totalStuden
       },
     };
 
-    // Başlangıç kontenjan
-    quotas[deptId] = {
-      tamBurslu:  Math.round(yr1 * 0.15),
-      yariBurslu: Math.round(yr1 * 0.20),
-      ucretli:    yr1 - Math.round(yr1 * 0.15) - Math.round(yr1 * 0.20),
-    };
+    // Başlangıç kontenjan (devlette kontenjan penceresi gibi tek toplam: ucretli alanında)
+    quotas[deptId] = universityType === 'devlet'
+      ? { tamBurslu: 0, yariBurslu: 0, ucretli: yr1 }
+      : {
+          tamBurslu:  Math.round(yr1 * 0.15),
+          yariBurslu: Math.round(yr1 * 0.20),
+          ucretli:    yr1 - Math.round(yr1 * 0.15) - Math.round(yr1 * 0.20),
+        };
   });
 
   return {
@@ -515,7 +565,9 @@ export function processNewEnrollment(state) {
 
   const prestige = state.university.prestige;
   const quotas   = state.students.quotas || {};
-  const summary  = { enrolled: [], totalAdmitted: 0, engellenenBolumler: [] };
+  // v0.7: bosKalan = yer ya da başvuru yetmediği için dolmayan kontenjan (bölüm bölüm)
+  const summary  = { enrolled: [], totalAdmitted: 0, engellenenBolumler: [], bosKalan: [] };
+  const tanitimTalebi = tanitimEtkisi(harcamaKararlari(state).tanitim).talep;
 
   state.departments.forEach(dept => {
     if (!dept.isOpen) return;
@@ -535,12 +587,41 @@ export function processNewEnrollment(state) {
     }
 
     const deptTempl  = getDeptTemplate(deptId);
-    const demand     = deptTempl?.baseStudentDemand ?? 1.0;
+    // v0.7: tanıtım harcaması başvuru havuzunu büyütür, alınan öğrencinin YKS'si iyileşir
+    const demand     = (deptTempl?.baseStudentDemand ?? 1.0) * (1 + tanitimTalebi);
 
-    const tamBurslu  = quota.tamBurslu  || 0;
-    const yariBurslu = quota.yariBurslu || 0;
-    const ucretli    = quota.ucretli    || 0;
-    const total      = tamBurslu + yariBurslu + ucretli;
+    let tamBurslu  = quota.tamBurslu  || 0;
+    let yariBurslu = quota.yariBurslu || 0;
+    let ucretli    = quota.ucretli    || 0;
+    const istenen  = tamBurslu + yariBurslu + ucretli;
+    if (istenen === 0) return;
+
+    // v0.7: vakıfta kontenjan başvuru kadar dolar (harç, saygınlık, tanıtım, bölüm talebi)
+    const basvuru = vakifBasvuruTahmini(state, dept);
+    let neden = null;
+    if (basvuru) {
+      if (tamBurslu > basvuru.tamBurslu)   { tamBurslu  = basvuru.tamBurslu;  neden = 'başvuru'; }
+      if (yariBurslu > basvuru.yariBurslu) { yariBurslu = basvuru.yariBurslu; neden = 'başvuru'; }
+      if (ucretli > basvuru.ucretli)       { ucretli    = basvuru.ucretli;    neden = 'başvuru'; }
+    }
+    // v0.7: alım bölümün yeriyle sınırlı (dört sınıflık derslik kapasitesi eksi 2-4. sınıflar;
+    // sınıflar bu noktada ilerlemiş durumdadır). Aşan kontenjan türler arasında oranla kırpılır.
+    {
+      const bdSimdi = state.students.byDepartment[deptId] || {};
+      const ust = (bdSimdi.year2?.count || 0) + (bdSimdi.year3?.count || 0) + (bdSimdi.year4?.count || 0);
+      const kap = Number.isFinite(dept.studentCapacity) && dept.studentCapacity > 0 ? dept.studentCapacity : Infinity;
+      const yer = Math.max(0, Math.floor(kap - ust));
+      const top = tamBurslu + yariBurslu + ucretli;
+      if (top > yer) {
+        neden = 'yer';
+        const oran = yer / top;
+        tamBurslu  = Math.floor(tamBurslu * oran);
+        yariBurslu = Math.floor(yariBurslu * oran);
+        ucretli    = Math.max(0, Math.min(yer - tamBurslu - yariBurslu, Math.floor(ucretli * oran) + 1));
+      }
+    }
+    const total = tamBurslu + yariBurslu + ucretli;
+    if (total < istenen) summary.bosKalan.push({ departmentId: deptId, istenen, alinan: total, neden });
     if (total === 0) return;
 
     // Akreditasyon YKS bonusu (dept._accreditationYKSBonus: negatif değer → daha iyi sıralama)
@@ -670,6 +751,8 @@ export function processYatayGecis(state) {
 export function processMeritScholarship(state) {
   let totalEligible = 0;
   const deptSummaries = [];
+  // v0.7: devlette harç yok; başarı bursu öğrenciyi ücretliden burslu sayar ama anlamı yoktur
+  if (state?.meta?.universityType === 'devlet') return { totalEligible, deptSummaries };
 
   state.departments.forEach(dept => {
     if (!dept.isOpen) return;
@@ -774,7 +857,9 @@ export function calculateStudentSatisfaction(state) {
     }
   }
   const bursOrani  = totalStudents > 0 ? totalBurslu / totalStudents : 0.10;
-  const bursScore  = clamp(bursOrani * 400, 20, 95);
+  // v0.7: devlette bütün öğrenciler harçsız okur; burs imkânı puanı sabit (eskiden eski
+  // kayıtların burslu sayısı eridikçe 95'ten 20'ye iniyordu)
+  const bursScore  = state.meta?.universityType === 'devlet' ? 80 : clamp(bursOrani * 400, 20, 95);
 
   // Yurt yeterlilik — toplam yatak vs öğrenci
   const totalBeds    = completedBuildings.filter(b => b.type === 'yurt')
@@ -890,7 +975,10 @@ export function calculateStudentSatisfaction(state) {
     ucretDeger       * 0.06 +
     adminHizmetScore * 0.12;
 
-  const score = Math.round(clamp(satisfaction));
+  // v0.7: öğrenci hizmetleri harcaması (Bütçe sekmesi) memnuniyete doğrudan eklenir
+  const hizmetBonusu = ogrenciHizmetiEtkisi(harcamaKararlari(state).ogrenciHizmetleri);
+
+  const score = Math.round(clamp(satisfaction + hizmetBonusu));
 
   const breakdown = {
     egitim: {
@@ -925,7 +1013,8 @@ export function calculateStudentSatisfaction(state) {
     },
   };
 
-  return { score, breakdown };
+  // hizmetBonusu kırılım tablosunda ağırlıklı etken değil, toplama eklenen puan (Bütçe sekmesi gösterir)
+  return { score, breakdown, hizmetBonusu: Math.round(hizmetBonusu * 10) / 10 };
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

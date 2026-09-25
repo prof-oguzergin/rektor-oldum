@@ -80,12 +80,13 @@ export function calculateIntlPillars(state) {
   const hIndex        = research.hIndex || 0;
   const pubCount      = research.publications || 0;
 
-  // Bütçe katkısı: araştırmaya ayrılan pay (0.0-1.0 → 0-20 puan)
-  const resAloc       = uni.budgetAllocation?.research || 0.20;
-  const budgetBonus   = Math.round(resAloc * 80);   // %20 ayrılırsa 16 puan
+  // Bütçe katkısı (v0.7): hoca başı araştırma fonu (0-20 puan). Eskiden etkisiz
+  // bütçe dağılımı yüzdesine bakıyordu; o kaydırıcılar kaldırıldı.
+  const arastirmaFonu = Number.isFinite(state.researchBudgetPerFaculty) ? state.researchBudgetPerFaculty : 50_000;
+  const budgetBonus   = Math.round(20 * (1 - Math.exp(-Math.max(0, arastirmaFonu) / 60_000)));
 
-  // H-indeks katkısı: tavan 25 puan
-  const hBonus        = clamp(hIndex * 2.5, 0, 25);
+  // H-indeks katkısı (v0.7): research.hIndex öğretim üyelerinin ortalaması; 8-20 arası 0-25 puan
+  const hBonus        = clamp((hIndex - 8) / 12 * 25, 0, 25);
 
   // Proje katkısı: aktif proje başına 3 puan, tavan 18
   const projBonus     = clamp(activeProj * 3, 0, 18);

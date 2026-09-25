@@ -1003,7 +1003,9 @@ function _onNextTurn() {
     console.log('[main] Bahar dönemi → kontenjan modalı gösteriliyor (zorunlu).');
     renderQuotaModal(currentState, (quotas) => {
       console.log('[main] Kontenjan onaylandı (Bahar öncesi):', quotas);
-      applyQuotas(quotas);
+      const sonuc = applyQuotas(quotas);
+      // v0.7: bölümün yerini aşan kontenjan kırpılır; oyuncuya yazılır
+      if (sonuc?.kirpilan?.length) showNotification(sonuc.message, 'warning', 7000);
       _runTurnAfterQuotas();
     }, { donemiBaslatir: true });
     return; // Kullanıcı onaylayana kadar bekle
@@ -1800,7 +1802,9 @@ function _onOpenQuotaScreen(odakBolum = null) {
   console.log('[main] Kontenjan belirleme ekranı açılıyor...');
   renderQuotaModal(state, (quotas) => {
     console.log('[main] Kontenjan onaylandı:', quotas);
-    applyQuotas(quotas);
+    const sonuc = applyQuotas(quotas);
+    // v0.7: bölümün yerini aşan kontenjan kırpılır; oyuncuya yazılır
+    if (sonuc?.kirpilan?.length) showNotification(sonuc.message, 'warning', 7000);
     _persistState();
     refreshGameUI();
   }, { odakBolum: typeof odakBolum === 'string' ? odakBolum : null });
@@ -1836,18 +1840,21 @@ function _onCampusDecision(decision) {
   refreshGameUI();
 }
 
-/** Bütçe dağılımı değişikliği */
-function _onAllocChange(allocation) {
-  console.log('[main] Bütçe dağılımı değişikliği:', allocation);
-  // Doğru aksiyon adı: 'set_budget_allocation', payload: { allocation: {...} }
-  // (Eski sürümde 'budget_allocation' + spread ediliyordu, sessizce başarısız oluyordu — Yusuf raporu)
-  const result = applyDecision({ type: 'set_budget_allocation', allocation });
-  if (result && result.success === false) {
-    showNotification(result.message || 'Bütçe dağılımı uygulanamadı.', 'warning');
-    return;
-  }
+/**
+ * Bütçe sekmesi kararları (v0.7): harcama kararları ('set_harcama'), araştırma fonu
+ * ('research_budget') ve devlette kadro talebi ('kadro_talebi'). Bildirimi ui.js gösterir;
+ * sonuç döner. Eski çağrı biçimi (dağılım nesnesi) 'set_budget_allocation' sayılır.
+ * @param {object} decision
+ * @param {{ sessiz?: boolean }} [secenek]  sessiz: arayüzü yenileme (arka arkaya kararlar için)
+ */
+function _onAllocChange(decision, secenek = {}) {
+  const karar = decision && decision.type ? decision : { type: 'set_budget_allocation', allocation: decision };
+  console.log('[main] Bütçe kararı:', karar);
+  const result = applyDecision(karar);
+  if (result && result.success === false) return result;
   _persistState();
-  refreshGameUI();
+  if (!secenek.sessiz) refreshGameUI();
+  return result;
 }
 
 /**

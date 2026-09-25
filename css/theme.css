@@ -3307,3 +3307,18 @@ input[type="range"].ob-kaydirici:focus-visible { outline: 2px solid var(--gold-s
 .olay-secenek:focus-visible { outline: 2px solid var(--gold-soft); outline-offset: 2px; }
 .olay-secenek-ad { font-size: 14px; font-weight: 800; color: var(--ob-metin-guclu); }
 .olay-secenek-aciklama { font-size: 12.5px; line-height: 1.45; color: var(--ob-metin-soluk); }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   v0.7 ekonomi: Bütçe sekmesinin harcama kararları ve devlet kısıtları,
+   kontenjan penceresinin alım yeri uyarıları, Genel Bakış Hazine satırı
+   (ortak ob- bileşenleri üzerine yalnız yerleşim)
+   ═══════════════════════════════════════════════════════════════════════════ */
+.harcama-kart .ob-ayar .harcama-etki { grid-column: 1 / -1; margin-top: 2px; }
+.harcama-kart .harcama-toplam { margin: 12px 0 10px; padding-top: 8px; border-top: 1px solid rgba(255, 255, 255, 0.09); }
+.harcama-kart > .btn { width: 100%; }
+.devlet-kisit .ob-kart-baslik:not(:first-child) { margin-top: 16px; }
+.devlet-kisit .kadro-talep { grid-template-columns: minmax(90px, 150px) 84px auto; margin-top: 8px; }
+.devlet-kisit .kadro-talep-adet { width: 84px; }
+.devlet-kisit .kadro-talep .btn { justify-self: start; }
+.gb-forecast-hazine span { color: #ffb3bf; }
+.kont-kart .dept-hoca-uyari, .kont-kart .dept-talep-uyari { margin-top: 6px; }
