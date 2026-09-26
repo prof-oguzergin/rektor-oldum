@@ -3527,6 +3527,7 @@ input[type="range"].ob-kaydirici:focus-visible { outline: 2px solid var(--gold-s
   .birim-oto-kademe { flex: 1 1 100%; margin-left: 0; }
   .birim-oto-kademe .ob-secim { flex: 1; min-height: 44px; }
   .toplu-liste > summary { min-height: 44px; }
+}
 
 /* ═══════════════════════════════════════════════════════════════════════════
    v0.7.1 sezon ve öneri formu: En İyiler sekmesinin sezon seçimi (lb-sezonlar),
