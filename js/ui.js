@@ -15,6 +15,11 @@ import { bolumAlimYeri, vakifBasvuruTahmini } from './students.js?v=0.7.0';
 import { HARCAMA_KARARLARI } from './data.js?v=0.7.0';
 import { renderCampusMap, handleCampusClick, handleCampusHover, clearHover } from './campus-renderer.js?v=0.5.1';
 import { ODAKLAR, KONTENJAN_KURALLARI, POLITIKA_SINIRLARI, KARAR_TURLERI, politikaOku, devirDurumu, yonetimKademesi, donemAdi } from './baskan.js?v=0.7.0';
+// v0.7.1: Kadro ve İdari sekmelerinde toplu işlemler, idari birimlerde otomatik personel
+import {
+  TOPLU_OLCUT, TOPLU_DURUM, KADEMELER, IDARI_KARAR_TURLERI,
+  basvuruUygunlugu, hocaTerfiListesi, idariTerfiListesi, idariOtomatikOku, kademeAdi,
+} from './idari_otomatik.js?v=0.7.0';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // DOM YARDIMCILARI
@@ -463,6 +468,48 @@ export function showConfirmModal(baslik, icerikHtml, onOnay, secenek = {}) {
     </div>`);
   on(el('btn-onay-vazgec'), 'click', () => { hideModal(); if (onVazgec) onVazgec(); });
   on(el('btn-onay-tamam'), 'click', () => { hideModal(); if (onOnay) onOnay(); });
+}
+
+/**
+ * v0.7.1: toplu işlemin onay ve sonuç pencerelerinin gövdesi (showConfirmModal / topluSonucGoster içeriği).
+ * Uzun kişi listesi katlanır (altı kişiye kadar açık gelir).
+ * @param {{ giris?: string,
+ *           kutular?: Array<[string, string, string?, string?]>,   etiket, değer, alt satır, değer sınıfı
+ *           notlar?: Array<{ tur?: ''|'iyi'|'uyari'|'kritik', metin: string }>,
+ *           listeler?: Array<{ baslik: string, acik?: boolean,
+ *                              satirlar: Array<{ ad: string, alt?: string, rozet?: string, rozetSinif?: string }> }> }} s
+ */
+export function topluPencereHtml(s = {}) {
+  const kutular = (s.kutular || [])
+    .map(([etiket, deger, alt, sinif]) => _obKutu(etiket, deger, alt || '', sinif || '', 'ob-kutu--cukur')).join('');
+  const notlar = (s.notlar || []).filter(n => n?.metin)
+    .map(n => `<div class="ob-not${n.tur ? ` ob-not--${n.tur}` : ''}"><p>${_escHtml(n.metin)}</p></div>`).join('');
+  const listeler = (s.listeler || []).filter(l => l?.satirlar?.length).map(l => `
+    <details class="toplu-liste"${l.acik || l.satirlar.length <= 6 ? ' open' : ''}>
+      <summary>${_escHtml(l.baslik)} <span class="ob-sayi">${l.satirlar.length}</span></summary>
+      <ul class="toplu-kisiler">${l.satirlar.map(x => `
+        <li class="toplu-kisi">
+          <div class="toplu-kisi-govde"><b>${_escHtml(x.ad)}</b>${x.alt ? `<span>${_escHtml(x.alt)}</span>` : ''}</div>
+          ${x.rozet ? `<span class="ob-rozet ob-rozet--kucuk${x.rozetSinif ? ` ob-rozet--${x.rozetSinif}` : ''}">${_escHtml(x.rozet)}</span>` : ''}
+        </li>`).join('')}
+      </ul>
+    </details>`).join('');
+  return `
+    <div class="pencere-yigin toplu-pencere">
+      ${s.giris ? `<p class="pencere-metin">${_escHtml(s.giris)}</p>` : ''}
+      ${kutular ? `<div class="ob-kutular">${kutular}</div>` : ''}
+      ${notlar}
+      ${listeler}
+    </div>`;
+}
+
+/** v0.7.1: toplu işlemin sonucu (yapılanlar ve takılanlar nedenleriyle); "Tamam" ile kapanır. */
+export function topluSonucGoster(baslik, s = {}) {
+  showModal(baslik, `${topluPencereHtml(s)}
+    <div class="onay-dugmeler">
+      <button class="btn btn-primary" id="btn-toplu-tamam" type="button">Tamam</button>
+    </div>`);
+  on(el('btn-toplu-tamam'), 'click', hideModal);
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -1787,8 +1834,9 @@ function _mufredatHtml(dept, { notGoster = true } = {}) {
  * @param {Function} onTransferMarket — Transfer pazarı açma callback
  * @param {Function} onFacultyDetail  — Hoca ayrıntısı callback (facultyId alır)
  * @param {Function} onOpenPosition   — Kadro ilanı penceresi callback
+ * @param {object}   [toplu]          v0.7.1 toplu işlemler { onKabul, onRet, onHocaTerfi, onOlcut(değişiklik), onSpontSecim }
  */
-export function renderFacultyPanel(state, onTransferMarket, onFacultyDetail, onOpenPosition) {
+export function renderFacultyPanel(state, onTransferMarket, onFacultyDetail, onOpenPosition, toplu = {}) {
   const panel = el('tab-faculty');
   if (!panel) return;
 
@@ -1810,6 +1858,27 @@ export function renderFacultyPanel(state, onTransferMarket, onFacultyDetail, onO
   const applications          = state.pendingApplicants || [];
   const spontaneousApplicants = state.spontaneousApplicants || [];
   const myDeptIds             = depts.filter(d => d.isOpen).map(d => d.id);
+
+  // v0.7.1: toplu işlemler. İlan dışı başvuruda seçilen bölüm yeniden çizimde korunur (yanıtlanan başvurunun seçimi silinir).
+  const _spontKimlikler = new Set(spontaneousApplicants.map(a => a.id));
+  for (const id of Object.keys(_spontSecimleri)) if (!_spontKimlikler.has(id)) delete _spontSecimleri[id];
+  // Tercih ettiği bölüm kapalıysa seçim kutusu ilk açık bölümü gösterir; toplu kabul de onu kullansın
+  for (const a of spontaneousApplicants) {
+    const tercih = a.preferredDept || a.department;
+    if (!_spontSecimleri[a.id] && !myDeptIds.includes(tercih) && myDeptIds.length > 0) _spontSecimleri[a.id] = myDeptIds[0];
+  }
+  const uygunluk  = (applications.length + spontaneousApplicants.length) > 0 ? basvuruUygunlugu(state, _spontSecimleri) : null;
+  const topluDurum = new Map();
+  if (uygunluk) {
+    uygunluk.uygun.forEach(x => topluDurum.set(x.id, { ...TOPLU_DURUM.uygun, neden: `Genel puan ${x.puan}; toplu kabulde alınır.` }));
+    uygunluk.baskanda.forEach(x => topluDurum.set(x.id, { ...TOPLU_DURUM.baskan, neden: 'Bölüm başkana devredildi; başvuruyu başkan dönem sonunda değerlendirir, toplu işlem dokunmaz.' }));
+    uygunluk.kalan.forEach(x => topluDurum.set(x.id, { ...(TOPLU_DURUM[x.kod] || TOPLU_DURUM.esik), neden: x.neden }));
+  }
+  /** Başvuru kartındaki toplu kabul rozeti; tam nedeni fare ipucunda. */
+  const topluRozeti = (id) => {
+    const d = topluDurum.get(id);
+    return d ? `<span class="ob-rozet ob-rozet--kucuk${d.sinif ? ` ob-rozet--${d.sinif}` : ''} toplu-rozet" title="${_escHtml(d.neden || d.ad)}">${d.ad}</span>` : '';
+  };
 
   /** Başvuru kartının üstü: portre, ad, unvan, bölüm, genel puan ve akademik çıktı kutuları (hoca kartıyla aynı parçalar). */
   const adayUst = (app, bolumSatiri, ek = '') => {
@@ -1873,8 +1942,8 @@ export function renderFacultyPanel(state, onTransferMarket, onFacultyDetail, onO
     const doktora          = app.education ? String(app.education.phd || '').replace(' — ', ', ') : '';
 
     return `
-      <article class="ob-kart ob-kart--govde aday-kart">
-        ${adayUst(app, bolumAdi)}
+      <article class="ob-kart ob-kart--govde aday-kart" data-toplu-basvuru="${app.id}">
+        ${adayUst(app, bolumAdi, topluRozeti(app.id) ? `<div class="ob-dizi">${topluRozeti(app.id)}</div>` : '')}
         <div class="faculty-card-stats">
           ${createStatBar('Araştırma', researchStat, 100, _statColor(researchStat))}
           ${createStatBar('Eğitim', teachingStat, 100, _statColor(teachingStat))}
@@ -1924,14 +1993,17 @@ export function renderFacultyPanel(state, onTransferMarket, onFacultyDetail, onO
     const stats  = app.stats || {};
     const researchStat = stats.research ?? 50;
     const teachingStat = stats.teaching ?? 50;
+    // v0.7.1: oyuncunun seçtiği bölüm yeniden çizimde korunur (toplu kabul de onu kullanır)
+    const secili = depts.some(d => d.isOpen && d.id === _spontSecimleri[app.id]) ? _spontSecimleri[app.id] : tercih;
     const deptSelectOpts = depts.filter(d => d.isOpen).map(d =>
-      `<option value="${d.id}" ${d.id === tercih ? 'selected' : ''}>${d.shortName || d.name}</option>`
+      `<option value="${d.id}" ${d.id === secili ? 'selected' : ''}>${d.shortName || d.name}</option>`
     ).join('');
     const turnsLeft = 2 - ((state.meta?.turn || 1) - (app.applicationDate || (state.meta?.turn || 1)));
     const kalan = `<span class="ob-rozet ${turnsLeft <= 1 ? 'ob-rozet--kritik' : 'ob-rozet--uyari'} ob-rozet--kucuk aday-kalan">${turnsLeft} dönem kaldı</span>`;
+    const rozet = topluRozeti(app.id);
     return `
-      <article class="ob-kart ob-kart--govde aday-kart">
-        ${adayUst(app, `Tercih: ${dept?.shortName || tercih || '—'}`, kalan)}
+      <article class="ob-kart ob-kart--govde aday-kart" data-toplu-basvuru="${app.id}">
+        ${adayUst(app, `Tercih: ${dept?.shortName || tercih || '—'}`, `${kalan}${rozet ? `<div class="ob-dizi">${rozet}</div>` : ''}`)}
         <div class="faculty-card-stats">
           ${createStatBar('Araştırma', researchStat, 100, _statColor(researchStat))}
           ${createStatBar('Eğitim', teachingStat, 100, _statColor(teachingStat))}
@@ -1989,6 +2061,72 @@ export function renderFacultyPanel(state, onTransferMarket, onFacultyDetail, onO
       </div>
     </section>`;
 
+  // v0.7.1: toplu işlemler (ölçüte uyan başvuruları kabul, kalanları ret, hazır hocaları yükseltme)
+  const hocaTerfi = hocaTerfiListesi(state);
+  const topluBasvuruHtml = !uygunluk ? '' : (() => {
+    const o     = uygunluk.olcut;
+    const kd    = kadroDurumu(state);
+    const aylik = uygunluk.uygun.reduce((s, x) => s + x.maas, 0);
+    const kurallar = [
+      'Yalnız açık bölümlere gelen başvurular alınır; bölüm sınırı bu dönem alınanları da sayar.',
+      uygunluk.baskanda.length > 0
+        ? `Başkana devredilen bölümlere gelen ${uygunluk.baskanda.length} başvuruya dokunulmaz; onları başkan dönem sonunda değerlendirir.` : '',
+      'Kasa eksiyse toplu kabul yapılmaz.',
+      kd
+        ? `Boş kadro (şu an ${kd.bos}) ve maaş sınırı (%60) her kabulde ayrıca denetlenir; takılan başvuru sonuçta nedeniyle yazar.`
+        : 'Her kabul oyunun kabul kararıyla yapılır; kasa açığı YÖK denetimine varınca işe alım donar, takılan başvuru sonuçta nedeniyle yazar.',
+    ].filter(Boolean);
+    const sinirSecenek = TOPLU_OLCUT.bolumBasina.secenekler
+      .map(n => `<option value="${n}" ${n === o.bolumBasina ? 'selected' : ''}>${n === 0 ? 'Sınır yok' : `${n} kişi`}</option>`).join('');
+    return `
+      <article class="ob-kart toplu-kart" id="toplu-basvuru">
+        <div class="ob-kart-baslik"><span>Başvurular</span><span class="ob-rozet ob-rozet--kucuk">${uygunluk.toplam} başvuru</span></div>
+        <div class="toplu-olcutler">
+          <div class="ob-ayar">
+            <label class="ob-ayar-e" for="toplu-esik">En düşük genel puan</label>
+            <input type="range" class="ob-kaydirici" id="toplu-esik" min="${TOPLU_OLCUT.puanEsigi.enAz}" max="${TOPLU_OLCUT.puanEsigi.enCok}"
+                   step="${TOPLU_OLCUT.puanEsigi.adim}" value="${o.puanEsigi}">
+            <output class="ob-ayar-d" id="toplu-esik-d" for="toplu-esik">${o.puanEsigi}</output>
+          </div>
+          <div class="ob-ayar">
+            <label class="ob-ayar-e" for="toplu-bolum">Bölüm başına bu dönem en çok</label>
+            <select class="ob-secim ob-secim--tam" id="toplu-bolum">${sinirSecenek}</select>
+          </div>
+          <label class="toplu-onay"><input type="checkbox" id="toplu-barem" ${o.baremIci ? 'checked' : ''}> Maaş beklentisi baremi aşanı alma</label>
+        </div>
+        <ul class="ob-madde ob-madde--soluk toplu-kurallar">${kurallar.map(k => `<li>${k}</li>`).join('')}</ul>
+        <div class="toplu-sayim">Ölçüte uyan <b class="ob-iyi">${uygunluk.uygun.length}</b> başvuru${uygunluk.uygun.length > 0 ? ` (aylık maaşları ${formatMoney(aylik)})` : ''}, kalan <b>${uygunluk.kalan.length}</b>.</div>
+        <div class="ob-dugmeler">
+          <button type="button" class="btn btn-success${uygunluk.kasaEksi && uygunluk.uygun.length > 0 ? ' btn--pasif' : ''}" id="btn-toplu-kabul"
+                  ${uygunluk.uygun.length === 0 ? 'disabled' : ''} title="${uygunluk.kasaEksi ? 'Kasa eksi; toplu kabul yapılmaz' : 'Ölçüte uyan başvuruları kabul eder (önce onay istenir)'}">Uygun başvuruları kabul et (${uygunluk.uygun.length})</button>
+          <button type="button" class="btn btn-danger" id="btn-toplu-ret" ${uygunluk.kalan.length === 0 ? 'disabled' : ''}
+                  title="Ölçüte uymayan başvuruları reddeder (önce onay istenir)">Kalanları reddet (${uygunluk.kalan.length})</button>
+        </div>
+      </article>`;
+  })();
+  const topluTerfiHtml = hocaTerfi.length === 0 ? '' : (() => {
+    const doc  = hocaTerfi.filter(x => x.yeniUnvan === 'docent').length;
+    const prof = hocaTerfi.filter(x => x.yeniUnvan === 'profesor').length;
+    const ek   = hocaTerfi.reduce((s, x) => s + (x.maasSonra - x.maasOnce), 0);
+    const dagilim = [doc ? `${doc} hoca doçentliğe` : '', prof ? `${prof} hoca profesörlüğe` : ''].filter(Boolean).join(' ve ');
+    return `
+      <div class="ob-not ob-not--iyi toplu-terfi" id="toplu-hoca-terfi">
+        <div class="ob-not-baslik">${hocaTerfi.length} hoca unvan yükseltmeye hazır</div>
+        <p>${dagilim} yükselebilir. Maaşı yeni unvanın barem alt sınırının altında olanın maaşı ona çıkar${ek > 0 ? `; aylık etkisi +${formatMoney(ek)}` : ''}.</p>
+        <div class="ob-dugmeler">
+          <button type="button" class="btn btn-success btn-sm" id="btn-toplu-hoca-terfi">Hazır olanların hepsini yükselt (${hocaTerfi.length})</button>
+        </div>
+      </div>`;
+  })();
+  const topluHtml = (topluBasvuruHtml || topluTerfiHtml) ? `
+    <section class="ob-bolum toplu-bolum" id="toplu-islemler">
+      ${_obBaslik('kadro', 'Toplu işlemler')}
+      <div class="ob-yigin ob-yigin--sik">
+        ${topluBasvuruHtml}
+        ${topluTerfiHtml}
+      </div>
+    </section>` : '';
+
   panel.innerHTML = `
     <div class="panel-header">
       <div>
@@ -2004,6 +2142,7 @@ export function renderFacultyPanel(state, onTransferMarket, onFacultyDetail, onO
 
     <div class="ob-yigin">
       ${maasOzeti}
+      ${topluHtml}
       ${basvurularHtml}
       ${spontaneHtml}
       ${ilanlarHtml}
@@ -2311,7 +2450,32 @@ export function renderFacultyPanel(state, onTransferMarket, onFacultyDetail, onO
         panel.dispatchEvent(new CustomEvent('reject-spontaneous', { detail: { appId }, bubbles: true }));
       }
     });
+    // v0.7.1: seçilen bölüm saklanır; toplu kabul ölçütü ona göre yeniden hesaplanır
+    spontList.addEventListener('change', (e) => {
+      const sec = e.target.closest('select[id^="spont-dept-"]');
+      if (!sec) return;
+      _spontSecimleri[sec.id.slice('spont-dept-'.length)] = sec.value;
+      if (typeof toplu.onSpontSecim === 'function') toplu.onSpontSecim();
+    });
   }
+
+  // v0.7.1: toplu işlemler (ölçüt değişince panel yeniden çizilir; düğmeler önce onay penceresini açar)
+  const esik = el('toplu-esik');
+  on(esik, 'input', () => { const d = el('toplu-esik-d'); if (d) d.textContent = esik.value; });
+  on(esik, 'change', () => toplu.onOlcut?.({ puanEsigi: Number(esik.value) }));
+  on(el('toplu-bolum'), 'change', (e) => toplu.onOlcut?.({ bolumBasina: Number(e.target.value) }));
+  on(el('toplu-barem'), 'change', (e) => toplu.onOlcut?.({ baremIci: !!e.target.checked }));
+  on(el('btn-toplu-kabul'), 'click', () => toplu.onKabul?.());
+  on(el('btn-toplu-ret'), 'click', () => toplu.onRet?.());
+  on(el('btn-toplu-hoca-terfi'), 'click', () => toplu.onHocaTerfi?.());
+}
+
+/** v0.7.1: Kadro sekmesinde ilan dışı başvurular için seçilen bölümler (başvuru kimliği → bölüm). */
+const _spontSecimleri = {};
+
+/** Kadro sekmesinde ilan dışı başvurular için seçilen bölümlerin kopyası (toplu kabul bunları kullanır). */
+export function kadroSpontSecimleri() {
+  return { ..._spontSecimleri };
 }
 
 /**
@@ -3247,6 +3411,19 @@ function _baskanKararListesi(kararlar = []) {
     const t = KARAR_TURLERI[k.tur] || KARAR_TURLERI.bilgi;
     return `
       <li class="baskan-karar baskan-karar--${k.tur}">
+        <span class="ob-rozet ob-rozet--kucuk${t.sinif ? ` ob-rozet--${t.sinif}` : ''}">${t.ad}</span>
+        <div class="baskan-karar-govde"><div>${_escHtml(k.metin || '')}</div>${k.neden ? `<div class="ob-aciklama">Neden: ${_escHtml(k.neden)}</div>` : ''}</div>
+      </li>`;
+  }).join('')}</ul>`;
+}
+
+/** v0.7.1: idari birimin otomatik personel kararları (başkan kararlarıyla aynı görünüm, kendi türleri). */
+function _idariKararListesi(kararlar = []) {
+  if (!Array.isArray(kararlar) || kararlar.length === 0) return '<p class="ob-aciklama">Bu dönem karar gerekmedi.</p>';
+  return `<ul class="baskan-kararlar idari-kararlar">${kararlar.map(k => {
+    const t = IDARI_KARAR_TURLERI[k.tur] || IDARI_KARAR_TURLERI.bilgi;
+    return `
+      <li class="baskan-karar baskan-karar--${k.tur === 'bilgi' ? 'bilgi' : _escHtml(k.tur || '')}">
         <span class="ob-rozet ob-rozet--kucuk${t.sinif ? ` ob-rozet--${t.sinif}` : ''}">${t.ad}</span>
         <div class="baskan-karar-govde"><div>${_escHtml(k.metin || '')}</div>${k.neden ? `<div class="ob-aciklama">Neden: ${_escHtml(k.neden)}</div>` : ''}</div>
       </li>`;
@@ -7592,7 +7769,8 @@ export function renderTurnSummary(summary, onNextTurn) {
 
   // Olaylar: yalnız açıklaması olanlar (EfekanSalman Issue #21); yıldız öğrenci olayları ayrı kartta (iki kez görünüyordu)
   // v0.7: başkanların kararları olay listesinde değil, aşağıdaki katlanır bölümde
-  const validEvents = events.filter(ev => ev.type !== 'baskan_kararlari' && !!(ev.description || ev.message || ev.title));
+  // v0.7.1: idari birimlerin otomatik personel kararları da olay listesinde değil, kendi katlanır bölümünde
+  const validEvents = events.filter(ev => ev.type !== 'baskan_kararlari' && ev.type !== 'idari_otomatik' && !!(ev.description || ev.message || ev.title));
   const olaylarKart = (() => {
     const otherEvents = validEvents.filter(ev => !_YILDIZ_OGRENCI_OLAYLARI.includes(ev.type));
     const starEvents  = otherEvents.filter(ev => ev.type === 'star_faculty_hired');
@@ -7704,6 +7882,48 @@ export function renderTurnSummary(summary, onNextTurn) {
       </details>`;
   })();
 
+  // v0.7.1: otomatik personeli açık idari birimlerin bu dönem sonundaki kararları (katlanır; uyarı varsa açık gelir)
+  const idariKarti = (() => {
+    const kayit    = events.find(ev => ev.type === 'idari_otomatik');
+    const birimler = Array.isArray(kayit?.birimler) ? kayit.birimler : [];
+    if (birimler.length === 0) return '';
+    const say = tur => birimler.reduce((s, b) => s + (b.kararlar || []).filter(k => k.tur === tur).length, 0);
+    const alinan = birimler.reduce((s, b) => s + (Number(b.alinan) || 0), 0);
+    const yoneticisiz = birimler.filter(b => (b.kararlar || []).some(k => k.kod === 'yonetici_yok')).length;
+    const rozetler = [
+      [alinan, 'kişi alındı', 'iyi'], [say('yonetici'), 'yönetici atandı', 'vurgu'],
+      [yoneticisiz, 'birim yöneticisiz', 'uyari'], [say('uyari'), 'uyarı', 'kritik'],
+    ].filter(([n]) => n > 0)
+      .map(([n, ad, sinif]) => `<span class="ob-rozet ob-rozet--kucuk ob-rozet--${sinif}">${n} ${ad}</span>`).join('');
+    const yoneticiNotu = yoneticisiz === 0 ? '' : `
+      <div class="ob-not ob-not--uyari">
+        <p>${yoneticisiz} birimin yöneticisi yok; yöneticisiz birimin performansı düşer. Yönetici rütbesiyle yalnız kıdemli adaylar gelir. O birimin kademe sınırını kıdemli yaparsanız eksik açılınca yönetici de alınır; hemen atamak için birim kartındaki Ata düğmesini kullanabilirsiniz.</p>
+      </div>`;
+    return `
+      <details class="ob-kart ozet-baskan ozet-idari"${say('uyari') > 0 ? ' open' : ''}>
+        <summary class="ozet-baskan-ozet">
+          <span class="ozet-baslik"><span class="ozet-ikon" aria-hidden="true">🏢</span>İdari birimler</span>
+          <span class="ob-dizi"><span class="ob-rozet ob-rozet--kucuk">${birimler.length} birim</span>${rozetler}</span>
+        </summary>
+        <div class="ozet-baskan-govde">
+          ${yoneticiNotu}
+          ${birimler.map(b => `
+            <section class="ozet-baskan-bolum" data-idari-birim="${_escHtml(b.unitId || '')}">
+              <div class="ozet-baskan-ust">
+                <div class="ozet-baskan-kimlik">
+                  <b>${b.ikon ? `${b.ikon} ` : ''}${_escHtml(b.ad || b.unitId || '')}</b>
+                  <span class="ob-aciklama">personel ${Number(b.personel) || 0}/${Number(b.gereken) || 0} · kademe sınırı ${kademeAdi(b.kademe).toLocaleLowerCase('tr')}</span>
+                </div>
+              </div>
+              ${_idariKararListesi(b.kararlar)}
+            </section>`).join('')}
+          <div class="ob-dugmeler">
+            <button type="button" class="bs-link bs-link--kucuk" data-ozet-idari="1">İdari Birimler sekmesi →</button>
+          </div>
+        </div>
+      </details>`;
+  })();
+
   bodyEl.innerHTML = `
     <div class="pencere-yigin">
       <div class="ozet-izgara">
@@ -7715,6 +7935,7 @@ export function renderTurnSummary(summary, onNextTurn) {
         ${yildizKart}
       </div>
       ${baskanKarti}
+      ${idariKarti}
       ${projeKarti}
     </div>
   `;
@@ -7773,6 +7994,13 @@ export function renderTurnSummary(summary, onNextTurn) {
         dugme.disabled = true;
         dugme.textContent = 'Doğrudan yönetimde';
       }
+    });
+  });
+  // v0.7.1: idari birimlerin kararlarından İdari Birimler sekmesine (özet Devam gibi kapanır)
+  bodyEl.querySelectorAll('[data-ozet-idari]').forEach(dugme => {
+    dugme.addEventListener('click', () => {
+      kapat();
+      document.querySelector('.sidebar-tab[data-tab="admin"]')?.click();
     });
   });
   overlay.onclick = (e) => {
@@ -8613,13 +8841,17 @@ export function getDeptAvgRating(deptId, faculty) {
  * @param {object}   state          — Oyun state'i
  * @param {Function} onHireAdmin    — Personel al callback (unitId, title)
  * @param {Function} onUpgradeUnit  — Birim yükselt callback (unitId)
+ * @param {object}   [islemler]     v0.7.1 { onOtoAyar(unitId, { acik?, kademe? }), onOtoHepsi(acik), onTopluTerfi() }
  */
-export function renderAdminPanel(state, onHireAdmin, onUpgradeUnit) {
+export function renderAdminPanel(state, onHireAdmin, onUpgradeUnit, islemler = {}) {
   const panel = el('tab-admin');
   if (!panel) return;
 
   const adminUnits = state.adminUnits || {};
   const adminStaff = state.adminStaff || [];
+  // v0.7.1: otomatik personel ayarları ve terfiye hazır personel
+  const oto        = idariOtomatikOku(state);
+  const idariTerfi = idariTerfiListesi(state);
 
   // Özet istatistikler
   const totalStaff  = adminStaff.length;
@@ -8757,6 +8989,23 @@ export function renderAdminPanel(state, onHireAdmin, onUpgradeUnit) {
       unit.idariBonus > 0 ? `<span class="ob-rozet ob-rozet--bilgi ob-rozet--kucuk">İdari bina: +%${unit.idariBonus} verimlilik</span>` : '',
     ].filter(Boolean).join('');
 
+    // v0.7.1: otomatik personel anahtarı ve kademe sınırı (dönem sonunda eksikleri doldurur)
+    const otoAyar  = oto.birimler[unitId] || { acik: false, kademe: 'mid' };
+    const otoSatir = `
+      <div class="birim-oto${otoAyar.acik ? ' birim-oto--acik' : ''}" data-birim-oto="${unitId}">
+        <span class="birim-oto-e" id="birim-oto-e-${unitId}">Otomatik personel</span>
+        <div class="ob-anahtar" role="group" aria-labelledby="birim-oto-e-${unitId}">
+          <button type="button" class="${otoAyar.acik ? '' : 'secili'}" aria-pressed="${!otoAyar.acik}" data-oto-birim="${unitId}" data-oto-acik="0">Kapalı</button>
+          <button type="button" class="${otoAyar.acik ? 'secili' : ''}" aria-pressed="${otoAyar.acik}" data-oto-birim="${unitId}" data-oto-acik="1">Açık</button>
+        </div>
+        <label class="birim-oto-kademe">
+          <span>Kademe sınırı</span>
+          <select class="ob-secim" data-oto-kademe="${unitId}" aria-label="${template.name}: kademe sınırı">
+            ${Object.entries(KADEMELER).map(([k, v]) => `<option value="${k}" ${k === otoAyar.kademe ? 'selected' : ''}>${v.ad}</option>`).join('')}
+          </select>
+        </label>
+      </div>`;
+
     return `
       <article class="ob-kart ob-kart--sutun admin-unit-card birim-kart">
         <header class="ob-kimlik">
@@ -8772,6 +9021,7 @@ export function renderAdminPanel(state, onHireAdmin, onUpgradeUnit) {
         </header>
         ${rozetler ? `<div class="ob-dizi">${rozetler}</div>` : ''}
         ${mgrRow}
+        ${otoSatir}
         <div class="ob-kutular birim-kutular">
           ${_obKutu('Personel', `${unit.staffCount}<small>/${unit.staffNeeded}</small>`, eksik > 0 ? `${eksik} eksik` : 'kadro tam', personelSinifi, 'ob-kutu--cukur')}
           ${_obKutu('Kalite', `${tamPuan(unit.staffQuality, 0)}<small>/100</small>`, 'personel ortalaması', _obKademe(unit.staffQuality || 0, 70, 55), 'ob-kutu--cukur')}
@@ -8801,21 +9051,43 @@ export function renderAdminPanel(state, onHireAdmin, onUpgradeUnit) {
       </article>`;
   }).join('');
 
-  // Terfi bekleyen personel
-  const promotionCount = adminStaff.filter(m => {
-    if (!m.promotionEligible) return false;
-    const unitTitlesArr = getUnitTitles(m.unit);
-    return unitTitlesArr.indexOf(m.title) < unitTitlesArr.length - 1;
-  }).length;
+  // Terfi bekleyen personel (v0.7.1: hepsini birden terfi ettirme; sayım idari_otomatik.js idariTerfiListesi)
+  const promotionCount = idariTerfi.length;
+  const terfiEk = idariTerfi.reduce((s, x) => s + (x.maasSonra - x.maasOnce), 0);
   const terfiNotu = promotionCount === 0 ? '' : `
     <div class="ob-not ob-not--uyari idari-terfi">
       <div class="ob-not-baslik">${promotionCount} personel terfiye hazır</div>
-      <p>Terfiye hazır personelin kartı altın çerçevelidir; kartındaki "Terfi et" düğmesiyle yükseltebilirsiniz.</p>
+      <p>Terfiye hazır personelin kartı altın çerçevelidir; kartındaki "Terfi et" düğmesiyle tek tek ya da aşağıdaki düğmeyle hepsini birden yükseltebilirsiniz${terfiEk > 0 ? ` (aylık maaş etkisi +${formatMoney(terfiEk)})` : ''}.</p>
       <div class="ob-dugmeler">
+        <button type="button" class="btn btn-success btn-sm" id="btn-toplu-idari-terfi">Terfiye hazır olanların hepsini terfi ettir (${promotionCount})</button>
         <button type="button" class="btn btn-warning btn-sm"
                 onclick="document.querySelector('#tab-admin .admin-staff-card.terfi-hazir')?.scrollIntoView({behavior:'smooth',block:'center'})">İlk kartı göster</button>
       </div>
     </div>`;
+
+  // v0.7.1: otomatik personel (bütün birimler için anahtar, kurallar, geçen dönem sonunun özeti)
+  const otoToplam = Object.keys(ADMIN_UNITS).length;
+  const otoSon = oto.son && oto.acikSayisi > 0 ? (() => {
+    const p = [`${oto.son.alim || 0} kişi alındı`];
+    if (oto.son.yonetici) p.push(`${oto.son.yonetici} yönetici atandı`);
+    if (oto.son.uyari) p.push(`${oto.son.uyari} uyarı`);
+    return `<div class="ob-aciklama idari-oto-son">Geçen dönem sonunda ${oto.son.birim || 0} birimde ${p.join(', ')}.</div>`;
+  })() : '';
+  const otoKarti = `
+    <section class="ob-kart idari-oto" id="idari-oto">
+      <div class="idari-oto-ust">
+        <div class="ob-kart-baslik"><span>Otomatik personel</span>
+          <span class="ob-rozet ob-rozet--kucuk${oto.acikSayisi > 0 ? ' ob-rozet--iyi' : ''}">${oto.acikSayisi}/${otoToplam} birim açık</span></div>
+        <div class="ob-anahtar" role="group" aria-label="Bütün birimlerde otomatik personel">
+          <button type="button" class="${oto.acikSayisi === 0 ? 'secili' : ''}" aria-pressed="${oto.acikSayisi === 0}" data-oto-hepsi="0">Hepsi kapalı</button>
+          <button type="button" class="${oto.acikSayisi === otoToplam ? 'secili' : ''}" aria-pressed="${oto.acikSayisi === otoToplam}" data-oto-hepsi="1">Hepsi açık</button>
+        </div>
+      </div>
+      <p class="ob-aciklama">Açık birimde her dönem sonunda eksik personel, kademe sınırını aşmadan adaylar arasında niteliği en yüksek olanla doldurulur; birim yöneticisi boşsa yönetici rütbesindeki personelden liderliği en yüksek olan atanır. Kasa eksiyse ya da devlette maaş sınırı doluysa alım yapılmaz. Kararlar dönem özetinde "İdari birimler" bölümünde yazar.</p>
+      <p class="ob-aciklama">Kademe sınırı alınacak adayların en üst deneyim düzeyidir; yönetici rütbesiyle yalnız kıdemli adaylar gelir.</p>
+      ${otoSon}
+      <div class="ob-not idari-oto-not">Hocalar için aynı iş Bölüm Sayfası'ndaki "Başkana devret" ile yapılıyor.</div>
+    </section>`;
 
   panel.innerHTML = `
     <div class="panel-header">
@@ -8833,6 +9105,8 @@ export function renderAdminPanel(state, onHireAdmin, onUpgradeUnit) {
       </div>
 
       ${terfiNotu}
+
+      ${otoKarti}
 
       <section class="ob-bolum">
         ${_obBaslik('idari', 'Birimler', Object.keys(ADMIN_UNITS).length)}
@@ -8974,6 +9248,24 @@ export function renderAdminPanel(state, onHireAdmin, onUpgradeUnit) {
       if (mid) _showAdminStaffDetail(mid, adminStaff);
     });
   });
+
+  // v0.7.1: otomatik personel anahtarları, kademe sınırı ve toplu terfi
+  panel.querySelectorAll('[data-oto-birim]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      if (btn.classList.contains('secili')) return;
+      islemler.onOtoAyar?.(btn.dataset.otoBirim, { acik: btn.dataset.otoAcik === '1' });
+    });
+  });
+  panel.querySelectorAll('[data-oto-kademe]').forEach(sec => {
+    sec.addEventListener('change', () => islemler.onOtoAyar?.(sec.dataset.otoKademe, { kademe: sec.value }));
+  });
+  panel.querySelectorAll('[data-oto-hepsi]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      if (btn.classList.contains('secili')) return;
+      islemler.onOtoHepsi?.(btn.dataset.otoHepsi === '1');
+    });
+  });
+  on(el('btn-toplu-idari-terfi'), 'click', () => islemler.onTopluTerfi?.());
 }
 
 /**

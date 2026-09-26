@@ -3435,3 +3435,96 @@ input[type="range"].ob-kaydirici:focus-visible { outline: 2px solid var(--gold-s
 .devlet-kisit .kadro-talep .btn { justify-self: start; }
 .gb-forecast-hazine span { color: #ffb3bf; }
 .kont-kart .dept-hoca-uyari, .kont-kart .dept-talep-uyari { margin-top: 6px; }
+
+/* ═══════════════════════════════════════════════════════════════════════
+   v0.7.1 toplu işlemler: Kadro sekmesindeki toplu kabul ve ret (toplu-kart,
+   ölçütler, kurallar), unvan yükseltme notu (toplu-terfi), onay ve sonuç
+   pencereleri (toplu-pencere, toplu-liste), İdari sekmesinde otomatik
+   personel (idari-oto, birim-oto) ve dönem özetindeki "İdari birimler"
+   (ozet-idari; ozet-baskan kurallarını paylaşır). Ortak bileşenlerin
+   (ob-kart, ob-ayar, ob-kaydirici, ob-secim, ob-anahtar, ob-madde, ob-not,
+   ob-rozet, ob-dugmeler) üstüne yalnız yerleşim.
+═══════════════════════════════════════════════════════════════════════ */
+
+/* Kadro: toplu kabul kartı */
+.toplu-kart { display: flex; flex-direction: column; gap: 12px; }
+.toplu-kart .ob-kart-baslik { margin-bottom: 0; }
+.toplu-olcutler { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 220px), 1fr)); gap: 12px 18px; align-items: start; }
+.toplu-olcutler .ob-ayar + .ob-ayar { margin-top: 0; }
+.toplu-olcutler .ob-kaydirici { margin: 6px 0; }
+.toplu-olcutler .ob-secim { margin-top: 4px; }
+.toplu-onay { display: flex; align-items: center; gap: 8px; min-height: 36px; align-self: end; font-size: 13px; color: var(--ob-metin); cursor: pointer; }
+.toplu-onay input { flex-shrink: 0; width: 16px; height: 16px; margin: 0; accent-color: var(--gold); cursor: pointer; }
+.toplu-kurallar { padding-top: 10px; border-top: 1px solid var(--ob-cizgi); }
+.toplu-sayim { font-size: 13px; color: var(--ob-metin); }
+.toplu-sayim b { font-variant-numeric: tabular-nums; }
+.toplu-terfi .ob-dugmeler { margin-top: 8px; }
+.aday-kart .fc2-id > .ob-dizi { gap: 4px 6px; }
+.toplu-rozet[title] { cursor: help; }
+
+/* Onay ve sonuç pencereleri: katlanır kişi listesi */
+.toplu-pencere .pencere-metin { margin: 0; }
+.toplu-liste { border-radius: 12px; border: 1px solid var(--ob-cizgi-orta); background: var(--ob-cukur); }
+.toplu-liste > summary {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 40px;
+  padding: 8px 12px;
+  list-style: none;
+  cursor: pointer;
+  font-size: 12.5px;
+  font-weight: 800;
+  color: var(--ob-metin-guclu);
+}
+.toplu-liste > summary::-webkit-details-marker { display: none; }
+.toplu-liste > summary::after { content: '▾'; margin-left: auto; color: var(--gold-soft); transition: transform 0.15s ease; }
+.toplu-liste[open] > summary::after { transform: rotate(180deg); }
+.toplu-liste > summary:focus-visible { outline: 2px solid var(--gold-soft); outline-offset: -2px; border-radius: 12px; }
+.toplu-kisiler { display: flex; flex-direction: column; max-height: 320px; margin: 0; padding: 0 12px 8px; overflow-y: auto; list-style: none; -webkit-overflow-scrolling: touch; }
+.toplu-kisi { display: flex; align-items: flex-start; justify-content: space-between; gap: 8px; padding: 7px 0; font-size: 12.5px; line-height: 1.45; }
+.toplu-kisi + .toplu-kisi { border-top: 1px solid var(--ob-cizgi); }
+.toplu-kisi-govde { display: flex; flex-direction: column; gap: 1px; min-width: 0; overflow-wrap: anywhere; }
+.toplu-kisi-govde b { color: var(--ob-metin-guclu); }
+.toplu-kisi-govde span { color: var(--ob-metin-soluk); }
+.toplu-kisi > .ob-rozet { flex-shrink: 0; margin-top: 1px; }
+
+/* İdari: otomatik personel kartı ve birim kartındaki satır */
+.idari-oto { display: flex; flex-direction: column; gap: 8px; }
+.idari-oto-ust { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px 12px; }
+.idari-oto-ust .ob-kart-baslik { justify-content: flex-start; margin: 0; }
+.idari-oto .ob-aciklama { margin-top: 0; }
+.idari-oto-not { padding: 8px 12px; }
+.birim-oto {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 12px;
+  padding: 8px 12px;
+  border-radius: 10px;
+  border: 1px solid var(--ob-cizgi-orta);
+  background: var(--ob-cukur);
+  font-size: 12.5px;
+  color: var(--ob-metin-soluk);
+}
+.birim-oto--acik { border-color: rgba(78, 204, 163, 0.45); }
+.birim-oto-e { font-weight: 700; color: var(--ob-metin); }
+.birim-oto-kademe { display: inline-flex; align-items: center; gap: 8px; margin-left: auto; }
+.birim-oto-kademe .ob-secim { min-height: 32px; padding: 4px 10px; }
+
+/* Dönem özeti: "İdari birimler" (katlanır; ozet-baskan kurallarıyla) */
+.ozet-idari .ozet-baskan-govde > .ob-dugmeler { justify-content: flex-end; }
+
+@media (max-width: 600px) {
+  .toplu-kart .ob-dugmeler > .btn, .toplu-terfi .ob-dugmeler > .btn, .idari-terfi .ob-dugmeler > .btn {
+    flex: 1 1 100%;
+    min-height: 44px;
+    justify-content: center;
+  }
+  .toplu-onay, .toplu-olcutler .ob-secim { min-height: 44px; }
+  .idari-oto-ust .ob-anahtar, .birim-oto .ob-anahtar { display: flex; flex: 1 1 100%; }
+  .idari-oto-ust .ob-anahtar > button, .birim-oto .ob-anahtar > button { flex: 1; min-height: 44px; }
+  .birim-oto-kademe { flex: 1 1 100%; margin-left: 0; }
+  .birim-oto-kademe .ob-secim { flex: 1; min-height: 44px; }
+  .toplu-liste > summary { min-height: 44px; }
+}

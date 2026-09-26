@@ -99,6 +99,8 @@ import { initCampusState, ensureCampusLayout, assignBuildingPosition, BUILDING_F
 // v0.7: bölüm başkanına devretme. Başkan kararlarını bu dosyanın karar işlevleriyle alır;
 // işlevler baskanDonemi'ne parametre olarak geçer (döngüsel içe aktarma yok).
 import { baskanDonemi, politikaAyarla, politikaTamamla } from './baskan.js?v=0.7.0';
+// v0.7.1: toplu işlem ölçütü ve idari birimlerde otomatik personel (işlevler parametreyle geçer)
+import { idariOtomatikDonemi, idariOtomatikAyarla, idariOtomatikGoc, topluOlcutAyarla } from './idari_otomatik.js?v=0.7.0';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // YARDİMCI: Derin kopya (state immutability için)
@@ -4230,6 +4232,8 @@ export function nextTurn() {
 
   // v0.7: başkana devredilen bölümlerde başkanın dönem sonu kararları (ayrılışlar ve yeniden ders atamasından sonra)
   baskanDonemi(_state, simResults, { applyDecision, applyQuotas, setCourseDifficulty });
+  // v0.7.1: otomatik personeli açık idari birimlerde eksik alımı ve boş yöneticilik (idari_otomatik.js)
+  idariOtomatikDonemi(_state, simResults, { generateAdminCandidates, hireAdminStaff, assignUnitManager });
 
   // v0.5.2: kurucu kadro. En az öğretim üyesi sayısına (çoğu bölümde 3) ulaşmamış bölüm
   // yeni öğrenci almaz (students.js processNewEnrollment); oyuncu her dönem açıkça uyarılır.
@@ -5673,6 +5677,9 @@ function migrateState(state) {
   } catch (e) {
     console.warn('[migrate] v0.7 ekonomi göçü tamamlanamadı:', e);
   }
+
+  // v0.7.1: idari otomatik personel kayıtlı oyunda kapalı, toplu kabul ölçütü varsayılan (idari_otomatik.js)
+  idariOtomatikGoc(state);
 }
 
 // setState — Yüklenen state'i doğrudan uygula (kayıt yükleme için)
@@ -7372,6 +7379,14 @@ export function applyDecision(decision) {
     // ── v0.7: Bölüm Yönetimi (doğrudan / başkana devret, baskan.js) ─────────────
     case 'set_dept_policy': {
       return politikaAyarla(_state, decision.deptId, decision.policy);
+    }
+
+    // ── v0.7.1: Toplu kabul ölçütü ve idari otomatik personel (idari_otomatik.js) ──
+    case 'set_toplu_olcut': {
+      return topluOlcutAyarla(_state, decision.olcut);
+    }
+    case 'set_idari_otomatik': {
+      return idariOtomatikAyarla(_state, decision);
     }
 
     // ── Bilinmeyen Karar Tipi ─────────────────────────────────────────────────
