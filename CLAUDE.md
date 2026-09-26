@@ -28,6 +28,15 @@ GDD.md: 4300+ satırlık tasarım belgesi. README.md: genel açıklama.
 ### Çalıştırma
 `OYUNU-BASLAT.bat` çift tıkla → tarayıcıda `localhost:8080`
 
+### Skor tablosu, sezonlar ve geri bildirim (Firebase, v0.7.1)
+- Proje `rektor-oldum` (Firestore + anonim Auth + App Check reCAPTCHA v3). Kurallar `firestore.rules`; Console > Firestore Database > Rules'a elle yapıştırılıp yayımlanır. Başsız Chromium'da App Check doğrulaması düşer (403), Firestore okuma/yazma çalışmaz; sınamalar hata yolunu ve arayüzü denetler.
+- **Sezonlar:** v0.7.0 dengesi oyunu yavaşlattı, eski hızlı sürümlerin skorları aşılamıyordu. Yeni skorlar `scores_s2`'ye yazılır (belge kimliği anonim uid, `scores` ile aynı doğrulama, güncelleme yalnız daha yüksek skorla). En İyiler'de iki görünüm: "Sezon 2 (v0.7 ve sonrası)" varsayılan, `scores_s2` ile `scores`'un kesimden (2026-09-25T00:00:00Z, `leaderboard.js SEZON_KESIM_MS`, ui.js'te `_LB_SEZON_KESIM_MS` aynı) sonraki kayıtlarının birleşimi, aynı uid iki yerdeyse yüksek olan; "Eski sezon (v0.6 ve öncesi)" `scores`'un kesimden önceki kayıtları ("Eski sistem" notu ve "Eski TR" rozeti). Oyuncunun kendi satırı (bu cihazın anonim uid'i) iki görünümde de vurgulanır, ilk 50'nin dışındaysa altta sırasıyla gösterilir. Taşıma yok; `scores` bloğu önbellekteki eski istemciler için olduğu gibi açık. Yerel yedek skor (`saveLocalScore`) `sezon` alanı taşır. Bileşik dizin gerekmez (kesim süzgeci tek alanlı, sıra sayımı `getCountFromServer`).
+- **Öneri/şikâyet formu:** Ana menüdeki "Bildir" ve oyun içi ☰ menüsündeki "Geri Bildirim" oyun içinde pencere açar (`ui.js showFeedbackModal`, `main.js _openFeedback`); ileti GitHub hesabı istemeden `feedback` koleksiyonuna yazılır (`leaderboard.js submitFeedback`, rastgele belge kimliği). Alanlar: `uid`, `tur` (hata / oneri / baska), `ileti` (10-2000 karakter), `iletisim` (0-100, isteğe bağlı), `baglam` {surum, yil, donem, tip, senaryo, ekran, tarayici}, `createdAt`. Bağlam gönderilmeden pencerede gösterilir. İstemci iki gönderim arasında 60 saniye bekletir (localStorage `rektor_oldum_geri_bildirim_son`); hatada metin yerinde kalır, GitHub bağlantısı yedek.
+- **Geri bildirimleri okumak:** Kurallar `feedback`'in okunmasını kapatır; yalnız geliştirici okur.
+  - Firebase Console > Firestore Database > Data > `feedback` (belgeleri `createdAt`'e göre sırala).
+  - Ya da `scripts/oku-feedback.js`: Console > Project Settings > Service Accounts > "Generate new private key" ile inen dosyayı `scripts/service-account.json` olarak kaydet (.gitignore'da), depo kökünde bir kez `npm i firebase-admin`, sonra `node scripts/oku-feedback.js` (`--son 20`, `--tur hata`, `--json`). Betik yalnız okur; dosya yoksa ne yapılacağını yazar.
+- **Yayına alma sırası:** önce kurallar (Rules Playground'da `scores_s2` create/update ve `feedback` create denenir), sonra kod. Kurallar yüklenmeden `scores_s2`'ye skor yazılamaz ve `feedback` reddedilir; Sezon 2 görünümü bu arada yalnız v0.7.0 kayıtlarını gösterir.
+
 ## Sürüm Geçmişi
 
 Tam liste: `js/changelog.js` (oyun içi "Yenilikler" panelinde de gösterilir, başa eklenir).

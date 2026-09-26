@@ -3527,4 +3527,54 @@ input[type="range"].ob-kaydirici:focus-visible { outline: 2px solid var(--gold-s
   .birim-oto-kademe { flex: 1 1 100%; margin-left: 0; }
   .birim-oto-kademe .ob-secim { flex: 1; min-height: 44px; }
   .toplu-liste > summary { min-height: 44px; }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   v0.7.1 sezon ve öneri formu: En İyiler sekmesinin sezon seçimi (lb-sezonlar),
+   oyuncunun kendi satırı (lb-sen, lb-arada) ve öneri/şikâyet penceresi (geri-).
+   Ortak bileşenlerin (ob-sekmeler, ob-tablo, ob-not, ob-anahtar, ob-arama,
+   ob-satir, ob-kart) üstüne yalnız yerleşim.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* En İyiler: sezon sekmeleri ve görünümün açıklaması */
+.lb-sezonlar { margin-bottom: 12px; }
+.lb-sezonlar .ob-sekme { display: inline-flex; align-items: baseline; gap: 5px; }
+.lb-sezon-alt { font-size: 12px; font-weight: 600; color: var(--ob-metin-soluk); }
+.lb-sezonlar .ob-sekme.secili .lb-sezon-alt { color: #ffe39a; }
+.lb-sezon-not { margin: 0 0 12px; }
+
+/* Oyuncunun kendi satırı: yeşil zemin ve solda çizgi (ilk üçün altın zeminini ezer) */
+.lb-tablo tr.lb-sen td { background: rgba(78, 204, 163, 0.12); }
+.lb-tablo tbody tr.lb-sen:hover td { background: rgba(78, 204, 163, 0.18); }
+.lb-tablo tr.lb-sen td:first-child { box-shadow: inset 3px 0 0 var(--teal); }
+.lb-sen-rozet { margin-left: 6px; }
+.lb-tablo tr.lb-arada td { padding: 2px 12px; text-align: center; letter-spacing: 0.2em; color: var(--ob-etiket); }
+.lb-tablo tbody tr.lb-arada:hover td { background: none; }
+
+/* Öneri ve şikâyet penceresi */
+.geri .ob-ayar-e { display: block; margin-bottom: 6px; }
+.geri-giris { margin: 0; }
+.geri-turler { display: flex; }
+.geri-turler > button { flex: 1 1 0; min-height: 40px; }
+.geri .ob-arama { display: block; width: 100%; box-sizing: border-box; }
+.geri-ileti { min-height: 120px; resize: vertical; line-height: 1.5; }
+.geri .ob-arama[aria-invalid="true"] { border-color: rgba(255, 138, 157, 0.75); box-shadow: 0 0 0 3px rgba(233, 69, 96, 0.18); }
+.geri-sayac { margin-top: 4px; text-align: right; font-variant-numeric: tabular-nums; }
+.geri-sayac--eksik, .geri-sayac--sinirda { color: var(--ob-uyari); }
+.geri-baglam { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); column-gap: 24px; }
+.geri-baglam > .ob-kart-baslik { grid-column: 1 / -1; }
+.geri-baglam .ob-satir { padding: 3px 0; font-size: 12.5px; }
+.geri-baglam .ob-satir b { overflow-wrap: anywhere; }
+.geri-durum:empty { display: none; }
+.geri-yedek { margin: 0; text-align: right; font-size: 12.5px; }
+.geri-github { color: var(--ob-bilgi); text-decoration: underline; text-underline-offset: 2px; }
+.geri-github:hover { color: #fff; }
+.geri-github:focus-visible { outline: 2px solid var(--gold-soft); outline-offset: 2px; border-radius: 3px; }
+.geri-github--one { color: var(--gold-soft); font-weight: 800; }
+
+@media (max-width: 600px) {
+  /* Sezon sekmeleri yan yana, sürüm satırı adın altında */
+  .lb-sezonlar .ob-sekme { flex: 1 1 0; flex-direction: column; align-items: center; justify-content: center; gap: 0; white-space: normal; text-align: center; line-height: 1.25; }
+  .geri-baglam { grid-template-columns: minmax(0, 1fr); }
+  .geri-dugmeler .btn { flex: 1 1 0; min-width: 0; min-height: 44px; }
+  .geri-yedek { text-align: center; }
 }

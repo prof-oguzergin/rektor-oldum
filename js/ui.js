@@ -10324,88 +10324,105 @@ export function renderSportsPanel(state) {
 // LEADERBOARD PANELİ
 // ─────────────────────────────────────────────────────────────────────────────
 
+// v0.7.1: iki görünüm. Sezon 2 (v0.7 ve sonrası) varsayılan; eski sezon v0.6 ve öncesinin
+// "eski sistem" skorları. Seçili görünüm, veri işlevi ve çizim sırası panel öğesinde tutulur:
+// sınamalar ui.js'i başka sürüm adresiyle ikinci kez yükleyebiliyor, durum ortak kalsın.
+const _LB_SEZONLAR = [
+  { id: 's2', ad: 'Sezon 2', alt: 'v0.7 ve sonrası' },
+  { id: 's1', ad: 'Eski sezon', alt: 'v0.6 ve öncesi' },
+];
+// leaderboard.js SEZON_KESIM_MS ile aynı: sezon alanı olmayan (v0.7.1 öncesi) yerel yedek skorlar için
+const _LB_SEZON_KESIM_MS = Date.parse('2026-09-25T00:00:00Z');
+// v0.4.42: rank artık Dünya Sırası (THE 2024). Bu tarihten önceki kayıtlar
+// eski TR sırasını (1-50) tutuyor; arayüzde "Eski TR" rozetiyle ayırt ediliyor.
+const _LB_INTL_CUTOFF_MS = new Date('2026-05-07T17:00:00Z').getTime();
+
+const _lbMadalya = pos => pos <= 3 ? ['🥇', '🥈', '🥉'][pos - 1] : `${pos}.`;
+
+/** Yerel yedek skorun sezonu (leaderboard.js yerelSkorSezonu ile aynı kural). */
+function _lbYerelSezon(r) {
+  if (r?.sezon === 's1' || r?.sezon === 's2') return r.sezon;
+  const t = Date.parse(r?.savedAt || '');
+  return Number.isFinite(t) && t >= _LB_SEZON_KESIM_MS ? 's2' : 's1';
+}
+
+/** Görünümün üstündeki açıklama: Sezon 2 kısa not, eski sezon "eski sistem" uyarısı. */
+function _lbSezonNotu(sezon) {
+  if (sezon === 's1') {
+    return `
+      <div class="ob-not ob-not--uyari lb-sezon-not">
+        <div class="ob-not-baslik">Eski sistem</div>
+        <p>Bu skorlar v0.6 ve öncesinin daha hızlı oyun dengesinde alındı. v0.7 ile oyun yavaşladığı için yeni skorlarla karşılaştırılamaz; bu listeye yeni skor eklenmez.</p>
+      </div>`;
+  }
+  return `<p class="ob-aciklama lb-sezon-not">v0.7 ile oyun dengesi değişti. Bu sezon, v0.7.0'ın yayına girdiği 25 Eylül 2026'dan bu yana gönderilen skorlardan oluşur.</p>`;
+}
+
 /**
- * Leaderboard panelini render eder.
- * Firestore verilerini alıp #leaderboard-list div'ine yazar.
- * @param {Function} getTopScoresFn  leaderboard.js'ten gelen getTopScores fonksiyonu
+ * Skor tablosu satırı.
+ * @param {object}  r      skor kaydı
+ * @param {number}  pos    sıra
+ * @param {boolean} benMi  bu cihazın kaydı: vurgulu satır ve "Siz" rozeti
  */
-export async function renderLeaderboardPanel(getTopScoresFn) {
-  // v0.6.1: sekmenin başlığı öteki sekmelerle aynı panel başlığı. index.html'deki satır içi stilli
-  // başlık ilk çizimde bir kez değiştirilir; #leaderboard-list kimliği korunur.
-  const panel = document.getElementById('tab-leaderboard');
-  if (panel && !panel.querySelector('.panel-header')) {
-    panel.innerHTML = `
-      <div class="panel-header">
-        <div>
-          <div class="panel-title">En İyi Rektörler</div>
-          <div class="panel-subtitle">Dünya genelindeki en başarılı rektörlerin listesi</div>
-        </div>
-        <div class="panel-dugmeler">
-          <button id="lb-refresh-btn" class="btn btn-secondary btn-sm" type="button">Yenile</button>
-        </div>
-      </div>
-      <div id="leaderboard-list"></div>`;
-  }
-  const container = document.getElementById('leaderboard-list');
-  if (!container) return;
-
-  container.innerHTML = '<div id="lb-content"><div class="ob-bos ob-bos--kucuk">Yükleniyor…</div></div>';
-
-  // Yenile düğmesi başlıkta kalıcı; dinleyici bir kez bağlanır, güncel işlevi çağırır
-  const yenile = document.getElementById('lb-refresh-btn');
-  if (yenile) {
-    yenile._getTopScoresFn = getTopScoresFn;
-    if (!yenile._bagli) {
-      yenile._bagli = true;
-      yenile.addEventListener('click', () => renderLeaderboardPanel(yenile._getTopScoresFn));
-    }
-  }
-
-  const contentEl = document.getElementById('lb-content');
-  const madalya = pos => pos <= 3 ? ['🥇', '🥈', '🥉'][pos - 1] : `${pos}.`;
-
-  try {
-    const rows = await getTopScoresFn(50);
-
-    if (!rows || rows.length === 0) {
-      contentEl.innerHTML = `
-        <div class="ob-bos">
-          <i class="ikon ikon--eniyiler" aria-hidden="true"></i>
-          <div class="ob-bos-baslik">Henüz skor yok</div>
-          İlk skoru siz gönderebilirsiniz.
-        </div>`;
-      return;
-    }
-
-    // v0.4.42: rank artık Dünya Sırası (THE 2024). Bu tarihten önceki kayıtlar
-    // eski TR sırasını (1-50) tutuyor; arayüzde "Eski TR" rozetiyle ayırt ediliyor.
-    const _LB_INTL_CUTOFF_MS = new Date('2026-05-07T17:00:00Z').getTime();
-    const tableRows = rows.map((r, idx) => {
-      const pos    = idx + 1;
-      const tsMs   = r.createdAt?.toDate ? r.createdAt.toDate().getTime()
-                  : (r.createdAt?.seconds ? r.createdAt.seconds * 1000 : 0);
-      const date   = tsMs ? new Date(tsMs).toLocaleDateString('tr-TR') : '—';
-      // Eski TR rozeti: rank 1-50 aralığındaysa (eski sistem en çok 50) VE tarih kesim öncesindeyse.
-      // rank > 50 olan kayıtlar zaten kesin yeni dünya sırası (eski sistemde olanaksız değer).
-      const isOld  = r.rank != null && r.rank <= 50 && tsMs > 0 && tsMs < _LB_INTL_CUTOFF_MS;
-      const rankCell = r.rank == null
-        ? '<span class="ob-soluk">—</span>'
-        : isOld
-          ? `<span class="ob-rozet ob-rozet--kucuk" title="Eski Türkiye sıralaması (7 Mayıs 2026 öncesi kayıt)">Eski TR</span> <span class="ob-soluk">#${r.rank}</span>`
-          : `#${r.rank}`;
-      return `
-        <tr class="${pos <= 3 ? `lb-ilk lb-ilk--${pos}` : ''}">
-          <td class="o lb-sira">${madalya(pos)}</td>
-          <td class="${pos <= 3 ? 'ob-ad' : ''}">${_escHtml(r.name ?? 'Anonim')}</td>
+function _lbSatirHtml(r, pos, benMi = false) {
+  const tsMs   = r.createdAt?.toDate ? r.createdAt.toDate().getTime()
+              : (r.createdAt?.seconds ? r.createdAt.seconds * 1000 : 0);
+  const date   = tsMs ? new Date(tsMs).toLocaleDateString('tr-TR') : '—';
+  // Eski TR rozeti: rank 1-50 aralığındaysa (eski sistem en çok 50) VE tarih kesim öncesindeyse.
+  // rank > 50 olan kayıtlar zaten kesin yeni dünya sırası (eski sistemde olanaksız değer).
+  const isOld  = r.rank != null && r.rank <= 50 && tsMs > 0 && tsMs < _LB_INTL_CUTOFF_MS;
+  const rankCell = r.rank == null
+    ? '<span class="ob-soluk">—</span>'
+    : isOld
+      ? `<span class="ob-rozet ob-rozet--kucuk" title="Eski Türkiye sıralaması (7 Mayıs 2026 öncesi kayıt)">Eski TR</span> <span class="ob-soluk">#${r.rank}</span>`
+      : `#${r.rank}`;
+  const siniflar = [pos <= 3 ? `lb-ilk lb-ilk--${pos}` : '', benMi ? 'lb-sen' : ''].filter(Boolean).join(' ');
+  return `
+        <tr class="${siniflar}"${benMi ? ' aria-current="true"' : ''}>
+          <td class="o lb-sira">${_lbMadalya(pos)}</td>
+          <td class="${pos <= 3 || benMi ? 'ob-ad' : ''}">${_escHtml(r.name ?? 'Anonim')}${benMi ? ' <span class="ob-rozet ob-rozet--vurgu ob-rozet--kucuk lb-sen-rozet">Siz</span>' : ''}</td>
           <td class="n ob-kalin lb-skor">${(r.score ?? 0).toLocaleString('tr-TR')}</td>
-          <td class="n">${r.year ?? '—'}. yıl</td>
+          <td class="n ob-tek">${r.year ?? '—'}. yıl</td>
           <td class="n ob-tek">${rankCell}</td>
           <td class="n">${r.prestige ?? '—'}</td>
           <td class="n ob-soluk">${date}</td>
         </tr>`;
-    }).join('');
+}
 
-    contentEl.innerHTML = `
+/**
+ * Çevrimiçi tablo. Oyuncunun kaydı listedeyse satırı vurgulanır, değilse listenin altına
+ * kendi sırasıyla eklenir.
+ * @param {object[]} satirlar
+ * @param {null|{ sira: number, satir: object }} ben
+ * @param {'s1'|'s2'} sezon
+ * @param {boolean} benBilinir  veri kaynağı cihazın kaydını bildiriyor mu (eski biçimli dizi bildirmez)
+ */
+function _lbTabloHtml(satirlar, ben, sezon, benBilinir) {
+  if (!satirlar.length) {
+    return `
+      <div class="ob-bos">
+        <i class="ikon ikon--eniyiler" aria-hidden="true"></i>
+        <div class="ob-bos-baslik">${sezon === 's1' ? 'Eski sezonda skor yok' : 'Bu sezonda henüz skor yok'}</div>
+        ${sezon === 's1' ? 'Bu listeye yeni skor eklenmez.' : 'İlk skoru siz gönderebilirsiniz.'}
+      </div>`;
+  }
+
+  const benId   = ben?.satir?.id ?? null;
+  const listede = benId != null && satirlar.some(r => r.id === benId);
+  let govde = satirlar.map((r, idx) => _lbSatirHtml(r, idx + 1, listede && r.id === benId)).join('');
+  if (ben?.satir && ben.sira && !listede) {
+    govde += `
+        <tr class="lb-arada" aria-hidden="true"><td colspan="7">…</td></tr>${_lbSatirHtml(ben.satir, ben.sira, true)}`;
+  }
+
+  let dip = '';
+  if (ben?.sira) {
+    dip = `<p class="ob-tablo-dip lb-dip">${sezon === 's1' ? 'Eski sezonda' : 'Bu sezonda'} ${ben.sira}. sıradasınız.</p>`;
+  } else if (benBilinir && sezon === 's2') {
+    dip = '<p class="ob-tablo-dip lb-dip">Bu cihazdan bu sezona gönderilmiş skor yok. Oyun bitince ya da menüdeki Skorumu Gönder düğmesiyle ekleyebilirsiniz.</p>';
+  }
+
+  return `
       <div class="ob-tablo-kap">
         <table class="ob-tablo lb-tablo">
           <thead>
@@ -10420,43 +10437,46 @@ export async function renderLeaderboardPanel(getTopScoresFn) {
             </tr>
           </thead>
           <tbody>
-            ${tableRows}
+            ${govde}
           </tbody>
         </table>
-      </div>`;
-  } catch (err) {
-    // Çevrimiçi skor tablosu hatasında bu cihazdaki yedek skorları göster
-    let localScores = [];
-    try {
-      localScores = JSON.parse(localStorage.getItem('rektor_oldum_local_scores') || '[]');
-    } catch (e) { /* localStorage okunamadı */ }
+      </div>${dip}`;
+}
 
-    const banner = `
+/** Çevrimiçi tablo hatasında bu cihazdaki yedek skorlar (yalnız seçili sezonun). */
+function _lbYerelHtml(sezon) {
+  let localScores = [];
+  try {
+    const liste = JSON.parse(localStorage.getItem('rektor_oldum_local_scores') || '[]');
+    if (Array.isArray(liste)) localScores = liste;
+  } catch (e) { /* localStorage okunamadı */ }
+  localScores = localScores
+    .filter(r => _lbYerelSezon(r) === sezon)
+    .sort((a, b) => (b.score || 0) - (a.score || 0));
+
+  const banner = `
       <div class="ob-not ob-not--uyari lb-uyari">
         <div class="ob-not-baslik">Çevrimiçi skor tablosu şu an kullanılamıyor</div>
-        <p>${localScores.length ? 'Aşağıda bu cihazda kayıtlı skorlar gösteriliyor.' : 'Bu cihazda da kayıtlı skor yok.'}</p>
+        <p>${localScores.length ? 'Aşağıda bu cihazda bu sezon için kayıtlı skorlar gösteriliyor.' : 'Bu cihazda da bu sezon için kayıtlı skor yok.'}</p>
       </div>`;
 
-    if (!localScores.length) {
-      contentEl.innerHTML = banner;
-      return;
-    }
+  if (!localScores.length) return banner;
 
-    const localRows = localScores.slice(0, 50).map((r, idx) => {
-      const pos = idx + 1;
-      const date = r.savedAt ? new Date(r.savedAt).toLocaleDateString('tr-TR') : '—';
-      return `
+  const localRows = localScores.slice(0, 50).map((r, idx) => {
+    const pos = idx + 1;
+    const date = r.savedAt ? new Date(r.savedAt).toLocaleDateString('tr-TR') : '—';
+    return `
         <tr class="${pos <= 3 ? `lb-ilk lb-ilk--${pos}` : ''}">
-          <td class="o lb-sira">${madalya(pos)}</td>
+          <td class="o lb-sira">${_lbMadalya(pos)}</td>
           <td class="${pos <= 3 ? 'ob-ad' : ''}">${_escHtml(r.name ?? 'Anonim')}</td>
           <td class="n ob-kalin lb-skor">${(r.score ?? 0).toLocaleString('tr-TR')}</td>
-          <td class="n">${r.year ?? '—'}. yıl</td>
+          <td class="n ob-tek">${r.year ?? '—'}. yıl</td>
           <td class="n">${r.prestige ?? '—'}</td>
           <td class="n ob-soluk">${date}</td>
         </tr>`;
-    }).join('');
+  }).join('');
 
-    contentEl.innerHTML = banner + `
+  return banner + `
       <div class="ob-tablo-kap">
         <table class="ob-tablo lb-tablo">
           <thead>
@@ -10472,6 +10492,100 @@ export async function renderLeaderboardPanel(getTopScoresFn) {
           <tbody>${localRows}</tbody>
         </table>
       </div>`;
+}
+
+/**
+ * Leaderboard panelini render eder: sezon seçimi, tablo ve oyuncunun kendi yeri.
+ * Firestore verileri #leaderboard-list içindeki #lb-content'e yazılır; hata olursa bu
+ * cihazdaki yedek skorlar (seçili sezonun) gösterilir.
+ * @param {Function|null} getTopScoresFn  leaderboard.js getTopScores: ({ sezon, limit, yenile }) alır,
+ *        { satirlar, ben } döndürür (eski biçimde düz dizi de olur). null: paneldeki işlev kullanılır.
+ * @param {{ sezon?: 's1'|'s2', yenile?: boolean }} [secenek]  sezon görünümü değiştirir, yenile önbelleği atlar
+ */
+export async function renderLeaderboardPanel(getTopScoresFn, secenek = {}) {
+  // v0.6.1: sekmenin başlığı öteki sekmelerle aynı panel başlığı. index.html'deki satır içi stilli
+  // başlık ilk çizimde bir kez değiştirilir; #leaderboard-list kimliği korunur.
+  const panel = document.getElementById('tab-leaderboard');
+  if (!panel) return;
+  if (!panel.querySelector('.panel-header')) {
+    panel.innerHTML = `
+      <div class="panel-header">
+        <div>
+          <div class="panel-title">En İyi Rektörler</div>
+          <div class="panel-subtitle">Dünya genelindeki en başarılı rektörlerin listesi</div>
+        </div>
+        <div class="panel-dugmeler">
+          <button id="lb-refresh-btn" class="btn btn-secondary btn-sm" type="button">Yenile</button>
+        </div>
+      </div>
+      <div class="ob-sekmeler lb-sezonlar" role="tablist" aria-label="Skor tablosu sezonu">${_LB_SEZONLAR.map(s => `
+        <button type="button" class="ob-sekme" role="tab" id="lb-sezon-${s.id}" data-lb-sezon="${s.id}" aria-controls="leaderboard-list">
+          <span class="lb-sezon-ad">${s.ad}</span> <span class="lb-sezon-alt">(${s.alt})</span>
+        </button>`).join('')}
+      </div>
+      <div id="leaderboard-list" role="tabpanel"></div>`;
+  }
+  const container = document.getElementById('leaderboard-list');
+  if (!container) return;
+
+  if (typeof getTopScoresFn === 'function') panel._lbVeriFn = getTopScoresFn;
+  if (secenek.sezon === 's1' || secenek.sezon === 's2') panel.dataset.lbSezon = secenek.sezon;
+  const sezon = panel.dataset.lbSezon === 's1' ? 's1' : 's2';
+
+  // Yenile düğmesi ve sezon sekmeleri başlıkta kalıcı; dinleyiciler bir kez bağlanır,
+  // paneldeki güncel işlev ve görünümle çizer
+  const yenile = document.getElementById('lb-refresh-btn');
+  if (yenile && !yenile._bagli) {
+    yenile._bagli = true;
+    yenile.addEventListener('click', () => renderLeaderboardPanel(null, { yenile: true }));
+  }
+  const sekmeler = [...panel.querySelectorAll('[data-lb-sezon]')];
+  sekmeler.forEach(b => {
+    if (b._bagli) return;
+    b._bagli = true;
+    b.addEventListener('click', () => {
+      if (b.classList.contains('secili')) return;
+      renderLeaderboardPanel(null, { sezon: b.dataset.lbSezon });
+    });
+    b.addEventListener('keydown', (e) => {
+      if (e.key !== 'ArrowRight' && e.key !== 'ArrowLeft') return;
+      e.preventDefault();
+      const i = sekmeler.indexOf(b);
+      const hedef = sekmeler[(i + (e.key === 'ArrowRight' ? 1 : sekmeler.length - 1)) % sekmeler.length];
+      hedef.focus();
+      hedef.click();
+    });
+  });
+  sekmeler.forEach(b => {
+    const secili = b.dataset.lbSezon === sezon;
+    b.classList.toggle('secili', secili);
+    b.setAttribute('aria-selected', secili ? 'true' : 'false');
+    b.tabIndex = secili ? 0 : -1;
+  });
+  container.setAttribute('aria-labelledby', `lb-sezon-${sezon}`);
+
+  // Görünüm hızlı değişirse geç gelen eski yanıt yenisinin üstüne yazmasın
+  const bilet = String((Number(panel.dataset.lbBilet) || 0) + 1);
+  panel.dataset.lbBilet = bilet;
+
+  container.innerHTML = `${_lbSezonNotu(sezon)}<div id="lb-content"><div class="ob-bos ob-bos--kucuk">Yükleniyor…</div></div>`;
+  const contentEl = document.getElementById('lb-content');
+
+  try {
+    const fn = panel._lbVeriFn;
+    if (typeof fn !== 'function') throw new Error('Skor kaynağı yok');
+    const sonuc = await fn({ sezon, limit: 50, yenile: !!secenek.yenile });
+    if (panel.dataset.lbBilet !== bilet) return;
+    const dizi = Array.isArray(sonuc);
+    contentEl.innerHTML = _lbTabloHtml(
+      dizi ? sonuc : (sonuc?.satirlar || []),
+      dizi ? null : (sonuc?.ben || null),
+      sezon,
+      !dizi && !!sonuc && 'ben' in sonuc,
+    );
+  } catch (err) {
+    if (panel.dataset.lbBilet !== bilet) return;
+    contentEl.innerHTML = _lbYerelHtml(sezon);
   }
 }
 
@@ -10482,6 +10596,257 @@ function _escHtml(str) {
     .replace(/</g, '&lt;')
     .replace(/>/g, '&gt;')
     .replace(/"/g, '&quot;');
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// ÖNERİ VE ŞİKÂYET PENCERESİ (v0.7.1)
+// ─────────────────────────────────────────────────────────────────────────────
+// "Bildir" düğmesi (ana menü ve oyun içi ☰ menüsü) GitHub hesabı istemeden iletiyi
+// Firestore'a yazar: main.js _openFeedback → leaderboard.js submitFeedback. Bu işlev
+// pencereyi kurar ve doğrular; gönderim, 60 saniye sınırı ve bağlam main.js'ten gelir.
+
+const _GERI_TURLER = [
+  { id: 'hata',  ad: 'Hata',  ipucu: 'Bir şey çalışmıyor ya da yanlış görünüyor.',
+    ornek: 'Ne yaptın, ne oldu? Hangi sekmede ya da pencerede oldu?' },
+  { id: 'oneri', ad: 'Öneri', ipucu: 'Oyuna eklenmesini ya da değişmesini istediğin bir şey.',
+    ornek: 'Neyin değişmesini istiyorsun, neden?' },
+  { id: 'baska', ad: 'Başka', ipucu: 'Soru, yorum ya da şikâyet.',
+    ornek: 'Aklındakini yaz.' },
+];
+
+/**
+ * Öneri ve şikâyet penceresi.
+ * @param {object} s
+ * @param {{ etiket: string, deger: string }[]} s.baglam   iletiyle gidecek bilgiler (gönderilmeden önce gösterilir)
+ * @param {{ tur?: string, ileti?: string, iletisim?: string }|null} [s.taslak]  önceki açılıştan kalan metin
+ * @param {(taslak: object) => void} [s.onTaslak]  her değişiklikte (pencere kapanınca metin kaybolmasın)
+ * @param {() => number} s.kalanBekleme   bir sonraki gönderime kalan saniye (0: gönderilebilir)
+ * @param {(veri: { tur: string, ileti: string, iletisim: string }) => Promise<void>} s.onGonder
+ *        hata atarsa iletisi gösterilir, yazılan metin yerinde kalır
+ * @param {(tur: string|null) => string} s.githubAdresi  yedek bağlantı (hesabı olanlar için)
+ * @param {{ iletiEnAz: number, iletiEnCok: number, iletisimEnCok: number }} s.sinir
+ */
+export function showFeedbackModal(s = {}) {
+  const sinir  = s.sinir || { iletiEnAz: 10, iletiEnCok: 2000, iletisimEnCok: 100 };
+  const taslak = s.taslak || {};
+  const say    = m => [...String(m ?? '')].length;   // kurallar gibi karakter sayar
+  let tur = _GERI_TURLER.some(t => t.id === taslak.tur) ? taslak.tur : null;
+  const turBul = id => _GERI_TURLER.find(t => t.id === id) || null;
+
+  const turDugmeleri = _GERI_TURLER.map((t, i) => `
+          <button type="button" role="radio" data-geri-tur="${t.id}" aria-checked="${t.id === tur}"
+                  class="${t.id === tur ? 'secili' : ''}" tabindex="${t.id === tur || (!tur && i === 0) ? 0 : -1}">${t.ad}</button>`).join('');
+  const baglamSatirlari = (s.baglam || []).map(b => _obSatir(_escHtml(b.etiket), _escHtml(b.deger))).join('');
+
+  showModal('Öneri ve şikâyet', `
+    <div class="pencere-yigin geri">
+      <p class="pencere-metin geri-giris">Hata bildirebilir, öneri ya da şikâyet yazabilirsin. İletin doğrudan geliştiriciye ulaşır, hesap açman gerekmez.</p>
+      <div class="geri-alan">
+        <div class="ob-ayar-e" id="geri-tur-e">Tür</div>
+        <div class="ob-anahtar geri-turler" role="radiogroup" aria-labelledby="geri-tur-e">${turDugmeleri}
+        </div>
+        <div class="ob-aciklama" id="geri-tur-ipucu"></div>
+      </div>
+      <div class="geri-alan">
+        <label class="ob-ayar-e" for="geri-ileti">İleti</label>
+        <textarea id="geri-ileti" class="ob-arama geri-ileti" rows="6" maxlength="${sinir.iletiEnCok}"
+                  aria-describedby="geri-ileti-sayac"></textarea>
+        <div class="ob-aciklama geri-sayac" id="geri-ileti-sayac"></div>
+      </div>
+      <div class="geri-alan">
+        <label class="ob-ayar-e" for="geri-iletisim">İletişim (isteğe bağlı)</label>
+        <input id="geri-iletisim" type="text" class="ob-arama geri-iletisim" maxlength="${sinir.iletisimEnCok}"
+               autocomplete="off" placeholder="E-posta ya da kullanıcı adı">
+        <div class="ob-aciklama">Yanıt almak istersen yaz, boş da bırakabilirsin.</div>
+      </div>
+      <div class="ob-kart geri-baglam">
+        <div class="ob-kart-baslik">İletiyle birlikte gidecek bilgiler</div>
+        ${baglamSatirlari}
+      </div>
+      <div class="ob-not geri-gizlilik">
+        <p>Kişisel veri istemiyoruz. İletine adını, telefonunu ya da kimlik bilgini yazma; iletişim alanı isteğe bağlıdır.</p>
+      </div>
+      <div id="geri-durum" class="geri-durum" role="status" aria-live="polite"></div>
+      <div class="onay-dugmeler geri-dugmeler">
+        <button type="button" class="btn btn-secondary" id="geri-vazgec">Vazgeç</button>
+        <button type="button" class="btn btn-primary" id="geri-gonder">Gönder</button>
+      </div>
+      <p class="geri-yedek"><a id="geri-github" class="geri-github" href="#" target="_blank" rel="noopener">GitHub'da bildir (hesabı olanlar için)</a></p>
+    </div>`);
+
+  const kok      = el('general-modal-body')?.querySelector('.geri');
+  const ileti    = el('geri-ileti');
+  const iletisim = el('geri-iletisim');
+  const sayac    = el('geri-ileti-sayac');
+  const ipucu    = el('geri-tur-ipucu');
+  const durumEl  = el('geri-durum');
+  const gonderBt = el('geri-gonder');
+  const github   = el('geri-github');
+  const turlar   = kok ? [...kok.querySelectorAll('[data-geri-tur]')] : [];
+  if (!kok || !ileti || !iletisim || !gonderBt) return;
+
+  ileti.value    = taslak.ileti || '';
+  iletisim.value = taslak.iletisim || '';
+
+  const acik = () => document.body.contains(gonderBt);
+  const taslakYaz = () => s.onTaslak?.({ tur, ileti: ileti.value, iletisim: iletisim.value });
+  let hataAlani = null;   // son doğrulama hatasının alanı; düzelince ileti kalkar
+
+  /** Durum satırı: tur 'iyi' | 'uyari' | 'kritik' | 'bilgi'; boş metin gizler */
+  const durum = (turu, metin) => {
+    if (!metin) { durumEl.className = 'geri-durum'; durumEl.innerHTML = ''; return; }
+    durumEl.className = `geri-durum ob-not${turu === 'bilgi' ? '' : ` ob-not--${turu}`}`;
+    durumEl.innerHTML = `<p>${_escHtml(metin)}</p>`;
+  };
+
+  const turuGoster = () => {
+    const t = turBul(tur);
+    turlar.forEach(b => {
+      const secili = b.dataset.geriTur === tur;
+      b.classList.toggle('secili', secili);
+      b.setAttribute('aria-checked', secili ? 'true' : 'false');
+    });
+    turlar.forEach((b, i) => { b.tabIndex = (tur ? b.dataset.geriTur === tur : i === 0) ? 0 : -1; });
+    ipucu.textContent = t ? t.ipucu : 'Hata mı, öneri mi, başka bir şey mi? Birini seç.';
+    ileti.placeholder = t ? t.ornek : 'Önce türü seç, sonra yaz.';
+    if (github && s.githubAdresi) github.href = s.githubAdresi(tur);
+  };
+
+  const sayaciGoster = () => {
+    const n = say(ileti.value.trim());
+    sayac.textContent = n < sinir.iletiEnAz
+      ? `${n} / ${sinir.iletiEnCok} karakter (en az ${sinir.iletiEnAz})`
+      : `${n} / ${sinir.iletiEnCok} karakter`;
+    sayac.classList.toggle('geri-sayac--eksik', n > 0 && n < sinir.iletiEnAz);
+    sayac.classList.toggle('geri-sayac--sinirda', n > sinir.iletiEnCok * 0.9);
+  };
+
+  // 60 saniye sınırı: kalan süre bitene dek Gönder kapalı, geri sayım durum satırında
+  let beklemeZamanlayici = null;
+  const beklemeyiGoster = () => {
+    clearInterval(beklemeZamanlayici);
+    const guncelle = () => {
+      if (!acik()) { clearInterval(beklemeZamanlayici); return; }
+      const kalan = s.kalanBekleme?.() || 0;
+      if (kalan <= 0) {
+        clearInterval(beklemeZamanlayici);
+        gonderBt.disabled = false;
+        gonderBt.textContent = 'Gönder';
+        durum('bilgi', 'Yeni ileti gönderebilirsin.');
+        return;
+      }
+      gonderBt.disabled = true;
+      gonderBt.textContent = `${kalan} sn bekle`;
+      durum('uyari', `Az önce bir ileti gönderdin. İki ileti arasında en az 1 dakika olmalı; yenisi için ${kalan} saniye bekle.`);
+    };
+    guncelle();
+    beklemeZamanlayici = setInterval(guncelle, 1000);
+  };
+
+  const dogrula = () => {
+    const n = say(ileti.value.trim());
+    ileti.removeAttribute('aria-invalid');
+    iletisim.removeAttribute('aria-invalid');
+    if (!tur) return { alan: turlar[0], metin: 'Önce iletinin türünü seç (Hata, Öneri ya da Başka).' };
+    if (n < sinir.iletiEnAz) {
+      ileti.setAttribute('aria-invalid', 'true');
+      return { alan: ileti, metin: n === 0
+        ? `İleti boş. En az ${sinir.iletiEnAz} karakter yaz.`
+        : `İleti çok kısa (${n} karakter). En az ${sinir.iletiEnAz} karakter yaz.` };
+    }
+    if (n > sinir.iletiEnCok) {
+      ileti.setAttribute('aria-invalid', 'true');
+      return { alan: ileti, metin: `İleti çok uzun (${n} karakter). En çok ${sinir.iletiEnCok} karakter olabilir.` };
+    }
+    if (say(iletisim.value.trim()) > sinir.iletisimEnCok) {
+      iletisim.setAttribute('aria-invalid', 'true');
+      return { alan: iletisim, metin: `İletişim bilgisi en çok ${sinir.iletisimEnCok} karakter olabilir.` };
+    }
+    return null;
+  };
+
+  const basariyiGoster = () => {
+    kok.innerHTML = `
+      <div class="ob-not ob-not--iyi geri-basari" role="status">
+        <div class="ob-not-baslik">İletin ulaştı</div>
+        <p>Teşekkürler. İletin geliştiriciye ulaştı. Yeni bir ileti 1 dakika sonra gönderilebilir.</p>
+      </div>
+      <div class="onay-dugmeler">
+        <button type="button" class="btn btn-primary" id="geri-kapat">Kapat</button>
+      </div>`;
+    on(el('geri-kapat'), 'click', () => hideModal());
+    el('geri-kapat')?.focus();
+  };
+
+  const gonder = async () => {
+    if (gonderBt.disabled) return;
+    const hata = dogrula();
+    if (hata) {
+      hataAlani = hata.alan;
+      durum('kritik', hata.metin);
+      hata.alan?.focus();
+      return;
+    }
+    hataAlani = null;
+    if ((s.kalanBekleme?.() || 0) > 0) { beklemeyiGoster(); return; }
+
+    gonderBt.disabled = true;
+    gonderBt.textContent = 'Gönderiliyor…';
+    github?.classList.remove('geri-github--one');
+    durum('bilgi', 'İletin gönderiliyor…');
+    try {
+      await s.onGonder({ tur, ileti: ileti.value.trim(), iletisim: iletisim.value.trim() });
+      if (acik()) basariyiGoster();
+      else showNotification('İletin geliştiriciye ulaştı. Teşekkürler!', 'success', 5000);
+    } catch (err) {
+      if (!acik()) {
+        showNotification('İleti gönderilemedi. Yazdığın metin Bildir penceresinde duruyor.', 'error', 6000);
+        return;
+      }
+      gonderBt.disabled = false;
+      gonderBt.textContent = 'Yeniden dene';
+      durum('kritik', `${err?.message || 'İleti gönderilemedi.'} Yazdığın metin yerinde duruyor; biraz sonra yeniden deneyebilir ya da aşağıdaki GitHub bağlantısını kullanabilirsin.`);
+      github?.classList.add('geri-github--one');
+    }
+  };
+
+  // Tür seçimi: tıklama ya da ok tuşları (tek seçimli düğme grubu)
+  turlar.forEach((b, i) => {
+    b.addEventListener('click', () => {
+      tur = b.dataset.geriTur;
+      turuGoster();
+      taslakYaz();
+      if (hataAlani && turlar.includes(hataAlani)) { hataAlani = null; durum('', ''); }
+    });
+    b.addEventListener('keydown', (e) => {
+      if (!['ArrowRight', 'ArrowLeft', 'ArrowDown', 'ArrowUp'].includes(e.key)) return;
+      e.preventDefault();
+      const ileri = e.key === 'ArrowRight' || e.key === 'ArrowDown';
+      const hedef = turlar[(i + (ileri ? 1 : turlar.length - 1)) % turlar.length];
+      hedef.focus();
+      hedef.click();
+    });
+  });
+  ileti.addEventListener('input', () => {
+    sayaciGoster();
+    taslakYaz();
+    const n = say(ileti.value.trim());
+    if (hataAlani === ileti && n >= sinir.iletiEnAz && n <= sinir.iletiEnCok) {
+      hataAlani = null;
+      ileti.removeAttribute('aria-invalid');
+      durum('', '');
+    }
+  });
+  ileti.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) { e.preventDefault(); gonder(); }
+  });
+  iletisim.addEventListener('input', taslakYaz);
+  on(gonderBt, 'click', gonder);
+  on(el('geri-vazgec'), 'click', () => hideModal());
+
+  turuGoster();
+  sayaciGoster();
+  if ((s.kalanBekleme?.() || 0) > 0) beklemeyiGoster();
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

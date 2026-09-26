@@ -54,6 +54,7 @@ import {
   renderRandomEventModal,
   showAccreditationModal,
   renderLeaderboardPanel,
+  showFeedbackModal,
   renderInternationalRankingPanel,
   showChangelogModal,
   showGameWonModal,
@@ -78,7 +79,7 @@ import {
 import { CHANGELOG, hasUnseenChanges, setLastSeenVersion } from './changelog.js?v=0.7.0';
 
 import { saveGame, loadGame, autoSave, getSaveSlots, deleteSave, exportSave, importSave, sanitizeForSave } from './save.js?v=0.4.63';
-import { calculateScore, scoreBreakdown, submitScore, getTopScores, initFirebase, isLeaderboardUnavailable, saveLocalScore, getLocalScores } from './leaderboard.js?v=0.7.0';
+import { calculateScore, scoreBreakdown, submitScore, getTopScores, initFirebase, isLeaderboardUnavailable, saveLocalScore, getLocalScores, submitFeedback, GERI_BILDIRIM_SINIR } from './leaderboard.js?v=0.7.0';
 import { showTutorialIfNeeded, replayTutorial } from './tutorial.js?v=0.5.2';
 import { initAudio, playSound, toggleMute, isMuted, startMusic, stopMusic, setMusicVolume, setSFXVolume, getAudioSettings } from './audio.js?v=0.4.24';
 
@@ -439,57 +440,111 @@ function _checkChangelogOnLoad() {
   setTimeout(() => _showChangelog(), 1500);
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// ÖNERİ VE ŞİKÂYET (v0.7.1)
+// ─────────────────────────────────────────────────────────────────────────────
+// "Bildir" (ana menü) ve "Geri Bildirim" (oyun içi ☰) oyun içinde bir pencere açar; ileti
+// GitHub hesabı istemeden Firestore'daki `feedback` koleksiyonuna yazılır. Geliştirici
+// kayıtları Firebase Console > Firestore > feedback'ten ya da scripts/oku-feedback.js ile okur.
+
+/** Pencere kapanınca (Esc, arka plan, Vazgeç) yazılan metin kaybolmasın; yalnız bellekte tutulur. */
+let _geriTaslak = null;
+/** İki gönderim arasında en az 60 saniye (istemci tarafı); son başarılı gönderimin zamanı. */
+const _GERI_ARALIK_MS   = 60_000;
+const _GERI_SON_ANAHTAR = 'rektor_oldum_geri_bildirim_son';
+let _geriSonGonderim    = 0;
+
+function _geriKalanSaniye() {
+  let kayitli = 0;
+  try { kayitli = Number(localStorage.getItem(_GERI_SON_ANAHTAR)) || 0; } catch (e) { /* depolama kapalı */ }
+  const kalan = Math.max(_geriSonGonderim, kayitli) + _GERI_ARALIK_MS - Date.now();
+  return kalan > 0 ? Math.ceil(kalan / 1000) : 0;
+}
+
+const _UNI_TIPI_ADI = { devlet: 'Devlet', vakif: 'Vakıf', coop: 'Co-op', us_private: 'ABD özel' };
+
+/** Tarayıcının kısa adı ve ana sürümü, işletim sistemiyle ("Chrome 140, Android"). */
+function _tarayiciKisaAdi() {
+  const ua = navigator.userAgent || '';
+  const surum = (re) => { const m = ua.match(re); return m ? m[1].split('.')[0] : ''; };
+  const adaylar = [
+    ['Edge', /Edg(?:A|iOS)?\/([\d.]+)/],
+    ['Opera', /OPR\/([\d.]+)/],
+    ['Samsung Internet', /SamsungBrowser\/([\d.]+)/],
+    ['Yandex', /YaBrowser\/([\d.]+)/],
+    ['Firefox', /(?:Firefox|FxiOS)\/([\d.]+)/],
+    ['Chrome', /(?:Chrome|CriOS)\/([\d.]+)/],
+    ['Safari', /Version\/([\d.]+).*Safari/],
+  ];
+  let ad = 'Bilinmeyen tarayıcı';
+  for (const [isim, re] of adaylar) {
+    const s = surum(re);
+    if (s) { ad = `${isim} ${s}`; break; }
+  }
+  const sistem = /Android/.test(ua) ? 'Android'
+    : /iPhone|iPad|iPod/.test(ua) ? 'iOS'
+    : /Windows/.test(ua) ? 'Windows'
+    : /Mac OS X|Macintosh/.test(ua) ? 'macOS'
+    : /CrOS/.test(ua) ? 'ChromeOS'
+    : /Linux/.test(ua) ? 'Linux' : '';
+  return sistem ? `${ad}, ${sistem}` : ad;
+}
+
 /**
- * Geri Bildirim modali — kullanıcıyı GitHub Issues'a yönlendirir.
- * 3 kategori (hata / öneri / genel) ayrı template'lere link verir.
+ * İletiyle giden bağlam: veri (Firestore'a) ve pencerede gösterilecek satırlar.
+ * Kişisel bilgi yok: sürüm, oyunun yılı ve dönemi, üniversite tipi, senaryo, ekran boyutu, tarayıcı.
+ */
+function _geriBildirimBaglami(state) {
+  const surum    = String(CHANGELOG[0]?.version || '?');
+  const yil      = state ? Math.max(0, Math.round(Number(state.meta?.year) || 0)) : 0;
+  const donem    = state ? (state.meta?.semester === 'bahar' ? 'Bahar' : 'Güz') : '';
+  const tipKodu  = state?.meta?.universityType || state?.university?.type || '';
+  const tip      = state ? (_UNI_TIPI_ADI[tipKodu] || tipKodu || '') : '';
+  const senaryo  = state
+    ? `${SCENARIOS[state.meta?.scenarioId]?.name || 'Serbest oyun'}${state._internal?.freeMode ? ', serbest mod' : ''}`
+    : '';
+  const w = Math.round(window.innerWidth || 0);
+  const h = Math.round(window.innerHeight || 0);
+  const tarayici = _tarayiciKisaAdi();
+  return {
+    veri: { surum, yil, donem, tip, senaryo, ekran: `${w}x${h}`, tarayici },
+    satirlar: [
+      { etiket: 'Sürüm', deger: surum },
+      { etiket: 'Oyun', deger: state ? `${yil}. yıl, ${donem} dönemi` : 'Açık oyun yok' },
+      { etiket: 'Üniversite tipi', deger: tip || '—' },
+      { etiket: 'Senaryo', deger: senaryo || '—' },
+      { etiket: 'Ekran', deger: `${w} × ${h}` },
+      { etiket: 'Tarayıcı', deger: tarayici },
+    ],
+  };
+}
+
+/**
+ * Öneri ve şikâyet penceresi. Hata olursa metin yerinde kalır; GitHub bağlantısı
+ * hesabı olanlar için yedek olarak durur.
  */
 function _openFeedback() {
   const REPO = 'prof-oguzergin/rektor-oldum';
   const baseUrl = `https://github.com/${REPO}/issues/new`;
+  const baglam = _geriBildirimBaglami(getState());
 
-  const body = `
-    <div style="display:flex;flex-direction:column;gap:14px;padding:4px 0;">
-      <p style="margin:0;font-size:14px;color:var(--text-muted,#aaa);line-height:1.5;">
-        Oyunla ilgili hata bildirebilir, öneri yazabilir veya soru sorabilirsin.
-        Yorumların <strong>GitHub</strong>'da herkese açık olarak görünür.
-        Yanıt almak için GitHub hesabın gerekir (1 dakikada açılır).
-      </p>
-      <div style="display:flex;flex-direction:column;gap:10px;">
-        <a href="${baseUrl}?template=bug.yml&labels=bug" target="_blank" rel="noopener"
-           class="btn btn-secondary"
-           style="display:flex;align-items:center;justify-content:flex-start;gap:10px;padding:12px 14px;text-decoration:none;">
-          <span style="font-size:22px;">🐛</span>
-          <div style="display:flex;flex-direction:column;align-items:flex-start;gap:2px;">
-            <strong style="font-size:14px;">Hata Bildir</strong>
-            <span style="font-size:11px;opacity:0.7;">Oyunda bir şey çalışmıyor mu?</span>
-          </div>
-        </a>
-        <a href="${baseUrl}?template=feature.yml&labels=enhancement" target="_blank" rel="noopener"
-           class="btn btn-secondary"
-           style="display:flex;align-items:center;justify-content:flex-start;gap:10px;padding:12px 14px;text-decoration:none;">
-          <span style="font-size:22px;">💡</span>
-          <div style="display:flex;flex-direction:column;align-items:flex-start;gap:2px;">
-            <strong style="font-size:14px;">Öneri / Yeni Özellik</strong>
-            <span style="font-size:11px;opacity:0.7;">Hangi özellik eklensin?</span>
-          </div>
-        </a>
-        <a href="${baseUrl}?labels=question" target="_blank" rel="noopener"
-           class="btn btn-secondary"
-           style="display:flex;align-items:center;justify-content:flex-start;gap:10px;padding:12px 14px;text-decoration:none;">
-          <span style="font-size:22px;">❓</span>
-          <div style="display:flex;flex-direction:column;align-items:flex-start;gap:2px;">
-            <strong style="font-size:14px;">Genel Soru / Yorum</strong>
-            <span style="font-size:11px;opacity:0.7;">Aklındaki başka bir şey</span>
-          </div>
-        </a>
-      </div>
-      <div style="display:flex;justify-content:space-between;font-size:11px;color:var(--text-muted,#888);margin-top:6px;">
-        <a href="https://github.com/${REPO}/issues" target="_blank" rel="noopener" style="color:var(--accent,#5dd6c0);text-decoration:none;">📋 Tüm Bildirimleri Gör</a>
-        <span>Yöneticiler bildirimleri inceler.</span>
-      </div>
-    </div>
-  `;
-  showModal('💬 Geri Bildirim', body);
+  showFeedbackModal({
+    baglam: baglam.satirlar,
+    taslak: _geriTaslak,
+    onTaslak: (t) => { _geriTaslak = t; },
+    kalanBekleme: _geriKalanSaniye,
+    sinir: GERI_BILDIRIM_SINIR,
+    githubAdresi: (tur) => tur === 'hata' ? `${baseUrl}?template=bug.yml&labels=bug`
+      : tur === 'oneri' ? `${baseUrl}?template=feature.yml&labels=enhancement`
+      : tur === 'baska' ? `${baseUrl}?labels=question`
+      : `${baseUrl}/choose`,
+    onGonder: async (veri) => {
+      await submitFeedback({ ...veri, baglam: baglam.veri });
+      _geriTaslak = null;
+      _geriSonGonderim = Date.now();
+      try { localStorage.setItem(_GERI_SON_ANAHTAR, String(_geriSonGonderim)); } catch (e) { /* bellekteki zaman yeter */ }
+    },
+  });
 }
 
 function _handleMainMenuAction(action) {
@@ -1268,7 +1323,7 @@ function _showLeaderboardSubmitModal(isGameOver = false) {
       <p style="margin:0;font-size:14px;line-height:1.5;">
         ${alreadySubmitted
           ? 'Aşağıda bu oyunun puanı görünüyor. Yeni gönderim yapılamaz.'
-          : 'Skorunu küresel skor tablosuna ekle. İsim girip <strong>Gönder</strong>\'e bas.'}
+          : 'Skorunu <strong>Sezon 2</strong> skor tablosuna ekle. Adını yazıp <strong>Gönder</strong>\'e bas.'}
       </p>
       <div style="background:rgba(255,255,255,0.04);border-radius:10px;padding:14px;">
         <div style="font-size:28px;font-weight:700;text-align:center;color:var(--accent,#5dd6c0);">
@@ -1341,23 +1396,24 @@ function _showLeaderboardSubmitModal(isGameOver = false) {
 
       // Skor sonucunu kullanıcıya net göster (R-Fatih önerisi v0.4.27):
       // leaderboard'da kullanıcı başına yalnızca en iyi skor tutulur.
+      // v0.7.1: skor Sezon 2'ye yazılır; eski skor bu sezonun en iyisidir (eski sezon karışmaz).
       const fmt = (n) => Number(n).toLocaleString('tr-TR');
       if (result?.status === 'updated') {
         showNotification(
-          `🏆 ${name}: ${fmt(result.score)} puan! En iyi skorun güncellendi (eski: ${fmt(result.oldScore)}).`,
+          `🏆 Sezon 2'deki en iyi skorun ${fmt(result.oldScore)} puandan ${fmt(result.score)} puana yükseldi.`,
           'success', 6000,
         );
       } else if (result?.status === 'not-improved') {
         showNotification(
-          `📊 ${fmt(result.score)} puan aldın. Küresel en iyi skorun ${fmt(result.oldScore)}; tablo güncellenmedi.`,
+          `📊 ${fmt(result.score)} puan aldın. Sezon 2'deki en iyi skorun ${fmt(result.oldScore)} puan olduğu için tablo değişmedi.`,
           'info', 6000,
         );
       } else {
         // 'created' veya legacy
-        showNotification(`🏆 ${name}: ${fmt(result?.score ?? score)} puan kaydedildi!`, 'success', 5000);
+        showNotification(`🏆 ${fmt(result?.score ?? score)} puanın Sezon 2 tablosuna kaydedildi.`, 'success', 5000);
       }
 
-      // Leaderboard sekmesine geç ve yenile
+      // Leaderboard sekmesine geç ve Sezon 2'yi yeniden oku
       _activeTab = 'leaderboard';
       const lbTab = document.querySelector('[data-tab="leaderboard"]');
       if (lbTab) {
@@ -1367,17 +1423,18 @@ function _showLeaderboardSubmitModal(isGameOver = false) {
         const panel = document.getElementById('tab-leaderboard');
         if (panel) panel.classList.add('active');
       }
-      renderLeaderboardPanel(getTopScores).catch(() => {});
+      renderLeaderboardPanel(getTopScores, { sezon: 's2', yenile: true }).catch(() => {});
 
     } catch (err) {
       console.error('[main] Skor gönderme hatası:', err);
 
-      // Çevrimiçi tablo bakımdaysa skoru lokal yedekle, modal'ı kapat ve kullanıcıyı rezil etme
+      // Çevrimiçi tablo bakımdaysa ya da gönderim süresi dolduysa skoru lokal yedekle (sezonuyla),
+      // modal'ı kapat ve kullanıcıyı rezil etme
       if (isLeaderboardUnavailable(err)) {
         saveLocalScore({ name, score, year: state?.meta?.year, prestige: state?.university?.prestige });
         hideModal();
         showNotification(
-          `🏆 ${name}: ${score.toLocaleString('tr-TR')} puan kaydedildi. (Çevrimiçi tablo geçici olarak bakımda; skor lokal yedeklendi.)`,
+          `🏆 ${score.toLocaleString('tr-TR')} puanın bu cihaza kaydedildi. Çevrimiçi skor tablosuna şu an ulaşılamıyor.`,
           'info',
           6000,
         );
