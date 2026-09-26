@@ -9,7 +9,7 @@ console.log('[main] main.js modülü yükleniyor...');
 // ─────────────────────────────────────────────────────────────────────────────
 
 import { initGame, nextTurn, getState, setState, applyDecision, assignCourses, applyQuotas, assignDeptHead, reassignFacultyToDept, generateAdminCandidates, hireAdminStaff, upgradeAdminUnit, promoteAdminStaff, fireAdminStaff, updateAdminStaffSalary, assignUnitManager, RANDOM_EVENTS, ACHIEVEMENTS, getAchievementStats, organizeAlumniEvent, applyRandomEventChoice, ACCREDITATION_BODIES, applyForAccreditation, checkAccreditationRequirements, establishTTO, upgradeTTO, acceptDeal, rejectDeal, foundClub, upgradeClub, dissolveClub, CLUB_TYPES, CLUB_CATEGORIES, SPORTS, foundTeam, upgradeTeam, dissolveTeam, setCourseDifficulty, getUnitTitles, getUnitTitleSalary, isUnitManagerTitle, enableFreeMode } from './game.js?v=0.7.0';
-import { ADMIN_TITLES, SCENARIOS } from './data.js?v=0.7.0';
+import { ADMIN_TITLES, SCENARIOS, SEMESTER_MONTHS } from './data.js?v=0.7.0';
 
 import {
   showScreen,
@@ -60,7 +60,20 @@ import {
   hocaAyrintisiHtml,
   el,
   on,
+  // v0.7.1: toplu işlemlerin onay ve sonuç pencereleri
+  showConfirmModal,
+  topluPencereHtml,
+  topluSonucGoster,
+  kadroSpontSecimleri,
 } from './ui.js?v=0.7.0';
+
+// v0.7.1: toplu işlemler (var olan tekil kararları döngüyle çağırır) ve idari birimlerde otomatik personel
+import {
+  TOPLU_DURUM, UNVAN_ADLARI,
+  basvuruUygunlugu, kabulTahmini, topluKabulUygula, topluRetUygula,
+  hocaTerfiListesi, topluHocaTerfiUygula, idariTerfiListesi, topluIdariTerfiUygula,
+  maasOraniTahmini, benzersizPersonelKimligi,
+} from './idari_otomatik.js?v=0.7.0';
 
 import { CHANGELOG, hasUnseenChanges, setLastSeenVersion } from './changelog.js?v=0.7.0';
 
@@ -717,6 +730,8 @@ function refreshGameUI() {
         _onOpenTransferMarket,
         _onFacultyDetail,
         _onOpenPositionModal,
+        // v0.7.1: toplu işlemler
+        { onKabul: _onTopluKabul, onRet: _onTopluRet, onHocaTerfi: _onTopluHocaTerfi, onOlcut: _onTopluOlcut, onSpontSecim: refreshGameUI },
       );
       // Başvuru butonlarını dinle
       _bindApplicantButtons();
@@ -747,7 +762,8 @@ function refreshGameUI() {
       renderResearchPanel(state, _onResearchBudget, _onProjectDecision);
       break;
     case 'admin':
-      renderAdminPanel(state, _onHireAdminStaff, _onUpgradeAdminUnit);
+      renderAdminPanel(state, _onHireAdminStaff, _onUpgradeAdminUnit,
+        { onOtoAyar: _onIdariOtoAyar, onOtoHepsi: _onIdariOtoHepsi, onTopluTerfi: _onTopluIdariTerfi });   // v0.7.1
       break;
     case 'alumni':
       renderAlumniPanel(state, _onAlumniEvent);
@@ -1704,6 +1720,183 @@ function _handleRejectSpontaneous(e) {
   refreshGameUI();
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// v0.7.1: KADRO TOPLU İŞLEMLERİ
+// Önce onay penceresi (kaç kişi, maaş etkisi), sonra var olan tekil kararlar döngüyle (idari_otomatik.js);
+// kurala takılan karar sonuç penceresinde nedeniyle yazar.
+// ─────────────────────────────────────────────────────────────────────────────
+
+/** Aylık tutar ve dönemlik karşılığı: "+120.000 ₺" / "aylık · dönemlik +600.000 ₺". */
+function _maasEtkisiKutusu(etiket, aylik) {
+  const isaret = aylik > 0 ? '+' : '';
+  return [etiket, `${isaret}${formatMoney(aylik)}`, `aylık · dönemlik ${isaret}${formatMoney(aylik * SEMESTER_MONTHS)}`, aylik > 0 ? 'ob-kritik' : ''];
+}
+
+/** Devlette maaş / gelir oranı kutusu (devlet değilse null). */
+function _maasOraniKutusu(oran) {
+  if (!oran) return null;
+  const y = x => `%${Math.round(x * 100)}`;
+  return ['Maaş / gelir', `${y(oran.once)} → ${y(oran.sonra)}`, `devlette sınır ${y(oran.sinir)}`, oran.sonra > oran.sinir ? 'ob-kritik' : ''];
+}
+
+/** Toplu kabul ölçütü değişti (Kadro sekmesindeki kaydırıcı, seçim, onay kutusu). */
+function _onTopluOlcut(degisiklik) {
+  const sonuc = applyDecision({ type: 'set_toplu_olcut', olcut: degisiklik });
+  if (sonuc?.success) _persistState();
+  else showNotification(sonuc?.message || 'Ölçüt güncellenemedi.', 'warning');
+  refreshGameUI();
+}
+
+/** "Uygun başvuruları kabul et": ölçüte uyanlar tekil kabul kararlarıyla (devlette kadro ve maaş sınırı her birinde denetlenir). */
+function _onTopluKabul() {
+  const state = getState();
+  if (!state) return;
+  const u = basvuruUygunlugu(state, kadroSpontSecimleri());
+  if (u.uygun.length === 0) {
+    showNotification('Ölçüte uyan başvuru yok.', 'info');
+    return;
+  }
+  if (u.kasaEksi) {
+    showNotification(`Kasa eksi (${formatMoney(u.kasa)}); toplu kabul yapılmaz. Başvuruları tek tek kabul edebilirsiniz.`, 'warning', 5000);
+    return;
+  }
+  const t = kabulTahmini(state, u.uygun);
+  if (t.alinacak.length === 0) {
+    showNotification(`Uygun ${u.uygun.length} başvurunun hiçbiri alınamıyor (${t.takilacak[0]?.neden || 'kural'}).`, 'warning', 6000);
+    return;
+  }
+  const ilan = t.alinacak.filter(x => x.kaynak === 'ilan').length;
+  const satir = x => ({
+    ad:  x.ad,
+    alt: `${UNVAN_ADLARI[x.unvan] || x.unvan} · ${x.bolumAdi} · genel puan ${x.puan} · ${formatMoney(x.maas)}/ay`,
+    rozet: x.kaynak === 'spontane' ? 'ilan dışı' : '',
+  });
+  const kutular = [
+    ['Kabul edilecek', String(t.alinacak.length),
+      t.takilacak.length ? `${u.uygun.length} uygun başvurudan (tahmin)` : `ilan başvurusu ${ilan} · ilan dışı ${t.alinacak.length - ilan}`],
+    _maasEtkisiKutusu('Maaş etkisi', t.aylikMaas),
+  ];
+  if (t.kadro) kutular.push(['Boş kadro', String(t.kadro.bos), `norm ${t.kadro.norm} · dolu ${t.kadro.dolu}`, t.kadro.bos < u.uygun.length ? 'ob-uyari' : '']);
+  if (t.oranSonra != null) kutular.push(_maasOraniKutusu({ once: t.oranOnce, sonra: t.oranSonra, sinir: t.sinir }));
+  const nedenler = [...new Set(t.takilacak.map(x => x.neden))];
+  showConfirmModal('Uygun başvuruları kabul et', topluPencereHtml({
+    giris: 'Toplu kabul ölçütüne uyan başvurular, genel puanı yüksek olandan başlayarak oyunun kabul kararıyla tek tek kabul edilir. Kurala takılan başvuru atlanır, listede kalır ve sonuçta nedeniyle yazar.',
+    kutular,
+    notlar: t.takilacak.length
+      ? [{ tur: 'uyari', metin: `Tahmine göre ${t.takilacak.length} başvuru kurala takılacak (${nedenler.join('; ')}).` }]
+      : [],
+    listeler: [
+      { baslik: 'Kabul edilecekler', satirlar: t.alinacak.map(satir) },
+      { baslik: 'Kurala takılacaklar (tahmin)', satirlar: t.takilacak.map(x => ({ ...satir(x), rozet: 'takılacak', rozetSinif: 'uyari' })) },
+    ],
+  }), () => {
+    const sonuc = topluKabulUygula(u.uygun, applyDecision);
+    if (sonuc.kabul.length > 0) _persistState();
+    refreshGameUI();
+    topluSonucGoster('Toplu kabul sonucu', {
+      kutular: [
+        ['Kabul edildi', String(sonuc.kabul.length), '', sonuc.kabul.length ? 'ob-iyi' : ''],
+        ['Kurala takıldı', String(sonuc.takilan.length), sonuc.takilan.length ? 'listede kaldı' : '', sonuc.takilan.length ? 'ob-kritik' : ''],
+        _maasEtkisiKutusu('Maaş etkisi', sonuc.aylikMaas),
+      ],
+      notlar: sonuc.takilan.length
+        ? [{ tur: 'uyari', metin: 'Takılan başvurular listede kalır; 2 dönem içinde yanıtlanmazsa geri çekilir.' }] : [],
+      listeler: [
+        { baslik: 'Kurala takılanlar', acik: true, satirlar: sonuc.takilan.map(x => ({ ad: x.ad, alt: `${x.bolumAdi} · ${x.neden}`, rozet: 'takıldı', rozetSinif: 'kritik' })) },
+        { baslik: 'Kabul edilenler', satirlar: sonuc.kabul.map(satir) },
+      ],
+    });
+    showNotification(`${sonuc.kabul.length} başvuru kabul edildi${sonuc.takilan.length ? `, ${sonuc.takilan.length} başvuru kurala takıldı` : ''}.`,
+      sonuc.takilan.length ? 'warning' : 'success', 5000);
+  }, { onayMetni: `${u.uygun.length} başvuruyu kabul et` });
+}
+
+/** "Kalanları reddet": ölçüte uymayan başvurular tekil ret kararlarıyla (başkana devredilen bölümlerinkine dokunulmaz). */
+function _onTopluRet() {
+  const state = getState();
+  if (!state) return;
+  const u = basvuruUygunlugu(state, kadroSpontSecimleri());
+  if (u.kalan.length === 0) {
+    showNotification('Reddedilecek başvuru yok; kalanların hepsi ölçüte uyuyor.', 'info');
+    return;
+  }
+  const gruplar = {};
+  u.kalan.forEach(x => { gruplar[x.kod] = (gruplar[x.kod] || 0) + 1; });
+  const dagilim = Object.entries(gruplar).map(([kod, n]) => `${(TOPLU_DURUM[kod]?.ad || kod).toLocaleLowerCase('tr')} ${n}`).join(', ');
+  showConfirmModal('Kalanları reddet', topluPencereHtml({
+    giris: `Toplu kabul ölçütüne uymayan başvurular oyunun ret kararıyla reddedilir. Ölçüte uyan ${u.uygun.length} başvuru${u.baskanda.length ? ` ve başkana devredilen bölümlerin ${u.baskanda.length} başvurusu` : ''} listede kalır.`,
+    kutular: [
+      ['Reddedilecek', String(u.kalan.length), dagilim],
+      ['Maaş etkisi', 'yok', 'kimse işe alınmaz'],
+    ],
+    listeler: [{
+      baslik: 'Reddedilecekler',
+      satirlar: u.kalan.map(x => ({ ad: x.ad, alt: `${x.bolumAdi} · ${x.neden}`, rozet: TOPLU_DURUM[x.kod]?.ad || '', rozetSinif: TOPLU_DURUM[x.kod]?.sinif || '' })),
+    }],
+  }), () => {
+    const sonuc = topluRetUygula(u.kalan, applyDecision);
+    if (sonuc.ret.length > 0) _persistState();
+    refreshGameUI();
+    if (sonuc.takilan.length) {
+      topluSonucGoster('Toplu ret sonucu', {
+        kutular: [['Reddedildi', String(sonuc.ret.length)], ['Takıldı', String(sonuc.takilan.length), '', 'ob-kritik']],
+        listeler: [{ baslik: 'Takılanlar', acik: true, satirlar: sonuc.takilan.map(x => ({ ad: x.ad, alt: x.neden })) }],
+      });
+    }
+    showNotification(`${sonuc.ret.length} başvuru reddedildi.`, 'info');
+  }, { onayMetni: `${u.kalan.length} başvuruyu reddet`, tehlikeli: true });
+}
+
+/** "Hazır olanların hepsini yükselt": unvan yükseltmeye hazır hocalar tekil yükseltme kararıyla. */
+function _onTopluHocaTerfi() {
+  const state = getState();
+  if (!state) return;
+  const liste = hocaTerfiListesi(state);
+  if (liste.length === 0) {
+    showNotification('Unvan yükseltmeye hazır hoca yok.', 'info');
+    return;
+  }
+  const ek   = liste.reduce((s, x) => s + (x.maasSonra - x.maasOnce), 0);
+  const oran = maasOraniTahmini(state, ek, 0);
+  const doc  = liste.filter(x => x.yeniUnvan === 'docent').length;
+  const kutular = [
+    ['Yükselecek', String(liste.length), `doçentliğe ${doc} · profesörlüğe ${liste.length - doc}`],
+    _maasEtkisiKutusu('Maaş etkisi', ek),
+  ];
+  const oranKutusu = _maasOraniKutusu(oran);
+  if (oranKutusu) kutular.push(oranKutusu);
+  const satir = x => ({
+    ad:  x.ad,
+    alt: `${x.bolumAdi} · ${UNVAN_ADLARI[x.eskiUnvan] || x.eskiUnvan} → ${UNVAN_ADLARI[x.yeniUnvan] || x.yeniUnvan} · maaş ${formatMoney(x.maasOnce)} → ${formatMoney(x.maasSonra)}`,
+  });
+  showConfirmModal('Hazır hocaları yükselt', topluPencereHtml({
+    giris: 'Unvan yükseltmeye hazır hocalar oyunun yükseltme kararıyla tek tek bir üst unvana yükseltilir. Maaşı yeni unvanın barem alt sınırının altında olanın maaşı ona çıkar; yükselen hocanın morali artar.',
+    kutular,
+    notlar: oran && oran.sonra > oran.sinir
+      ? [{ tur: 'uyari', metin: `Bu yükseltmelerle maaşlar dönem gelirinin %${Math.round(oran.sonra * 100)} kadarı olur (sınır %${Math.round(oran.sinir * 100)}). Sınır aşılınca yeni işe alım ve zam yapılamaz.` }]
+      : [],
+    listeler: [{ baslik: 'Yükselecekler', satirlar: liste.map(satir) }],
+  }), () => {
+    const sonuc = topluHocaTerfiUygula(liste, applyDecision);
+    if (sonuc.terfi.length > 0) _persistState();
+    refreshGameUI();
+    const artis = sonuc.terfi.reduce((s, x) => s + (x.maasSonra - x.maasOnce), 0);
+    topluSonucGoster('Unvan yükseltme sonucu', {
+      kutular: [
+        ['Yükseltildi', String(sonuc.terfi.length), '', sonuc.terfi.length ? 'ob-iyi' : ''],
+        ['Takıldı', String(sonuc.takilan.length), '', sonuc.takilan.length ? 'ob-kritik' : ''],
+        _maasEtkisiKutusu('Maaş etkisi', artis),
+      ],
+      listeler: [
+        { baslik: 'Takılanlar', acik: true, satirlar: sonuc.takilan.map(x => ({ ad: x.ad, alt: x.neden, rozet: 'takıldı', rozetSinif: 'kritik' })) },
+        { baslik: 'Yükseltilenler', satirlar: sonuc.terfi.map(satir) },
+      ],
+    });
+    showNotification(`${sonuc.terfi.length} hoca yükseltildi${sonuc.takilan.length ? `, ${sonuc.takilan.length} hoca takıldı` : ''}.`,
+      sonuc.takilan.length ? 'warning' : 'success');
+  }, { onayMetni: `${liste.length} hocayı yükselt` });
+}
+
 /**
  * Hoca detay görünümü.
  * @param {string} facultyId — Hoca ID'si
@@ -2223,6 +2416,8 @@ function _onHireAdminStaff(unitId) {
 /** Adayı işe al (obje direkt alır, chosenTitle opsiyonel) */
 function _onHireAdminCandidate(candidate, chosenTitle) {
   if (!candidate) return;
+  // v0.7.1: kayıttan açılan oyunda aday kimliği eski personelinkiyle çakışabiliyordu (terfi ve fesih yanlış kişiye gidiyordu)
+  benzersizPersonelKimligi(getState(), candidate);
   hireAdminStaff(candidate, chosenTitle);
   hideModal();
   const title = chosenTitle || candidate.suggestedTitle || candidate.title || 'Uzman';
@@ -2309,6 +2504,77 @@ window._onPromoteAdminStaff = function(staffId) {
     showNotification(result.message || 'Terfi başarısız.', 'warning');
   }
 };
+
+// ─────────────────────────────────────────────────────────────────────────────
+// v0.7.1: İDARİ TOPLU TERFİ VE OTOMATİK PERSONEL
+// ─────────────────────────────────────────────────────────────────────────────
+
+/** "Terfiye hazır olanların hepsini terfi ettir": tekil terfi işleviyle (promoteAdminStaff) sırayla. */
+function _onTopluIdariTerfi() {
+  const state = getState();
+  if (!state) return;
+  const liste = idariTerfiListesi(state);
+  if (liste.length === 0) {
+    showNotification('Terfiye hazır personel yok.', 'info');
+    return;
+  }
+  const ek = liste.reduce((s, x) => s + (x.maasSonra - x.maasOnce), 0);
+  const birimSayisi = new Set(liste.map(x => x.birimId)).size;
+  const satir = x => ({
+    ad:  x.ad,
+    alt: `${x.birimAdi} · ${x.eskiUnvan} → ${x.yeniUnvan} · maaş ${formatMoney(x.maasOnce)} → ${formatMoney(x.maasSonra)}`,
+  });
+  showConfirmModal('Terfiye hazır personeli terfi ettir', topluPencereHtml({
+    giris: 'Terfiye hazır idari personel oyunun terfi işleviyle tek tek bir üst unvana yükseltilir. Yeni maaş yeni unvanın barem ortasıdır (şimdiki maaş daha yüksekse değişmez); terfi edenin mutluluğu ve liderliği artar, yönetici rütbesine çıkan birim yöneticisi olabilir.',
+    kutular: [
+      ['Terfi edecek', String(liste.length), `${birimSayisi} birimden`],
+      _maasEtkisiKutusu('Maaş etkisi', ek),
+    ],
+    listeler: [{ baslik: 'Terfi edecekler', satirlar: liste.map(satir) }],
+  }), () => {
+    const sonuc = topluIdariTerfiUygula(liste, promoteAdminStaff);
+    if (sonuc.terfi.length > 0) _persistState();
+    refreshGameUI();
+    const artis = sonuc.terfi.reduce((s, x) => s + (x.maasSonra - x.maasOnce), 0);
+    topluSonucGoster('Toplu terfi sonucu', {
+      kutular: [
+        ['Terfi etti', String(sonuc.terfi.length), '', sonuc.terfi.length ? 'ob-iyi' : ''],
+        ['Takıldı', String(sonuc.takilan.length), '', sonuc.takilan.length ? 'ob-kritik' : ''],
+        _maasEtkisiKutusu('Maaş etkisi', artis),
+      ],
+      listeler: [
+        { baslik: 'Takılanlar', acik: true, satirlar: sonuc.takilan.map(x => ({ ad: x.ad, alt: x.neden, rozet: 'takıldı', rozetSinif: 'kritik' })) },
+        { baslik: 'Terfi edenler', satirlar: sonuc.terfi.map(satir) },
+      ],
+    });
+    showNotification(`${sonuc.terfi.length} personel terfi etti${sonuc.takilan.length ? `, ${sonuc.takilan.length} personel takıldı` : ''}.`,
+      sonuc.takilan.length ? 'warning' : 'success');
+  }, { onayMetni: `${liste.length} personeli terfi ettir` });
+}
+
+/** Birimin otomatik personel anahtarı ya da kademe sınırı. */
+function _onIdariOtoAyar(unitId, ayar = {}) {
+  const sonuc = applyDecision({ type: 'set_idari_otomatik', unitId, ...ayar });
+  if (sonuc?.success) {
+    showNotification(sonuc.message, 'success');
+    _persistState();
+  } else {
+    showNotification(sonuc?.message || 'Ayar değiştirilemedi.', 'warning');
+  }
+  refreshGameUI();
+}
+
+/** Bütün birimlerde otomatik personeli açar ya da kapatır. */
+function _onIdariOtoHepsi(acik) {
+  const sonuc = applyDecision({ type: 'set_idari_otomatik', hepsi: true, acik: !!acik });
+  if (sonuc?.success) {
+    showNotification(sonuc.message, 'success');
+    _persistState();
+  } else {
+    showNotification(sonuc?.message || 'Ayar değiştirilemedi.', 'warning');
+  }
+  refreshGameUI();
+}
 
 /** İş akdi feshi modalı */
 window._onFireAdminStaff = function(staffId) {
