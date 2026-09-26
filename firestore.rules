@@ -14,6 +14,14 @@
 //  6) Read herkese açık (skor tablosu publik)
 //  7) Delete kapalı
 //  8) UID engelleme listesi (7 May 2026): aşağıdaki UID'ler skor yazamaz
+//
+// v0.7.1 (26 Eyl 2026):
+//  9) scores_s2: Sezon 2 skorları (v0.7 dengesi). scores ile aynı doğrulama, oyuncu
+//     başına tek kayıt, aynı engelleme listesi (iki listeyi birlikte güncelle).
+//     scores bloğu olduğu gibi kalır; önbellekteki eski istemciler oraya yazar.
+// 10) feedback: oyun içi öneri/şikâyet formu. Yalnız create; alanlar ve uzunluklar
+//     doğrulanır, uid eşleşmeli, createdAt == request.time. Okuma, güncelleme ve
+//     silme kapalı (geliştirici Console'dan ya da Admin SDK ile okur).
 
 rules_version = '2';
 service cloud.firestore {
@@ -79,6 +87,119 @@ service cloud.firestore {
 
       // Silme yasak
       allow delete: if false;
+    }
+
+    // v0.7.1: Sezon 2 skorları. Doğrulama scores bloğuyla aynı; işlev adları
+    // karışmasın diye S2 ekli.
+    match /scores_s2/{scoreId} {
+
+      // Skor tablosu okuması herkese açık
+      allow read: if true;
+
+      // Engellenen UID'ler (scores bloğundaki listeyle aynı tutulmalı)
+      function isBannedS2(uid) {
+        return uid in [
+          'xFuAXTgGUeT40IIA3A7CCgThE7w2',
+          '76ybDl7aIPaw3wNkegH7xsb158t1',
+          'UeCa2BE0dYbvjQiGTNpOXWetopG2',
+        ];
+      }
+
+      // Ortak alan + tip + aralık doğrulamaları (create + update için)
+      function validScoreS2(data, uid) {
+        return data.keys().hasOnly(
+                ['uid', 'gameId', 'name', 'score', 'year', 'rank', 'prestige', 'createdAt'])
+            && data.keys().hasAll(
+                ['uid', 'gameId', 'name', 'score', 'year', 'rank', 'prestige', 'createdAt'])
+            && data.uid == uid
+            && data.gameId is string
+            && data.gameId.size() >= 1
+            && data.gameId.size() <= 100
+            && data.name is string
+            && data.name.size() >= 1
+            && data.name.size() <= 30
+            && data.score is int
+            && data.score >= 0
+            && data.score <= 5000
+            && data.year is int
+            && data.year >= 1
+            && data.year <= 200
+            && data.rank is int
+            && data.rank >= 1
+            && data.rank <= 5000
+            && data.prestige is int
+            && data.prestige >= 0
+            && data.prestige <= 100
+            && data.createdAt == request.time;
+      }
+
+      // Yeni kayıt oluşturma: doc ID = uid, bu sezondaki ilk kayıt
+      allow create: if
+        request.auth != null
+        && scoreId == request.auth.uid
+        && !isBannedS2(request.auth.uid)
+        && validScoreS2(request.resource.data, request.auth.uid);
+
+      // Mevcut kaydı güncelleme: yeni skor MEVCUT skordan yüksek olmalı
+      allow update: if
+        request.auth != null
+        && scoreId == request.auth.uid
+        && !isBannedS2(request.auth.uid)
+        && validScoreS2(request.resource.data, request.auth.uid)
+        && request.resource.data.score > resource.data.score;
+
+      // Silme yasak
+      allow delete: if false;
+    }
+
+    // v0.7.1: oyun içi öneri/şikâyet formu (js/leaderboard.js submitFeedback).
+    // Belge kimliği rastgele (addDoc). Sınırlar istemciyle aynı: ileti 10-2000,
+    // iletişim 0-100 karakter; bağlam yalnız sürüm, oyun yılı/dönemi, üniversite
+    // tipi, senaryo, ekran boyutu ve tarayıcı.
+    match /feedback/{feedbackId} {
+
+      function validBaglam(b) {
+        return b is map
+            && b.keys().hasOnly(['surum', 'yil', 'donem', 'tip', 'senaryo', 'ekran', 'tarayici'])
+            && b.keys().hasAll(['surum', 'yil', 'donem', 'tip', 'senaryo', 'ekran', 'tarayici'])
+            && b.surum is string
+            && b.surum.size() <= 20
+            && b.yil is int
+            && b.yil >= 0
+            && b.yil <= 1000
+            && b.donem is string
+            && b.donem.size() <= 20
+            && b.tip is string
+            && b.tip.size() <= 40
+            && b.senaryo is string
+            && b.senaryo.size() <= 60
+            && b.ekran is string
+            && b.ekran.size() <= 20
+            && b.tarayici is string
+            && b.tarayici.size() <= 60;
+      }
+
+      function validFeedback(data, uid) {
+        return data.keys().hasOnly(['uid', 'tur', 'ileti', 'iletisim', 'baglam', 'createdAt'])
+            && data.keys().hasAll(['uid', 'tur', 'ileti', 'iletisim', 'baglam', 'createdAt'])
+            && data.uid == uid
+            && data.tur in ['hata', 'oneri', 'baska']
+            && data.ileti is string
+            && data.ileti.size() >= 10
+            && data.ileti.size() <= 2000
+            && data.iletisim is string
+            && data.iletisim.size() <= 100
+            && validBaglam(data.baglam)
+            && data.createdAt == request.time;
+      }
+
+      // Yalnız yeni ileti: anonim oturum şart, uid oturumla eşleşmeli
+      allow create: if
+        request.auth != null
+        && validFeedback(request.resource.data, request.auth.uid);
+
+      // Okuma, güncelleme ve silme kapalı
+      allow read, update, delete: if false;
     }
   }
 }
