@@ -114,6 +114,12 @@ Tam liste: `js/changelog.js` (oyun içi "Yenilikler" panelinde de gösterilir, b
   - Sabitler: SAYGINLIK_HIZ 0,065; kalite puanının 55 üstü 1,4 kat; öğrenci başı genel gider 5 bin; yarı zamanlı ders ücreti 75 bin.
   - Dürüst hız ölçümü: `C:\repos\_v070\denge\olc.py` + `vekil.js` (edilgen / iyi / savurgan vekil, yalnız oyuncu kararlarıyla; durum alanı elle yazılmaz), tablo `D4_tablo.md`. İyi devlet ilk 10'a 14,5-18,5 yılda; edilgen 2 yılda en çok 4 sıra; savurgan açık/iflas; Köklü "15 yılda ilk 15" iyi oyunla 3/3, "ilk 10" desteklenmiyor. Riskler: edilgen vakıf kasası hâlâ birikiyor; iyi vekil devlette 25-28. yılda birinci; orta sıralarda iyi oyun 2 yılda 6-8 sıra atlayabiliyor; Kurtarma ve Yeni Kurulan'da iyi oyunun payı ince; devlet iflas etmez.
 
+- v0.7.1 (26 Eyl 2026) Yeni sezon, öneri formu, toplu işlemler (duyuru sonrası X ve LinkedIn geri bildiriminden). İki ajan ayrı worktree'lerde (`v071-sezon`, `v071-toplu`).
+  - Sezon 2: `scores_s2` koleksiyonu; Sezon 2 görünümü = `scores_s2` ∪ `scores` içinde 2026-09-25T00:00Z sonrası kayıtlar (uid başına en yüksek). En İyiler'de "Sezon 2 / Eski sezon" sekmeleri. Skor ve ileti gönderimine 20 sn zaman aşımı (reCAPTCHA engellenince "Gönderiliyor"da kalıyordu).
+  - Öneri formu: "Bildir" oyun içi pencere, `feedback` koleksiyonu (yalnız create). Okuma yolu yukarıda. Kurallar `firestore.rules`; yayına alırken kurallar koddan ÖNCE yüklenir (`firebase login` bir kez Oğuz tarafından, sonra `firebase deploy --only firestore:rules`, ya da Console'a yapıştır).
+  - Toplu işlemler ve idari otomatik personel: `js/idari_otomatik.js`; Kadro'da ölçütlü "Uygun başvuruları kabul et / Kalanları reddet", "Hazır olanların hepsini yükselt"; İdari'de birim başına otomatik personel + kademe sınırı (varsayılan kapalı). Toplu işlemler tekil kararları döngüyle çağırır (norm kadro, %60 sınırı uygulanır). Bilinen: `promote_faculty` %60 sınırına bakmıyor; %60 kuralı idari maaşları saymıyor; idari personel kimlik sayacı her açılışta 1'den başlıyordu (otomatik/elle alım ve kayıt yüklemede onarıldı).
+  - Birleştirme dersi: iki dal da theme.css'i aynı kapanış satırıyla bitirince git ortak "}" satırını tek sayıyor, bir @media bloğu açık kalıyor. Çakışma çözümünden sonra süslü parantez dengesi denetlenmeli (`C:\repos\_v070\cakisma_coz.py` artık denetliyor).
+
 ## Aktif Oyuncu Raporcuları
 Erdinç (en yoğun), AkaDemi, Emir, Burak Gökalp, Yusuf Sertkaya, R-Fatih (Issue #7, #9), X, serhattural
 
@@ -127,6 +133,11 @@ Erdinç (en yoğun), AkaDemi, Emir, Burak Gökalp, Yusuf Sertkaya, R-Fatih (Issu
 
 - **Sosyal/bilimsel etkinlik sistemi** (Erdinç, 4 May 2026) — okul içi etkinlik düzenleme: konferans, festival, kongre, atölye. Memnuniyet/saygınlık/finansal etki.
 - **Ders Müfredatı + Öğretim Elemanı Manuel Ekleme** ([Issue #8](https://github.com/prof-oguzergin/rektor-oldum/issues/8), R-Fatih) — sandbox tarzı özelleştirme.
+- **v0.7 duyurusundan gelen öneriler (26 Eyl 2026, X ve LinkedIn):**
+  - Yabancı öğrenci kontenjanı ve alımı (X @_sinansh: "bütçeyi doğrultmak için yabancı öğrenci").
+  - "Liyakat" olay paketi: siyasi bağlantı / akraba kadrosu baskıları, kabul/ret bedeli (LinkedIn yorumlarından, şaka ama oyunun diline uygun).
+  - Tarihî hocalar (Tesla, Edison, Turing; LinkedIn mesajı, Kaan Burak K.). Oğuz: "sonraya bırak". Yalnız hayatta olmayan tarihî isimler.
+  - Oyunun adı "oturmuyor" (X @kemalkaya0); Oğuz "her türlü öneriye açığız" dedi, karar Oğuz'da.
 
 ## Çözülmüş (sonraki cleanup'a kadar burada)
 - Emir (özet ekranında tüm değerler 0) → v0.4.28'de gameOver/gameWon erken çıkış

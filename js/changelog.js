@@ -6,6 +6,17 @@
 
 export const CHANGELOG = [
   {
+    version: '0.7.1',
+    date: '2026-09-26',
+    title: 'Yeni sezon, öneri formu ve toplu işlemler',
+    items: [
+      { type: 'feat', text: 'Skor tablosunda Sezon 2 başladı. v0.7 ve sonrasında oynanan oyunlar ayrı sıralanıyor, eski skorlar "Eski sezon" sekmesinde duruyor.' },
+      { type: 'feat', text: '"Bildir" düğmesi artık GitHub hesabı istemiyor. Öneri ya da şikâyetinizi oyunun içinden yazabilirsiniz.' },
+      { type: 'feat', text: 'Kadro sekmesinde uygun başvuruları tek tıkla kabul edebilir, kalanları reddedebilir, terfiye hazır hocaların hepsini birden yükseltebilirsiniz (oyuncu önerisi).' },
+      { type: 'feat', text: 'İdari birimlerde otomatik personel var. Açık birimde eksikler her dönem sonunda, seçtiğiniz kademeyi aşmadan dolduruluyor (oyuncu önerisi).' },
+    ],
+  },
+  {
     version: '0.7.0',
     date: '2026-09-25',
     title: 'Başkana devretme ve yeni ekonomi',

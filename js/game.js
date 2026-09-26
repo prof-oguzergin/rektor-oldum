@@ -100,7 +100,7 @@ import { initCampusState, ensureCampusLayout, assignBuildingPosition, BUILDING_F
 // işlevler baskanDonemi'ne parametre olarak geçer (döngüsel içe aktarma yok).
 import { baskanDonemi, politikaAyarla, politikaTamamla } from './baskan.js?v=0.7.0';
 // v0.7.1: toplu işlem ölçütü ve idari birimlerde otomatik personel (işlevler parametreyle geçer)
-import { idariOtomatikDonemi, idariOtomatikAyarla, idariOtomatikGoc, topluOlcutAyarla } from './idari_otomatik.js?v=0.7.0';
+import { idariOtomatikDonemi, idariOtomatikAyarla, idariOtomatikGoc, topluOlcutAyarla } from './idari_otomatik.js?v=0.7.1';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // YARDİMCI: Derin kopya (state immutability için)

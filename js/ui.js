@@ -6,7 +6,7 @@
 
 import { DEPARTMENTS, DEPARTMENT_CURRICULA, UNIVERSITY_TYPES, UNIVERSITY_MODELS, USD_TO_TL, DIFFICULTY_SETTINGS, BUILDINGS, SEMESTER_MONTHS, FACULTIES, DEPT_TO_FACULTY, SALARY_SCALES, ADMIN_UNITS, ADMIN_TITLES, ADMIN_UNIT_BUILDINGS, ACCREDITATION_BODIES, SCENARIOS, BANKS } from './data.js?v=0.7.0';
 import { DEPARTMENT_FIELDS, getSalaryRange, renderFacultyAvatar, renderFacultyPortrait, calculateOverallRating, getFacultyRatingTrend } from './faculty.js?v=0.7.0';
-import { AVAILABLE_NEW_DEPARTMENTS, getCourseEffectiveDifficulty, getUnitTitles, getUnitTitleSalary, isUnitManagerTitle, calculateCampusUsageSummary, kaliciSayginlikEtkisi, checkAccreditationRequirements } from './game.js?v=0.7.0';
+import { AVAILABLE_NEW_DEPARTMENTS, getCourseEffectiveDifficulty, getUnitTitles, getUnitTitleSalary, isUnitManagerTitle, calculateCampusUsageSummary, kaliciSayginlikEtkisi, checkAccreditationRequirements } from './game.js?v=0.7.1';
 import { calculateIncome, calculateExpenses, calculateLoanPayment } from './economy.js?v=0.7.0';
 // v0.7 ekonomi: Bütçe sekmesinin harcama kararları ve devlet kısıtları, kontenjan penceresinin
 // alım yeri ve vakıf başvuru tahmini, Genel Bakış'ın Hazine iadesi tahmini
@@ -19,7 +19,7 @@ import { ODAKLAR, KONTENJAN_KURALLARI, POLITIKA_SINIRLARI, KARAR_TURLERI, politi
 import {
   TOPLU_OLCUT, TOPLU_DURUM, KADEMELER, IDARI_KARAR_TURLERI,
   basvuruUygunlugu, hocaTerfiListesi, idariTerfiListesi, idariOtomatikOku, kademeAdi,
-} from './idari_otomatik.js?v=0.7.0';
+} from './idari_otomatik.js?v=0.7.1';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // DOM YARDIMCILARI
