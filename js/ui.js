@@ -3202,6 +3202,66 @@ function _bsKayitBolumu(kayit, faculty) {
   return hoca ? _bsHocaBolumu(hoca) : (kayit?.facultyDept ?? null);
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// v0.7.2: LABORATUVAR ODALARI (game.js _recalcDeptLabScores ile aynı kural)
+// Laboratuvar gerektiren bölüme her 60 öğrenciye bir oda gerekir. Laboratuvar binasının ve araştırma
+// merkezinin odalarını bağlı bölümler ihtiyaçları oranında paylaşır. Karşılama = ayrılan / ihtiyaç,
+// laboratuvar puanı = 30 + 70 × karşılama. Bölüm Sayfası, bina kartı, atama penceresi ve Genel Bakış
+// uyarıları bu yardımcıları kullanır.
+// ─────────────────────────────────────────────────────────────────────────────
+
+const LAB_ODA_OGRENCI = 60;   // game.js LAB_ODA_BASINA_OGRENCI ile aynı
+
+/** Oda sayısı ya da payı: tam sayı ya da bir ondalık ("4", "2,3"). */
+const _odaYaz = x => ondalikYaz(Number(x) || 0, 1);
+
+/** Binanın laboratuvar odası (düzeyine göre; currentCapacity.labs yoksa tanımdan, game.js _labOdasi gibi). */
+function _binaLabOdasi(b) {
+  const oda = Number(b?.currentCapacity?.labs);
+  if (b?.currentCapacity && Number.isFinite(oda)) return Math.max(0, oda);
+  const tanim = BUILDINGS[b?.type];
+  return tanim ? Math.max(0, _duzeyKapasitesi(tanim, b.level || 1).labs || 0) : 0;
+}
+
+/** Binanın odalarını kullanabilen bölümler: Laboratuvarda bağlananlar, öteki binalarda atananlar. */
+function _binaLabUyeleri(b) {
+  return (b?.type === 'lab' ? b.linkedDepartments : b?.assignedDepartments) || [];
+}
+
+/**
+ * Bölümün laboratuvar durumu: gerek (labRequirement > 0), ihtiyaç (oda), ayrılan oda, karşılama (0-1)
+ * ve oda veren bitmiş binalar ({ bina, oda }). Alanları game.js dönem sonunda, bağlamada ve kayıt
+ * yüklenince yazar; yeni oyunun ilk dönemindeki gibi yoksa ihtiyaç öğrenci sayısından bulunur.
+ */
+function _labBilgisi(state, dept) {
+  const gerek = (Number(dept?.labRequirement) || 0) > 0;
+  const kaynaklar = (state?.buildings || [])
+    .filter(b => b?.isCompleted && _binaLabOdasi(b) > 0 && _binaLabUyeleri(b).includes(dept?.id))
+    .map(b => ({ bina: b, oda: Number(b.labPaylari?.[dept.id]) || 0 }));
+  const sayi = alan => (dept?.[alan] != null && Number.isFinite(Number(dept[alan]))) ? Number(dept[alan]) : null;
+  let ihtiyac = sayi('labIhtiyaci');
+  if (ihtiyac == null) {
+    const bd = state?.students?.byDepartment?.[dept?.id] || {};
+    const ogrenci = ['year1', 'year2', 'year3', 'year4'].reduce((s, k) => s + (Number(bd[k]?.count) || 0), 0);
+    ihtiyac = gerek ? Math.ceil(ogrenci / LAB_ODA_OGRENCI) : 0;
+  }
+  const ayrilan = sayi('labAyrilan') ?? kaynaklar.reduce((s, k) => s + k.oda, 0);
+  const karsilama = sayi('labKarsilama') ?? (ihtiyac > 0 ? Math.min(1, ayrilan / ihtiyac) : (kaynaklar.length ? 1 : 0));
+  return { gerek, ihtiyac, ayrilan, karsilama, kaynaklar };
+}
+
+/** Binanın laboratuvar odası, kullanılan (bölümlere ayrılan) ve boş oda, bağlı bölümlerin toplam ihtiyacı. */
+function _binaLabBilgisi(state, b) {
+  const oda = _binaLabOdasi(b);
+  const depts = state?.departments || [];
+  const uyeler = [...new Set(_binaLabUyeleri(b))]
+    .map(id => depts.find(d => d.id === id)).filter(d => d && d.isOpen !== false)
+    .map(d => ({ dept: d, pay: Number(b?.labPaylari?.[d.id]) || 0, lab: _labBilgisi(state, d) }));
+  const kullanilan = uyeler.reduce((s, u) => s + u.pay, 0);
+  const ihtiyac = uyeler.reduce((s, u) => s + (u.lab.gerek ? u.lab.ihtiyac : 0), 0);
+  return { oda, kullanilan, bos: Math.max(0, oda - kullanilan), ihtiyac, uyeler };
+}
+
 /** Sayfanın bütün bölümlerinin ortak kullandığı veriler. */
 function _bsVeri(state, dept) {
   const faculty  = state.faculty || [];
@@ -3230,6 +3290,9 @@ function _bsVeri(state, dept) {
     // v0.7: başkana devir (politika, başkan, geçerlilik) ve başkanın son dönem kararları
     devir:      devirDurumu(state, dept),
     gunluk:     Array.isArray(dept.baskanGunlugu) ? dept.baskanGunlugu : [],
+    // v0.7.2: yeni alım için yer (kontenjan penceresindeki sayı) ve laboratuvar odası durumu
+    alimYeri:   bolumAlimYeri(state, dept),
+    lab:        _labBilgisi(state, dept),
   };
 }
 
@@ -3252,6 +3315,16 @@ function _bsUyarilar(dept, v) {
   if (v.kapasite > 0 && v.ogrenci > v.kapasite) {
     ekle(`Öğrenci sayısı (${formatNumber(v.ogrenci)}) kapasiteyi (${formatNumber(v.kapasite)}) aşıyor; kalabalık sınıflar başarısızlığı artırıyor.`, 'yerleske');
   }
+  // v0.7.2: derslik ve yeni alım yeri (oyuncu bildirimi: dersliği kalmayan bölümün alımı sessizce duruyordu)
+  if (dept.kapasiteKaynagi === 'yedek') {
+    ekle(`Bölümün kullanabileceği derslik yok; kapasite ${formatNumber(v.kapasite)} kişilik yedekle sınırlı${v.alimYeri > 0 ? `, yeni alım için yer ${formatNumber(v.alimYeri)}` : ', bölüm yeni öğrenci alamıyor'}. Bölümü dersliği olan bir binaya atayın.`, 'yerleske');
+  } else if (v.alimYeri <= 0) {
+    ekle('Yeni alım için yer yok; bölüm yeni öğrenci alamıyor. Bölümü boş dersliği olan bir binaya atayın ya da binasını yükseltin.', 'yerleske');
+  }
+  // v0.7.2: laboratuvar odası yetersiz (yayın çarpanı ve akreditasyonda sayılan laboratuvar düşer)
+  if ((Number(dept.labRequirement) || 0) >= 2 && v.lab.ihtiyac > 0 && v.lab.karsilama < 0.5) {
+    ekle(`Laboratuvar odası yetersiz (${_odaYaz(v.lab.ayrilan)}/${formatNumber(v.lab.ihtiyac)} oda, karşılama ${_bsYuzde(v.lab.karsilama)}). Yayınlar ve akreditasyon bundan zarar görür; laboratuvar yapın ya da bölümü boş odası olan bir laboratuvara bağlayın.`, 'yerleske');
+  }
   if (v.hocasiz.length > 0) {
     const adlar = v.hocasiz.slice(0, 3).map(c => c.name).join(', ')
       + (v.hocasiz.length > 3 ? ` ve ${v.hocasiz.length - 3} ders daha` : '');
@@ -3270,6 +3343,25 @@ function _bsUyarilar(dept, v) {
     } else if (a?.status === 'granted' && a.expiresAt != null && a.expiresAt - v.tur <= 2) {
       const kalan = a.expiresAt - v.tur;
       ekle(`${kurum.name} akreditasyonunun süresi ${kalan > 0 ? `${kalan} dönem sonra` : 'bu dönem'} doluyor; yenileme şimdi yapılabilir.`, 'akreditasyon');
+    }
+    // v0.7.2: laboratuvar şartı oda karşılamasına göre (her 25 puan bir laboratuvar). Verilmiş
+    // akreditasyon süresi dolana dek geçerli; yenilemede ve yeni başvuruda yeni kural uygulanır.
+    // v0.7.2'den önce yapılmış başvuru önceki kuraldaki puanla değerlendirilir (game.js migrateState).
+    const gerekliLab = kurum.requirements?.minLabCount;
+    if (gerekliLab != null && a) {
+      const labPuani = Number(dept.labScore) || 0;
+      const yeniSayi = Math.floor(labPuani / 25);
+      if (a.status === 'granted' && yeniSayi < gerekliLab) {
+        ekle(`${kurum.name} akreditasyonu süresi dolana dek geçerli. Yenilemede laboratuvar şartı karşılanmıyor (${yeniSayi} laboratuvar sayılıyor, ${gerekliLab} gerekli); yenilemeden önce laboratuvar odası ekleyin.`, 'yerleske');
+      } else if (a.status === 'applied' || a.status === 'under_review') {
+        const eskiPuan = a.eskiLabPuani != null ? (Number(a.eskiLabPuani) || 0) : null;
+        const sayilan  = Math.floor(Math.max(labPuani, eskiPuan ?? 0) / 25);
+        if (sayilan < gerekliLab) {
+          ekle(`${kurum.name} başvurusunda laboratuvar şartı karşılanmıyor (${sayilan}/${gerekliLab} laboratuvar); değerlendirme bitmeden oda eklenmezse başvuru reddedilir.`, 'yerleske');
+        } else if (eskiPuan != null && yeniSayi < gerekliLab) {
+          ekle(`${kurum.name} başvurusu önceki laboratuvar kuralıyla değerlendiriliyor. Yeni kurala göre şart karşılanmıyor (${yeniSayi}/${gerekliLab} laboratuvar); yenilemede yeni kural geçerli.`, 'akreditasyon');
+        }
+      }
     }
   }
   // Devredilmiş bölümün başvurularını başkan dönem sonunda değerlendirir; rektörün işi değil
@@ -3665,7 +3757,7 @@ function _bsYanKartlar(state, dept, v, butce, binalar) {
   const ilkBina  = binalar.derslik[0];
   const binaAdi  = ilkBina
     ? `${_escHtml(ilkBina.name || BUILDINGS[ilkBina.type]?.name || ilkBina.type)}, düzey ${ilkBina.level || 1}${binalar.derslik.length > 1 ? ` (+${binalar.derslik.length - 1})` : ''}`
-    : (dept.kapasiteKaynagi === 'yedek' ? 'derslik yok' : 'ortak derslikler');
+    : (dept.kapasiteKaynagi === 'yedek' ? 'derslik yok (yedek kapasite)' : 'ortak derslikler');
   const tumProje = (state.research?.activeResearchProjects || []).length;
   return `
     <div class="bs-kart bs-eylem">
@@ -3694,7 +3786,9 @@ function _bsYanKartlar(state, dept, v, butce, binalar) {
     <div class="bs-kart">
       <div class="bs-kart-baslik"><span>Yerleşke ve araştırma</span></div>
       <div class="bs-satir"><span>Bina</span><b>${binaAdi}</b></div>
-      <div class="bs-satir"><span>Laboratuvar puanı</span><b>${tamPuan(dept.labScore)}/100</b></div>
+      <div class="bs-satir"><span>Laboratuvar</span><b>${v.lab.gerek
+        ? `${_bsYuzde(v.lab.karsilama)} karşılama · puan ${tamPuan(dept.labScore)}`
+        : 'gerekmiyor'}</b></div>
       <div class="bs-satir"><span>Etkin proje</span><b>${v.projeler.length} (üniversitede ${tumProje})</b></div>
       <div class="bs-kart-alt">
         <button type="button" class="bs-link bs-link--kucuk" data-bs-sekme="yerleske">Yerleşke →</button>
@@ -3875,6 +3969,13 @@ function _bsOgrenciler(state, dept, v) {
       ${burslu && q ? `<div class="bs-satir"><span>Dağılım</span><b>${q.tamBurslu || 0} tam burslu · ${q.yariBurslu || 0} yarı burslu · ${q.ucretli || 0} ücretli</b></div>` : ''}
       <div class="bs-satir"><span>Şu anki 1. sınıf</span><b>${formatNumber(v.sayilar[0])}</b></div>
       <div class="bs-satir"><span>Bölüm kapasitesi (4 sınıf)</span><b>${v.kapasite > 0 ? `${formatNumber(v.kapasite)} yer` : '—'}</b></div>
+      <div class="bs-satir"><span>Yeni alım için yer</span><b${v.alimYeri <= 0 ? ' class="bs-kotu-metin"' : ''}>${formatNumber(v.alimYeri)} öğrenci</b></div>
+      <div class="bs-not">Yeni alım için yer, dört sınıflık kapasiteden 1-3. sınıfların çıkarılmasıyla bulunur; kontenjan bu sayıyla sınırlıdır.</div>
+      ${dept.kapasiteKaynagi === 'yedek'
+        ? `<div class="bs-not bs-not--uyari">Bölümün kullanabileceği derslik yok; kapasite ${formatNumber(v.kapasite)} kişilik yedekle sınırlı. Bölümü dersliği olan bir binaya atayın.</div>`
+        : v.alimYeri <= 0
+          ? '<div class="bs-not bs-not--uyari">Yeni alım için yer yok; kontenjan ne olursa olsun bölüm yeni öğrenci alamaz. Bölümü boş dersliği olan bir binaya atayın ya da binasını yükseltin.</div>'
+          : ''}
       ${v.hocalar.length < v.enAz ? `<div class="bs-not bs-not--uyari">Bölümün en az ${v.enAz} öğretim üyesi olmadıkça kontenjan uygulanmaz, yeni öğrenci alınmaz.</div>` : ''}
       ${v.devir.devredildi && v.devir.gecerli ? `<div class="bs-not">Bölüm başkanda: gelecek yılın kontenjanını başkan Bahar başında koyar (kural: ${KONTENJAN_KURALLARI[v.devir.politika.kontenjanKurali].ad.toLocaleLowerCase('tr')}). Kontenjan penceresinde değiştirirseniz sizin değeriniz geçerli olur.</div>` : ''}
       <div class="bs-kontenjan">
@@ -3985,7 +4086,7 @@ function _bsYerleske(state, dept, v, binalar) {
   const kaynak  = {
     bina:  'Kapasite, bölümün atandığı binaların dersliklerinden hesaplanıyor. Her koltuk bir yıllık alımı taşır; dört sınıf için koltuk × 4.',
     ortak: 'Bölüm bir derslik binasına atanmamış. Hiçbir bölüme atanmamış binaların dersliklerini, kendine binası olmayan öteki bölümlerle paylaşıyor.',
-    yedek: 'Bölümün kullanabileceği derslik yok; kapasite tek derslik varsayılarak hesaplanıyor.',
+    yedek: `Bölümün kullanabileceği derslik yok; kapasite tek derslik varsayılarak ${formatNumber(v.kapasite)} kişilik yedekle sınırlı. Bölümü dersliği olan bir binaya atayın.`,
   }[dept.kapasiteKaynagi] || '';
 
   const binaSatiri = (b, ek = '') => {
@@ -4002,7 +4103,7 @@ function _bsYerleske(state, dept, v, binalar) {
       <div class="bs-bina">
         ${_binaGorseli(b.type, Math.min(duzey, tanim.maxLevel || 3), 56)}
         <div class="bs-bina-bilgi">
-          <div class="bs-bina-ad">${_escHtml(ad)}</div>
+          <div class="bs-bina-ad" data-bina-git="${_escHtml(b.id)}">${_escHtml(ad)}</div>
           <div class="bs-bina-alt">${turAdi}Düzey ${duzey}${b.status === 'upgrading' ? ' (yükseltiliyor)' : ''}${derslik && boy ? ` · ${derslik} derslik × ${boy} kişi = ${formatNumber(derslik * boy)} koltuk` : ''}</div>
           ${ortak.length ? `<div class="bs-bina-alt">Birlikte kullanan bölümler: ${ortak.join(', ')}</div>` : ''}
           ${ek}
@@ -4010,27 +4111,41 @@ function _bsYerleske(state, dept, v, binalar) {
       </div>`;
   };
 
-  const labPuani = Number(dept.labScore) || 0;
+  // v0.7.2: laboratuvar odaları paylaşılır; kart ihtiyacı, ayrılan odayı, karşılamayı ve odaları veren binaları gösterir
+  const labPuani   = Number(dept.labScore) || 0;
   const gereksinim = Number(dept.labRequirement) || 0;
+  const lab        = v.lab;
+  const labSartlari = v.kurumlar.filter(([, k]) => k.requirements?.minLabCount != null)
+    .map(([, k]) => `${k.name} ${k.requirements.minLabCount}`);
+  const labKaynakSatiri = ({ bina, oda }) => {
+    const bl = _binaLabBilgisi(state, bina);
+    return binaSatiri(bina, `
+      <div class="bs-bina-alt">${_odaYaz(bl.oda)} laboratuvar odası; bağlı bölümlerin ihtiyacı ${_odaYaz(bl.ihtiyac)} oda</div>
+      <div class="bs-bina-alt${oda > 0 ? ' bs-iyi-metin' : ''}">Bu bölüme ${_odaYaz(oda)} oda</div>`);
+  };
   const labKart = `
     <div class="bs-kart">
       <div class="bs-kart-baslik"><span>Laboratuvar</span></div>
-      <div class="bs-satir"><span>Laboratuvar puanı</span><b>${Math.round(labPuani)}/100</b></div>
-      <div class="bs-cubuk"><span style="width:${Math.max(0, Math.min(100, labPuani))}%"></span></div>
-      <div class="bs-satir"><span>Laboratuvar gereksinimi</span><b>${gereksinim}/5</b></div>
-      <div class="bs-satir"><span>Akreditasyonda sayılan laboratuvar</span><b>${Math.floor(labPuani / 25)}</b></div>
-      ${gereksinim === 0
-        ? '<div class="bs-not">Bu bölüm laboratuvar gerektirmiyor.</div>'
-        : `<div class="bs-not">Akreditasyonda her 25 puan bir laboratuvar sayılır. Bölüme bağlı her Laboratuvar binası düzey × 25 puan ekler.</div>
-           ${binalar.lab.length
-             ? binalar.lab.map(b => binaSatiri(b, `<div class="bs-bina-alt bs-iyi-metin">Laboratuvar puanına +${25 * (b.level || 1)}</div>`)).join('')
-             : `<div class="bs-not bs-not--uyari">Bölüme bağlı laboratuvar binası yok. Yerleşke sekmesinde Laboratuvar binasının "Bölüm bağla" düğmesiyle bağlanır.</div>`}`}
+      ${!lab.gerek
+        ? `<div class="bs-satir"><span>Laboratuvar puanı</span><b>${Math.round(labPuani)}/100</b></div>
+           <div class="bs-not">Bu bölüm laboratuvar gerektirmiyor, laboratuvar odası kullanmaz.</div>`
+        : `<div class="bs-satir"><span>Oda ihtiyacı</span><b>${formatNumber(lab.ihtiyac)} oda <span class="ob-soluk">(${formatNumber(v.ogrenci)} öğrenci)</span></b></div>
+           <div class="bs-satir"><span>Ayrılan oda</span><b>${_odaYaz(lab.ayrilan)} oda</b></div>
+           <div class="bs-satir"><span>Karşılama</span><b>${_bsYuzde(lab.karsilama)}</b></div>
+           <div class="bs-cubuk ${_bsKademe(lab.karsilama, 0.75, 0.5)}"><span style="width:${Math.round(Math.max(0, Math.min(1, lab.karsilama)) * 100)}%"></span></div>
+           <div class="bs-satir"><span>Laboratuvar puanı</span><b>${Math.round(labPuani)}/100</b></div>
+           <div class="bs-satir"><span>Laboratuvar gereksinimi</span><b>${gereksinim}/5</b></div>
+           <div class="bs-satir"><span>Akreditasyonda sayılan laboratuvar</span><b>${Math.floor(labPuani / 25)}</b></div>
+           <div class="bs-not">Her ${LAB_ODA_OGRENCI} öğrenciye bir laboratuvar odası gerekir. Laboratuvar binasının ve araştırma merkezinin odalarını bağlı bölümler ihtiyaçları oranında paylaşır. Laboratuvar puanı karşılamayla 30'dan 100'e çıkar; akreditasyonda her 25 puan bir laboratuvar sayılır${labSartlari.length ? ` (${labSartlari.join(', ')} gerekir)` : ''}.</div>
+           ${lab.kaynaklar.length
+             ? lab.kaynaklar.map(labKaynakSatiri).join('')
+             : `<div class="bs-not bs-not--uyari">Bölüme oda veren laboratuvar yok. Yerleşke sekmesinde bir Laboratuvar binasının "Bölüm bağla" ya da araştırma merkezinin "Bölüm ata" düğmesiyle bağlanır.</div>`}`}
     </div>`;
 
   const derslikler = binalar.derslik.length || binalar.merkez.length ? `
     ${binalar.derslik.map(b => binaSatiri(b)).join('')}
     ${binalar.merkez.map(b => binaSatiri(b, '<div class="bs-bina-alt bs-iyi-metin">Bölüm hocalarının dış proje başarı olasılığı ×1,15 (merkez sayısıyla en çok ×1,30)</div>')).join('')}`
-    : '<div class="bs-not bs-not--uyari">Bölüm hiçbir binaya atanmamış.</div>';
+    : `<div class="bs-not bs-not--uyari">Bölüm hiçbir binaya atanmamış.${dept.kapasiteKaynagi === 'yedek' ? ' Kullanabileceği ortak derslik de yok.' : ''}</div>`;
 
   return `
     <div class="bs-kart">
@@ -5596,19 +5711,19 @@ export function renderCampusPanel(state, onBuildStart, onDecision) {
           ${_obSatir('İdari verimlilik', '+%15', 'ob-iyi')}
           ${_obSatir('Öğrenci memnuniyeti', '+3', 'ob-iyi')}`)}`;
     } else if (b.type === 'lab') {
-      // Laboratuvar binası: bağlı bölümler ve laboratuvar puanı katkısı
-      const labBonus    = 25 * (b.level || 1);
-      const labTotalCap = cap.labs || 0;
-      const linkedLabDepts = (b.linkedDepartments || []).map(dId => {
-        const d = (state.departments || []).find(dep => dep.id === dId);
-        if (!d) return null;
-        return _obSatir(d.shortName || d.name, `+${labBonus} laboratuvar puanı`, 'ob-iyi');
-      }).filter(Boolean).join('');
+      // v0.7.2: Laboratuvar binası: odaları bağlı bölümler ihtiyaçları oranında paylaşır
+      const bl = _binaLabBilgisi(state, b);
+      const linkedLabDepts = bl.uyeler.map(u => u.lab.gerek
+        ? _obSatir(u.dept.shortName || u.dept.name,
+            `${_odaYaz(u.pay)} oda <span class="ob-soluk">(ihtiyaç ${formatNumber(u.lab.ihtiyac)}, karşılama ${_bsYuzde(u.lab.karsilama)})</span>`,
+            _obKademe(u.lab.karsilama, 0.75, 0.5))
+        : _obSatir(u.dept.shortName || u.dept.name, '<span class="ob-soluk">laboratuvar gerektirmiyor</span>')).join('');
       detailsHtml = `
-        ${_binaBolumu('Laboratuvar kapasitesi', `
-          ${_obSatir('Laboratuvar', `${labTotalCap} <span class="ob-soluk">(Düzey ${b.level || 1})</span>`)}
-          ${_obSatir('Bağlı bölüme katkı', `+${labBonus} laboratuvar puanı`, 'ob-iyi')}
-          <div class="ob-aciklama">Katkı düzey başına 25 puandır.</div>`)}
+        ${_binaBolumu('Laboratuvar odaları', `
+          ${_obSatir('Oda', `${_odaYaz(bl.oda)} <span class="ob-soluk">(Düzey ${b.level || 1})</span>`)}
+          ${_obSatir('Kullanılan / boş', `${_odaYaz(bl.kullanilan)} / ${_odaYaz(bl.bos)}`)}
+          ${_obSatir('Bağlı bölümlerin ihtiyacı', `${_odaYaz(bl.ihtiyac)} oda`, bl.ihtiyac > bl.oda ? 'ob-uyari' : '')}
+          <div class="ob-aciklama">Odaları bağlı bölümler ihtiyaçları oranında paylaşır; her ${LAB_ODA_OGRENCI} öğrenciye bir oda gerekir. Bir bölüm başka laboratuvardan ya da araştırma merkezinden de oda alabilir.</div>`)}
         ${_binaBolumu('Bağlı bölümler', linkedLabDepts || '<div class="ob-aciklama">Henüz bağlı bölüm yok; aşağıdaki "Bölüm bağla" düğmesiyle ekleyebilirsiniz.</div>')}`;
     } else {
       // Öteki binalar (araştırma merkezi, konferans vb.): kapasite çubukları
@@ -6149,10 +6264,19 @@ function _showDepartmentAssignModal(state, building, onDecision) {
       return '<div class="ob-bos ob-bos--kucuk">Henüz hiç bölüm kurulmamış.</div>';
     }
 
+    // v0.7.2: laboratuvar odası olan binada (Laboratuvar, araştırma merkezi) odalar, bağlı bölümlerin
+    // ihtiyacı ve bölüm bölüm karşılama. Karardan sonra Yerleşke paneli taze durumla yeniden
+    // çizildiğinden sayılar oradan okunur (bu pencerenin durumu açıldığı andaki kopya).
+    const guncelDurum = el('tab-campus')?._currentState;
+    const labDurum = Array.isArray(guncelDurum?.buildings) ? guncelDurum : state;
+    const labBina  = (labDurum.buildings || []).find(b => b.id === building.id) || building;
+    const binaLab  = building.isCompleted !== false && _binaLabOdasi(labBina) > 0 ? _binaLabBilgisi(labDurum, labBina) : null;
+
     const rows = allDepts.map(dept => {
       let statusBadge = '';
       let actionHint  = '';
       let dataAttr    = '';
+      let labSatiri   = '';
 
       if (isLab) {
         // Laboratuvar binası: linkedDepartments üzerinden denetim
@@ -6198,22 +6322,38 @@ function _showDepartmentAssignModal(state, building, onDecision) {
         }
       }
 
+      // v0.7.2: bölümün oda ihtiyacı, bu binadan aldığı oda ve bütün binalardan karşılaması
+      if (binaLab && dept.isOpen !== false) {
+        const guncelBolum = (labDurum.departments || []).find(d => d.id === dept.id) || dept;
+        const lb = _labBilgisi(labDurum, guncelBolum);
+        const buradan = _binaLabUyeleri(labBina).includes(dept.id)
+          ? `, bu binadan ${_odaYaz(Number(labBina.labPaylari?.[dept.id]) || 0)} oda` : '';
+        labSatiri = lb.gerek
+          ? `<div class="atama-alt">Laboratuvar ihtiyacı ${formatNumber(lb.ihtiyac)} oda${buradan} · karşılama ${_bsYuzde(lb.karsilama)}</div>`
+          : '<div class="atama-alt">Laboratuvar gerektirmiyor, oda kullanmaz</div>';
+      }
+
       return `
         <div class="dept-assign-row atama-satir" ${dataAttr}>
           <span class="atama-ikon">${bolumIkonu(dept.id, 28, dept.icon || '🏫')}</span>
           <div class="atama-bilgi">
             <div class="atama-ad">${dept.name}</div>
             ${dept.shortName ? `<div class="atama-alt">${dept.shortName}</div>` : ''}
+            ${labSatiri}
           </div>
           ${statusBadge}
           ${actionHint}
         </div>`;
     }).join('');
 
+    // v0.7.2: binanın odaları ve bağlı bölümlerin toplam ihtiyacı
+    const labOzeti = binaLab
+      ? ` Binanın ${_odaYaz(binaLab.oda)} laboratuvar odası var; bağlı bölümlerin ihtiyacı ${_odaYaz(binaLab.ihtiyac)} oda${binaLab.bos >= 0.05 ? `, ${_odaYaz(binaLab.bos)} oda boş` : ''}.`
+      : '';
     const hint = isLab
-      ? 'Bir bölüme tıklayarak bu laboratuvar binasına bağlayabilirsiniz. Bölüm, fakülte binasında kalmaya devam eder.'
+      ? `Bir bölüme tıklayarak bu laboratuvar binasına bağlayabilirsiniz. Bölüm, fakülte binasında kalmaya devam eder.${labOzeti} Odaları bağlı bölümler ihtiyaçları oranında paylaşır; her ${LAB_ODA_OGRENCI} öğrenciye bir oda gerekir.`
       : !derslikliBina(building)
-        ? 'Bu binada derslik yok. Bağladığınız bölüm burada ders vermez, kendi binasında öğrenci almaya devam eder.'
+        ? `Bu binada derslik yok. Bağladığınız bölüm burada ders vermez, kendi binasında öğrenci almaya devam eder.${binaLab ? `${labOzeti} Bu odaları bağlanan bölümler ihtiyaçları oranında paylaşır; her ${LAB_ODA_OGRENCI} öğrenciye bir oda gerekir.` : ''}`
         : 'Bir bölüme tıklayarak atama yapabilir, kaldırabilir ya da başka binadan taşıyabilirsiniz.';
 
     return `
@@ -8888,6 +9028,40 @@ function _getWarnings(state) {
   });
   if (lowMatchDepts.length > 0) {
     warnings.push({ type: 'warning', icon: '🎯', message: `${lowMatchDepts.length} bölümde hoca-ders uzmanlık eşleşmesi düşük. Öğrenci memnuniyeti etkileniyor.` });
+  }
+
+  // v0.7.2: derslik ve yeni alım yeri (oyuncu bildirimi: dersliği kalmayan bölümün alımı sessizce
+  // duruyordu), laboratuvar odası yetersizliği ve yenilemede tutmayacak akreditasyon; her madde ne
+  // yapılacağını söyler
+  const acikBolumler = (state.departments || []).filter(d => d && d.isOpen !== false);
+  const kisaAd = d => d.shortName || d.name;
+  const listele = (xs, ad = 'bölüm', n = 3) => xs.slice(0, n).join(', ') + (xs.length > n ? ` ve ${xs.length - n} ${ad} daha` : '');
+  for (const d of acikBolumler) {
+    const yer = bolumAlimYeri(state, d);
+    if (d.kapasiteKaynagi === 'yedek') {
+      warnings.push({ type: 'warning', icon: '🏫', message: `${d.name} bölümünün kullanabileceği derslik yok; kapasite ${formatNumber(d.studentCapacity)} kişilik yedekle sınırlı${yer > 0 ? `, yeni alım için yer ${formatNumber(yer)}` : ', yeni öğrenci alamıyor'}. Bölümü dersliği olan bir binaya atayın.` });
+    } else if (yer <= 0) {
+      warnings.push({ type: 'danger', icon: '🏫', message: `${d.name} yeni öğrenci alamıyor, alım için yer kalmadı. Bölümü boş dersliği olan bir binaya atayın ya da binasını yükseltin.` });
+    }
+  }
+  const labEksik = acikBolumler
+    .filter(d => (Number(d.labRequirement) || 0) >= 2)
+    .map(d => ({ d, lab: _labBilgisi(state, d) }))
+    .filter(x => x.lab.ihtiyac > 0 && x.lab.karsilama < 0.5);
+  if (labEksik.length > 0) {
+    const kim = labEksik.length === 1 ? `${labEksik[0].d.name} bölümünde` : `${labEksik.length} bölümde`;
+    warnings.push({ type: 'warning', icon: '🧪', message: `${kim} laboratuvar odası yetersiz (karşılama ${listele(labEksik.map(x => `${kisaAd(x.d)} ${_bsYuzde(x.lab.karsilama)}`))}). Yayınlar ve akreditasyon zarar görüyor; laboratuvar yapın ya da ${labEksik.length === 1 ? 'bölümü' : 'bu bölümleri'} boş odası olan bir laboratuvara bağlayın.` });
+  }
+  const yenilemeRiski = [];
+  for (const d of acikBolumler) {
+    const sayilan = Math.floor((Number(d.labScore) || 0) / 25);
+    for (const [id, kurum] of Object.entries(ACCREDITATION_BODIES)) {
+      const gerekli = kurum.requirements?.minLabCount;
+      if (gerekli != null && d.accreditation?.[id]?.status === 'granted' && sayilan < gerekli) yenilemeRiski.push(`${kisaAd(d)} ${kurum.name}`);
+    }
+  }
+  if (yenilemeRiski.length > 0) {
+    warnings.push({ type: 'info', icon: '🏅', message: `Yenilemede laboratuvar şartını karşılamayan akreditasyon var (${listele(yenilemeRiski, 'akreditasyon')}). Akreditasyon süresi dolana dek geçerli; yenilemeden önce laboratuvar odası ekleyin.` });
   }
 
   return warnings;

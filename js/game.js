@@ -245,11 +245,15 @@ function calculateBuildingUsage(building, state) {
     totalProf  += profCount;
     totalDr    += drCount;
     totalArgo  += argoCount;
+  }
 
-    // Mühendislik/fen bölümleri: laboratuvar gerektirir (60 öğrenciye 1 lab)
-    if (dept.category === 'muhendislik' || dept.category === 'fen') {
-      usedLabs += Math.ceil(studentCount / 60);
-    }
+  // v0.7.2: kullanılan laboratuvar odası, binanın bölümlere ayırdığı oda paylarının toplamı
+  // (_labDagilimi). Eskiden bağlı her mühendislik bölümünün ihtiyacı (60 öğrenciye 1 oda)
+  // binanın oda sayısına bakılmadan sayılıyordu.
+  {
+    const labBinalari = _labDagilimi(state).binalar;
+    const labBinasi = labBinalari.find(x => x.bina === building) || labBinalari.find(x => x.bina.id === building.id);
+    usedLabs = labBinasi ? _yuvarla2(labBinasi.kullanilan) : 0;
   }
 
   // ── Akıllı ofis ataması ──────────────────────────────────────────────────
@@ -345,14 +349,14 @@ export function calculateCampusUsageSummary(state) {
       ? ((dd.year1?.count || 0) + (dd.year2?.count || 0) + (dd.year3?.count || 0) + (dd.year4?.count || 0))
       : 0;
     usedClassrooms += avgClassroomSize > 0 ? Math.ceil(studentCount / (avgClassroomSize * SINIF_SAYISI)) : 0;
-    if (dept.category === 'muhendislik' || dept.category === 'fen') {
-      usedLabs += Math.ceil(studentCount / 60);
-    }
     const df = (state.faculty || []).filter(f => (f.department || f.departmentId) === dept.id);
     totalProf += df.filter(f => ['profesor', 'docent'].includes(f.title)).length;
     totalDr   += df.filter(f => f.title === 'dr_ogr_uyesi').length;
     totalArgo += df.filter(f => f.title === 'argö').length;
   }
+
+  // v0.7.2: kullanılan laboratuvar odası, bölümlere ayrılmış oda payları (bina kapasitesini aşmaz)
+  usedLabs = Math.round(_labDagilimi(state).toplamAyrilan * 10) / 10;
 
   // Akıllı ofis ataması (global): boş ofis varsa 1/kişi, yetmezse Dr 2/ofis, ArGö 3/ofis
   let usedOffices = totalProf;
@@ -369,38 +373,129 @@ export function calculateCampusUsageSummary(state) {
   return { totalClassrooms, usedClassrooms, totalOffices, usedOffices, totalLabs, usedLabs, totalBeds };
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// v0.7.2: LABORATUVAR ODALARI PAYLAŞILIR
+// Oyuncu bildirimi (27 Eyl 2026): bir laboratuvar binasına bütün bölümler bağlanabiliyor, her
+// bağlanan bölüm binanın düzeyi × 25 puanı tam alıyordu. Şimdi:
+//  - Laboratuvar gerektiren bölümün (labRequirement > 0) oda ihtiyacı her 60 öğrenciye bir oda.
+//    Laboratuvar gerektirmeyen bölüm oda kullanmaz, laboratuvar puanı 100 kalır.
+//  - Bitmiş Laboratuvar binasının odalarını ona bağlı bölümler (linkedDepartments), araştırma
+//    merkezinin odalarını ona bağlanan bölümler (assignedDepartments) paylaşır.
+//  - Her bina odalarını bölümlerin kalan ihtiyacı oranında böler; hiçbir bölüm ihtiyacından
+//    fazlasını almaz, artan oda boş kalır. Az bölüme hizmet eden bina önce dağıtılır (bir bölüme
+//    ayrılmış laboratuvar önce o bölümü karşılar, ortak bina kalan ihtiyaçlara gider). Bir bölüm
+//    birden çok binadan oda alabilir. Oda payı ondalıklı olabilir (oda haftada bölüşülür).
+//  - Karşılama = ayrılan oda / ihtiyaç. İhtiyacı 0 olan bölüm (öğrencisi yok) laboratuvarı olan
+//    bir binaya bağlıysa tam, değilse hiç karşılanmamış sayılır.
+//  - Laboratuvar puanı = 30 + 70 × karşılama (yayın çarpanı ve akreditasyonda sayılan
+//    laboratuvar bu puandan gelir).
+// Yazılan alanlar: dept.labIhtiyaci, dept.labAyrilan, dept.labKarsilama, dept.labScore;
+// laboratuvarı olan bitmiş binada labPaylari ({ bölüm: oda }) ve usedCapacity.labs.
+// ─────────────────────────────────────────────────────────────────────────────
+
+const LAB_ODA_BASINA_OGRENCI = 60;   // bir laboratuvar odası 60 öğrenciye yeter
+const LAB_PUAN_TABANI        = 30;   // hiç oda ayrılmamış bölümün laboratuvar puanı
+const LAB_PUAN_ARALIGI       = 70;   // tam karşılamada eklenen (30 + 70 = 100)
+
+const _yuvarla2 = x => Math.round((Number(x) || 0) * 100) / 100;
+
+/** Binanın laboratuvar odası (düzeyine göre; currentCapacity.labs yoksa tanımdan). */
+function _labOdasi(b) {
+  const oda = Number(b?.currentCapacity?.labs);
+  if (b?.currentCapacity && Number.isFinite(oda)) return Math.max(0, oda);
+  const tanim = BUILDINGS[b?.type];
+  return tanim?.capacity ? Math.max(0, _buildingCapacityAtLevel(tanim, b.level || 1).labs || 0) : 0;
+}
+
+/** Binanın odalarını kullanabilen bölümler: Laboratuvarda bağlananlar, öteki binalarda atananlar. */
+function _labKullananlari(b) {
+  return (b?.type === 'lab' ? b.linkedDepartments : b?.assignedDepartments) || [];
+}
+
 /**
- * Lab binalarına atanan bölümlerin labScore değerini yeniden hesaplar.
- * Bir bölüme atanmış her lab binası düzey × 25 puan katkı sağlar (maks 100).
+ * Laboratuvar odalarının bölümlere dağılımı; durumu değiştirmez.
+ * @returns {{ bolumler: Map<string, { ihtiyac: number, ayrilan: number, bagli: boolean }>,
+ *             binalar: { bina: object, oda: number, paylar: Object<string, number>, kullanilan: number }[],
+ *             toplamAyrilan: number }}
+ */
+function _labDagilimi(state) {
+  const bolumler = new Map();
+  for (const d of state?.departments || []) {
+    if (!d || !d.id || d.isOpen === false) continue;
+    const bd = state.students?.byDepartment?.[d.id] || {};
+    const ogrenci = (bd.year1?.count || 0) + (bd.year2?.count || 0) + (bd.year3?.count || 0) + (bd.year4?.count || 0);
+    const ihtiyac = (Number(d.labRequirement) || 0) > 0 ? Math.ceil(ogrenci / LAB_ODA_BASINA_OGRENCI) : 0;
+    bolumler.set(d.id, { ihtiyac, kalan: ihtiyac, ayrilan: 0, bagli: false });
+  }
+
+  const binalar = [];
+  (state?.buildings || []).forEach((b, sira) => {
+    if (!b?.isCompleted) return;
+    const oda = _labOdasi(b);
+    if (oda <= 0) return;
+    const uyeler = [...new Set(_labKullananlari(b))].filter(id => bolumler.has(id));
+    uyeler.forEach(id => { bolumler.get(id).bagli = true; });
+    const tuketici = uyeler.filter(id => bolumler.get(id).ihtiyac > 0);
+    binalar.push({ bina: b, sira, oda, tuketici, paylar: {}, kullanilan: 0 });
+  });
+  // Az bölüme hizmet eden bina önce; eşitlikte binaların sırası
+  const sirali = binalar.slice().sort((x, y) => (x.tuketici.length - y.tuketici.length) || (x.sira - y.sira));
+
+  let toplamAyrilan = 0;
+  for (const x of sirali) {
+    const kalanToplam = x.tuketici.reduce((s, id) => s + bolumler.get(id).kalan, 0);
+    for (const id of x.tuketici) {
+      const v = bolumler.get(id);
+      const pay = kalanToplam <= 1e-9 ? 0
+        : kalanToplam <= x.oda ? v.kalan
+        : x.oda * v.kalan / kalanToplam;
+      v.kalan    = Math.max(0, v.kalan - pay);
+      if (v.kalan < 1e-9) v.kalan = 0;
+      v.ayrilan += pay;
+      x.paylar[id] = pay;
+      x.kullanilan += pay;
+      toplamAyrilan += pay;
+    }
+  }
+  return { bolumler, binalar, toplamAyrilan };
+}
+
+/**
+ * Laboratuvar odalarını dağıtır, bölümlerin laboratuvar alanlarını ve puanını, binaların oda
+ * paylarını yazar. Dönem sonunda, bölüm bağlanınca/çıkarılınca ve kayıt yüklenince çağrılır.
  */
 function _recalcDeptLabScores(state) {
-  if (!state.departments || !state.buildings) return;
+  if (!state?.departments || !state?.buildings) return;
+  const { bolumler, binalar } = _labDagilimi(state);
 
-  // Önce tüm bölümlerin lab kaynaklı skorunu sıfırla
-  for (const dept of state.departments) {
-    dept._labBuildingScore = 0;
+  const odaliBinalar = new Set();
+  for (const x of binalar) {
+    odaliBinalar.add(x.bina);
+    const paylar = {};
+    for (const [id, pay] of Object.entries(x.paylar)) paylar[id] = _yuvarla2(pay);
+    x.bina.labPaylari = paylar;
+    if (!x.bina.usedCapacity) x.bina.usedCapacity = {};
+    x.bina.usedCapacity.labs = _yuvarla2(x.kullanilan);
+  }
+  // Yapımı süren (henüz odası olmayan) laboratuvar ve araştırma merkezinde eski pay kalmasın
+  for (const b of state.buildings) {
+    if (b && !odaliBinalar.has(b) && (b.type === 'lab' || b.type === 'arastirma_merkezi')) b.labPaylari = {};
   }
 
-  // Bağlı lab binalarından puan ekle
-  for (const building of state.buildings) {
-    if (building.type !== 'lab' || !building.isCompleted) continue;
-    const level = building.level || 1;
-    const bonus = 25 * level;
-    for (const deptId of (building.linkedDepartments || [])) {
-      const dept = state.departments.find(d => d.id === deptId);
-      if (dept) {
-        dept._labBuildingScore = (dept._labBuildingScore || 0) + bonus;
-      }
-    }
+  for (const d of state.departments) {
+    if (!d) continue;
+    delete d._labBuildingScore;          // v0.7.2 öncesi kuralın ara alanı
+    const v = bolumler.get(d.id);
+    if (!v) continue;                    // kapalı bölüm
+    const karsilama = v.ihtiyac > 0 ? Math.min(1, v.ayrilan / v.ihtiyac) : (v.bagli ? 1 : 0);
+    d.labIhtiyaci  = v.ihtiyac;
+    d.labAyrilan   = _yuvarla2(v.ayrilan);
+    d.labKarsilama = Math.round(karsilama * 1000) / 1000;
+    d.labScore     = (Number(d.labRequirement) || 0) > 0
+      ? Math.min(100, Math.round(LAB_PUAN_TABANI + LAB_PUAN_ARALIGI * karsilama))
+      : 100;
   }
-
-  // labScore'u güncelle: bölümün kendi bazı + bina bonusu, maks 100
-  for (const dept of state.departments) {
-    if (dept.labRequirement > 0 || (dept._labBuildingScore || 0) > 0) {
-      const base = dept.labRequirement > 0 ? 30 : 100;
-      dept.labScore = Math.min(100, base + (dept._labBuildingScore || 0));
-    }
-  }
+  if (state.meta) state.meta.labOdaPaylasimi = true;   // kayıt yeni kuralla hesaplandı (migrateState)
 }
 
 /**
@@ -4398,6 +4493,20 @@ function _saveStats(simResults) {
 // ─────────────────────────────────────────────────────────────────────────────
 
 /**
+ * v0.7.2: akreditasyonda sayılan laboratuvar puanı. Verilmiş akreditasyon süresi dolana dek
+ * yeniden denetlenmez; yeni kural yeni başvuruda ve yenilemede uygulanır. v0.7.2'den önce
+ * yapılmış, değerlendirmesi süren başvuruda şart, başvurunun yapıldığı kuraldaki puanla
+ * (kayıt yüklenirken acc.eskiLabPuani'ye yazılır, migrateState) ya da yenisi yüksekse onunla denetlenir.
+ */
+function _akreditasyonLabPuani(dept, body) {
+  const puan = Number(dept?.labScore) || 0;
+  const a = body?.id ? dept?.accreditation?.[body.id] : null;
+  const surenBasvuru = a && (a.status === 'applied' || a.status === 'under_review');
+  const eski = surenBasvuru && a.eskiLabPuani != null ? Number(a.eskiLabPuani) : NaN;
+  return Number.isFinite(eski) ? Math.max(puan, eski) : puan;
+}
+
+/**
  * Bir bölümün akreditasyon gereksinimlerini kontrol eder.
  * @returns {{ allMet: boolean, checks: object[] }}
  */
@@ -4416,8 +4525,9 @@ export function checkAccreditationRequirements(state, dept, body) {
     ? deptFaculty.reduce((s, f) => s + (f.stats?.teaching ?? 0), 0) / deptFaculty.length
     : 0;
 
-  // Laboratuvar sayısı: labScore üzerinden tahmin (veya labRequirement)
-  const labCount = Math.floor((dept.labScore ?? 0) / 25);
+  // Laboratuvar sayısı: laboratuvar puanının her 25 puanı bir laboratuvar (v0.7.2: puan oda
+  // karşılamasından gelir; v0.7.2'den önce yapılmış, değerlendirmesi süren başvuruda eski puan)
+  const labCount = Math.floor(_akreditasyonLabPuani(dept, body) / 25);
 
   // Müfredat kapsaması: assignCourses sonuçlarından veya educationQuality'den türet
   const curriculumCoverage = Math.min(1, (dept.educationQuality ?? 50) / 100 + 0.2);
@@ -4601,6 +4711,7 @@ function _processAccreditations(state, results) {
               description: `⚠️ ${dept.name} bölümünün ${body.name} başvurusu reddedildi.`,
             });
           }
+          delete acc.eskiLabPuani;   // v0.7.2: eski kuralla yapılmış başvuru sonuçlandı
         }
       }
 
@@ -5610,6 +5721,26 @@ function migrateState(state) {
     }
   }
 
+  // v0.7.2: laboratuvar odaları paylaşılır (_recalcDeptLabScores); laboratuvar puanı yüklemede yeni
+  // kuralla hesaplanır. Verilmiş akreditasyon süresi dolana dek geçerli kalır (verildikten sonra
+  // yeniden denetlenmez). Kayıttan önce yapılmış, değerlendirmesi süren başvurunun laboratuvar
+  // şartı, başvurunun yapıldığı kuraldaki puanla denetlenir (_akreditasyonLabPuani); yeni kural
+  // ilk yeni başvuruda ve yenilemede uygulanır.
+  try {
+    if (!state.meta?.labOdaPaylasimi) {
+      for (const dept of (state.departments || [])) {
+        for (const a of Object.values(dept?.accreditation || {})) {
+          if (a && (a.status === 'applied' || a.status === 'under_review') && a.eskiLabPuani == null) {
+            a.eskiLabPuani = Math.max(0, Number(dept.labScore) || 0);
+          }
+        }
+      }
+    }
+    _recalcDeptLabScores(state);
+  } catch (e) {
+    console.warn('[migrate] v0.7.2 laboratuvar göçü tamamlanamadı:', e);
+  }
+
   // v0.4.59 Migration: applicationDate alanı olmayan ilan başvurularına mevcut dönemi yaz
   // (anında silinmesinler; önümüzdeki 2 dönem boyunca görünürde kalsınlar)
   for (const a of (state.pendingApplicants || [])) {
@@ -6262,6 +6393,7 @@ export function applyDecision(decision) {
         building.usedCapacity.labs       = usage.usedLabs;
         // v0.5.2: bölüm kapasiteleri yeni atamaya göre hemen güncellensin
         _updateDeptCapacities(_state);
+        _recalcDeptLabScores(_state);   // v0.7.2: araştırma merkezinin laboratuvar odaları paylaşılır
       }
 
       return {
@@ -6293,6 +6425,7 @@ export function applyDecision(decision) {
         building.usedCapacity.offices    = usageAfterRemove.usedOffices;
         building.usedCapacity.labs       = usageAfterRemove.usedLabs;
         _updateDeptCapacities(_state);   // v0.5.2
+        _recalcDeptLabScores(_state);    // v0.7.2: araştırma merkezinin laboratuvar odaları paylaşılır
       }
 
       return { success: true, message: 'Bölüm ataması kaldırıldı.' };

@@ -1701,7 +1701,7 @@ export const BUILDINGS = {
     icon:                  '🔬',
     description:           'Disiplinlerarası araştırma. Atanan bölümlerin araştırma çıktısına %15 bonus.',
     assignable:            true,
-    benefitText:           'Bölüm ata: atanan bölümün araştırma çıktısı %15 artar.',
+    benefitText:           'Bölüm ata: atanan bölümün araştırma çıktısı %15 artar. Laboratuvar odalarını atanan bölümler ihtiyaçları oranında paylaşır.',
     baseCost:              25_000_000,
     baseArea:              2000,
     upgradeCostMultiplier: 1.5,
@@ -1732,7 +1732,7 @@ export const BUILDINGS = {
     icon:                  '🧪',
     description:           'Deneysel araştırma kapasitesini artırır. Bazı bölümler için zorunlu.',
     assignable:            true,
-    benefitText:           'Atandığı bölüme labScore bonusu sağlar (düzey × 25 puan)',
+    benefitText:           'Odaları bağlı bölümler ihtiyaçları oranında paylaşır; her 60 öğrenciye bir oda gerekir.',
     baseCost:              8_000_000,
     baseArea:              800,
     upgradeCostMultiplier: 1.5,
@@ -1748,9 +1748,10 @@ export const BUILDINGS = {
     constructionCost:      8_000_000,
     maintenanceCostRatio:  0.08,
     constructionTime:      1,
+    // v0.7.2: sabit "+15 laboratuvar puanı" yazısı kaldırıldı; puan oda karşılamasından gelir
+    // (game.js _recalcDeptLabScores). qualityEffects yalnız arayüzde (inşaat seçenekleri) yazılır.
     qualityEffects: {
       researchOutput:  +10,
-      labScore:        +15,
       publicationRate: +0.3,
     },
     prerequisite: null,

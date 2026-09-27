@@ -814,6 +814,26 @@ export function generateInitialFaculty(departments, universityType, count = null
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+// v0.7.2: LABORATUVARIN HOCAYA ETKİSİ (calculateHappiness, updateFacultyDevelopment)
+// Eskiden hasLab binalarda hiç olmayan b.department alanına bakıyordu; etki hiçbir zaman
+// uygulanmıyordu. Şimdi bölümün laboratuvar odası ihtiyacının karşılanma oranına bakılır
+// (game.js _recalcDeptLabScores, dept.labKarsilama). Not: bu iki işlev şu an oyunun dönem
+// akışından çağrılmıyor (game.js yalnız updateAllFacultyHappiness'i içe aktarıyor, çağırmıyor);
+// düzeltme etkiyi çağrıldıklarında doğru yapar. acik: false etkiyi kapatır, esik karşılamanın
+// kaçtan itibaren "bölümün laboratuvarı var" sayıldığıdır.
+// ─────────────────────────────────────────────────────────────────────────────
+
+export const LAB_HOCA_ETKISI = { acik: true, esik: 0.5 };
+
+/** Bölümün laboratuvarı yeterli mi: oda karşılaması LAB_HOCA_ETKISI.esik ve üstü. */
+function _bolumunLabiVar(state, deptId) {
+  if (!LAB_HOCA_ETKISI.acik || !deptId) return false;
+  const liste = Array.isArray(state?.departments) ? state.departments : Object.values(state?.departments || {});
+  const d = liste.find(x => x && x.id === deptId);
+  return (Number(d?.labKarsilama) || 0) >= LAB_HOCA_ETKISI.esik;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 // 3. calculateHappiness — Hoca mutluluk puanı
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -835,8 +855,8 @@ export function calculateHappiness(faculty, state) {
   const salaryScore = Math.min(100, Math.max(0, (salaryRatio - 0.5) / 1.0 * 100));
 
   // ── 2. Araştırma imkanları (%15) ─────────────────────────────────────────
-  // Lab varlığı ve araştırma fonu
-  const hasLab = state.buildings?.some(b => b.type === 'lab' && b.department === faculty.department) ?? false;
+  // Lab varlığı ve araştırma fonu (v0.7.2: bölümün oda karşılaması, bkz. LAB_HOCA_ETKISI)
+  const hasLab = _bolumunLabiVar(state, faculty.department);
   const hasResearchCenter = state.buildings?.some(b => b.type === 'arastirma_merkezi') ?? false;
   const researchFundScore = Math.min(100, (state.researchBudgetPerFaculty ?? 0) / 50_000 * 100);
   const researchOpScore = (hasLab ? 40 : 0) + (hasResearchCenter ? 20 : 0) + researchFundScore * 0.4;
@@ -1369,7 +1389,7 @@ export function updateFacultyDevelopment(state) {
   if (!state.faculty) return { state, changes: [] };
 
   const changes = [];
-  const hasLab            = deptId => state.buildings?.some(b => b.type === 'lab' && b.department === deptId) ?? false;
+  const hasLab            = deptId => _bolumunLabiVar(state, deptId);   // v0.7.2, bkz. LAB_HOCA_ETKISI
   const hasResearchCenter  = state.buildings?.some(b => b.type === 'arastirma_merkezi') ?? false;
   const researchFundLevel  = Math.min(3, Math.floor((state.researchBudgetPerFaculty ?? 0) / 200_000)); // 0-3
 
