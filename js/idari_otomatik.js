@@ -437,7 +437,7 @@ export function idariOtomatikAyarla(state, karar = {}) {
     return {
       success: true,
       message: acik
-        ? 'Bütün birimlerde otomatik personel açıldı; eksikler dönem sonunda her birimin kademe sınırıyla doldurulur.'
+        ? 'Bütün birimlerde otomatik personel açıldı. Eksikler dönem sonunda her birimin kademe sınırıyla doldurulur.'
         : 'Bütün birimlerde otomatik personel kapatıldı.',
       ayar: birimler,
     };
@@ -459,7 +459,7 @@ export function idariOtomatikAyarla(state, karar = {}) {
   let message;
   if (once.acik !== yeni.acik) {
     message = yeni.acik
-      ? `${ad} biriminde otomatik personel açıldı; eksikler dönem sonunda ${kademeYazi} sınırıyla doldurulur.`
+      ? `${ad} biriminde otomatik personel açıldı. Eksikler dönem sonunda ${kademeYazi} sınırıyla doldurulur.`
       : `${ad} biriminde otomatik personel kapatıldı.`;
   } else {
     message = `${ad} biriminin kademe sınırı ${kademeYazi} oldu.`;
@@ -554,13 +554,13 @@ function _birimDonemi(state, unitId, kademe, { generateAdminCandidates, hireAdmi
     kararlar.push({
       tur: 'uyari',
       metin: `Kasa eksi olduğu için ${eksik} eksik personel alınmadı.`,
-      neden: `Kasa ${_para(butce.kasa)}; otomatik personel kasa eksideyken alım yapmaz.`,
+      neden: `Kasa ${_para(butce.kasa)}. Otomatik personel kasa eksideyken alım yapmaz.`,
     });
   } else if (eksik > 0 && butce.maasDolu) {
     kararlar.push({
       tur: 'uyari',
       metin: `Maaş sınırı dolu olduğu için ${eksik} eksik personel alınmadı.`,
-      neden: `Hoca maaşları dönem gelirinin ${_yuzde(butce.maasDolu.oran)} kadarı; devlette sınır ${_yuzde(butce.maasDolu.sinir)}. Sınır doluyken otomatik personel alım yapmaz.`,
+      neden: `Hoca maaşları dönem gelirinin ${_yuzde(butce.maasDolu.oran)} kadarı. Devlette sınır ${_yuzde(butce.maasDolu.sinir)}. Sınır doluyken otomatik personel alım yapmaz.`,
     });
   } else if (eksik > 0) {
     const izinli = KADEME_SIRASI.slice(0, (KADEMELER[kademe] || KADEMELER[VARSAYILAN_KADEME]).sira + 1);
@@ -575,7 +575,7 @@ function _birimDonemi(state, unitId, kademe, { generateAdminCandidates, hireAdmi
         kararlar.push({
           tur: 'uyari',
           metin: `Kasa yetmediği için ${eksik - i} eksik personel alınmadı.`,
-          neden: `Bu dönemin alımlarından sonra kasada ${_para(butce.kasaPayi)} kalıyor; bir kişinin bir dönemlik maaşı ${_para(maas * SEMESTER_MONTHS)}.`,
+          neden: `Bu dönemin alımlarından sonra kasada ${_para(butce.kasaPayi)} kalıyor ama bir kişinin bir dönemlik maaşı ${_para(maas * SEMESTER_MONTHS)}.`,
         });
         break;
       }
@@ -585,7 +585,7 @@ function _birimDonemi(state, unitId, kademe, { generateAdminCandidates, hireAdmi
       hireAdminStaff(aday, unvan);
       const yeni = state.adminStaff.find(s => s && s.id === aday.id);
       if (!yeni) {
-        kararlar.push({ tur: 'uyari', metin: 'Aday işe alınamadı; kalan eksik sonraki döneme kaldı.' });
+        kararlar.push({ tur: 'uyari', metin: 'Aday işe alınamadı. Kalan eksik sonraki döneme kaldı.' });
         break;
       }
       butce.kasaPayi -= (_sayi(yeni.salary) || maas) * SEMESTER_MONTHS;
@@ -593,14 +593,14 @@ function _birimDonemi(state, unitId, kademe, { generateAdminCandidates, hireAdmi
       // Neden yalnız ilk alımda yazılır (sonrakiler aynı gerekçeyle alınır)
       kararlar.push({
         tur:   'alim',
-        metin: `${yeni.name}, ${yeni.title} olarak alındı; kalite ${yeni.quality}, maaş ${_para(yeni.salary)}/ay${duzey && KADEMELER[duzey] ? ` (${kademeAdi(duzey).toLocaleLowerCase('tr')} aday)` : ''}.`,
-        ...(alinan === 1 ? { neden: `${eksik} eksik personel vardı. Kademe sınırı ${kademeYazi}; her alımda ${adaylar.length} aday arasından niteliği en yüksek olan seçildi.` } : {}),
+        metin: `${yeni.name}, ${yeni.title} olarak alındı. Kalite ${yeni.quality}, maaş ${_para(yeni.salary)}/ay${duzey && KADEMELER[duzey] ? ` (${kademeAdi(duzey).toLocaleLowerCase('tr')} aday)` : ''}.`,
+        ...(alinan === 1 ? { neden: `${eksik} eksik personel vardı. Kademe sınırı ${kademeYazi}. Her alımda ${adaylar.length} aday arasından niteliği en yüksek olan seçildi.` } : {}),
       });
       if (unit.managerId && unit.managerId === yeni.id && oncekiYonetici !== yeni.id) {
         kararlar.push({
           tur:   'yonetici',
-          metin: `${yeni.name} birim yöneticisi oldu; liderlik ${yeni.leadership}.`,
-          neden: 'Birimin yöneticisi yoktu; yönetici rütbesinde alınan personel kendiliğinden atanır.',
+          metin: `${yeni.name} birim yöneticisi oldu. Liderlik ${yeni.leadership}.`,
+          neden: 'Birimin yöneticisi yoktu. Yönetici rütbesinde alınan personel kendiliğinden atanır.',
         });
       }
     }
@@ -616,8 +616,8 @@ function _birimDonemi(state, unitId, kademe, { generateAdminCandidates, hireAdmi
       if (r?.success) {
         kararlar.push({
           tur:   'yonetici',
-          metin: `${y.name} (${y.title}) birim yöneticisi atandı; liderlik ${Math.round(_sayi(y.leadership))}.`,
-          neden: 'Birimin yöneticisi yoktu; yönetici rütbesindeki personelden liderliği en yüksek olan seçildi.',
+          metin: `${y.name} (${y.title}) birim yöneticisi atandı. Liderlik ${Math.round(_sayi(y.leadership))}.`,
+          neden: 'Birimin yöneticisi yoktu. Yönetici rütbesindeki personelden liderliği en yüksek olan seçildi.',
         });
       } else {
         kararlar.push({ tur: 'uyari', metin: `Birim yöneticisi atanamadı. ${r?.message || ''}`.trim() });
@@ -627,7 +627,7 @@ function _birimDonemi(state, unitId, kademe, { generateAdminCandidates, hireAdmi
       kararlar.push({
         tur:   'bilgi',
         kod:   'yonetici_yok',
-        metin: `Birim yöneticisi yok; yönetici rütbesinde (${rutbeler}) personel yok.`,
+        metin: `Birim yöneticisi yok. Yönetici rütbesinde (${rutbeler}) personel yok.`,
       });
     }
   }
