@@ -3707,3 +3707,17 @@ input[type="range"].ob-kaydirici:focus-visible { outline: 2px solid var(--gold-s
   .bina-sayfa .ob-tablo-kap > .ob-tablo th, .bina-sayfa .ob-tablo-kap > .ob-tablo td { padding: 7px 5px; }
   .bina-sayfa .ob-tablo-kap > .ob-tablo th { font-size: 10px; letter-spacing: 0.02em; white-space: normal; }
 }
+
+/* v0.7.2 doğruluk */
+/* Bir pencere açıkken (genel pencere, dönem özeti, olay ekranı) Rehber düğmesi gizlenir. Düğme
+   pencerenin üstünde duruyor (z-index 9000, pencere 200), telefonda pencerenin düğmelerini örtüyordu. */
+body:has(.modal-screen.active:not(.hidden)) .tutorial-replay-btn { display: none; }
+
+/* Bina Sayfası laboratuvar odası payları tablosu beş sütun (ihtiyaç, bu binadan, toplam, karşılama);
+   telefonda kutusuna sığsın diye başlıklar hecelerinden bölünür, iç boşluk daralır */
+@media (max-width: 600px) {
+  .bina-sayfa .bina-lab-tablo .ob-tablo th,
+  .bina-sayfa .bina-lab-tablo .ob-tablo td { padding: 6px 3px; }
+  .bina-sayfa .bina-lab-tablo .ob-tablo th { letter-spacing: 0; hyphens: manual; }
+  .bina-sayfa .bina-lab-tablo .ob-tablo td.ob-ad { overflow-wrap: anywhere; }
+}

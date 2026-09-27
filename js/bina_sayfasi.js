@@ -9,10 +9,15 @@
  * Bu modül game.js'i içe aktarmaz. Durum (getState kopyası), biçim ve pencere yardımcıları
  * (ui.js) ve kararlar (main.js) parametre olarak gelir. Sayıların hepsi oyunun kendi hesabının
  * aynısıyla bulunur; her hesabın yanında kaynağı yazılı. Kaynak değişirse burası da değişmeli.
- * data.js'teki effects / qualityEffects alanları oyunda kullanılmadığı için burada okunmaz.
+ * Bakım gideri ve teknokent geliri economy.js'in kendi işlevleriyle (binaDonemBakimi, teknokentGeliri)
+ * hesaplanır. data.js'teki effects / qualityEffects alanları oyunda kullanılmadığı için burada okunmaz.
+ *
+ * v0.7.2 doğruluk: binaların etki metninin tek kaynağı burası (binaEtkiOzeti, binaKartEtkileri,
+ * yukseltmeEtkisi); bina kartı, inşaat seçenekleri, inşaat ve yükseltme onayları bunları kullanır.
  */
 
-import { BUILDINGS } from './data.js?v=0.7.0';
+import { BUILDINGS, DIFFICULTY_SETTINGS, ACCREDITATION_BODIES } from './data.js?v=0.7.0';
+import { binaDonemBakimi, teknokentGeliri } from './economy.js?v=0.7.0';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // OYUNUN SABİTLERİ (kaynaktaki değerlerin aynısı)
@@ -20,21 +25,24 @@ import { BUILDINGS } from './data.js?v=0.7.0';
 
 export const SINIF_SAYISI = 4;       // game.js SINIF_SAYISI: bir koltuk bir yıllık alım, dört sınıf
 const YEDEK_KOLTUK       = 40;       // game.js YEDEK_KOLTUK: dersliği olmayan bölüm tek derslik sayılır
-const BAKIM_DURUM_OLCEGI = 0.5;      // economy.js MAINTENANCE_QUALITY_SCALE
-const BAKIM_DUZEY_ARTISI = 0.25;     // economy.js BINA_DUZEY_BAKIM_ARTISI
 const MERKEZ_ARTISI      = 0.15;     // game.js _getResearchCenterBonus: merkez başına
 const MERKEZ_TAVANI      = 1.30;     // game.js _getResearchCenterBonus: üst sınır
-const LAB_PUANI_DUZEY    = 25;       // game.js _recalcDeptLabScores: düzey başına laboratuvar puanı
+const LAB_ODA_BASINA_OGRENCI = 60;   // game.js LAB_ODA_BASINA_OGRENCI: bir oda 60 öğrenciye yeter
+const LAB_PUAN_TABANI    = 30;       // game.js LAB_PUAN_TABANI: oda ayrılmamış bölümün puanı
+const LAB_PUAN_ARALIGI   = 70;       // game.js LAB_PUAN_ARALIGI: tam karşılamada eklenen
+/** game.js LAB_GEREKSINIM_ESIGI: labRequirement bu ve üstündeyse bölüm laboratuvar gerektirir. */
+export const LAB_GEREKSINIM_ESIGI = 2;
+const KARIYER_TEKNOKENT  = 15;       // students.js calculateStudentSatisfaction: teknokent Kariyer Desteği puanına
 
 /** Öğrenci memnuniyeti bileşenlerinin ağırlığı (students.js calculateStudentSatisfaction). */
-const MEMNUNIYET_AGIRLIGI = { sosyal: 0.10, yurt: 0.10, yemek: 0.07, spor: 0.05, ulasim: 0.05, idari: 0.12 };
+const MEMNUNIYET_AGIRLIGI = { sosyal: 0.10, yurt: 0.10, yemek: 0.07, spor: 0.05, ulasim: 0.05, kariyer: 0.09, idari: 0.12 };
 
 /** Türün bir satırlık işlevi (ne işe yarar). data.js açıklamaları oyunda olmayan etkiler yazdığı için kullanılmaz. */
 const ISLEV = {
   fakulte_binasi:    'Derslik ve ofis binası. Derslikleri bölümlerin öğrenci kapasitesini belirler.',
   amfi:              'Büyük derslikler. Koltukları bölümlerin öğrenci kapasitesine eklenir.',
-  arastirma_merkezi: 'Bağlı bölümlerin araştırmasını güçlendirir. Dersliği yok.',
-  lab:               'Bağlı bölümlerin laboratuvar puanını yükseltir.',
+  arastirma_merkezi: 'Bağlı bölümlerin yayın ve proje başarısını artırır, laboratuvar odası sağlar. Dersliği yok.',
+  lab:               'Laboratuvar odaları. Laboratuvar gerektiren bağlı bölümler odaları ihtiyaca göre paylaşır, laboratuvar puanları buna göre yükselir.',
   kutuphane:         'Yerleşkenin çalışma alanı. Sosyal Yaşam puanını artırır.',
   yurt:              'Öğrenci yatakları. Yurt İmkânı puanını artırır.',
   yemekhane:         'Öğrenci ve hocalara günlük öğün. Yemekhane puanını artırır.',
@@ -42,13 +50,42 @@ const ISLEV = {
   konferans:         'Etkinlik ve konferans merkezi. Uluslararasılaşma puanını artırır.',
   saglik_merkezi:    'Öğrenci ve personele sağlık hizmeti. İdari Hizmetler puanını artırır.',
   idari_bina:        'Rektörlük ve idari birimler. İdari Hizmetler puanını artırır.',
-  teknokent:         'Girişimcilik ve sanayi binası. Şu an oyun hesabında bir etkisi yok.',
+  teknokent:         'Girişimcilik ve sanayi binası. Bitince bütçeye dönemlik sponsorluk geliri girer, Kariyer Desteği puanı artar.',
   ulasim_merkezi:    'Ring ve servis durağı. Ulaşım puanını artırır.',
 };
 
+/** Bölüm laboratuvar gerektiriyor mu: labRequirement 2 ve üstü (game.js _labGerekir ile aynı). */
+export function labGerekir(d) {
+  return (Number(d?.labRequirement) || 0) >= LAB_GEREKSINIM_ESIGI;
+}
+
+/** Metin içinde sayı: Türkçe binlik ayırıcıyla ("2.000.000"). */
+const tr = (v) => Math.round(Number(v) || 0).toLocaleString('tr-TR');
+
+/** Türün düzey 1'deki laboratuvar odası ve düzey başına artışı (data.js). */
+function labOdaTanimi(tur) {
+  const t = BUILDINGS[tur];
+  return { ilk: t?.capacity?.labs || 0, artis: t?.capacityPerLevel?.labs || 0 };
+}
+
+/** Laboratuvar şartı olan akreditasyonlar: "MÜDEK 2, ABET 3" (data.js ACCREDITATION_BODIES). */
+function labSartlari() {
+  return Object.values(ACCREDITATION_BODIES)
+    .filter(k => k.requirements?.minLabCount != null)
+    .map(k => `${k.name} ${k.requirements.minLabCount}`).join(', ');
+}
+
+/** Teknokentin gelir kuralı (economy.js teknokentGeliri): temel tutar ve öğrenci başına tutar. */
+function teknokentKurali() {
+  const temel = teknokentGeliri({ university: { prestige: 0 }, students: { totalEnrolled: 0 } });
+  const tek   = teknokentGeliri({ university: { prestige: 0 }, students: { totalEnrolled: 1 } });
+  const puan  = teknokentGeliri({ university: { prestige: 100 }, students: { totalEnrolled: 0 } });
+  return { temel: temel.toplam, ogrenciBasina: tek.ogrenci, puanBasina: puan.baglantiPuani > 0 ? puan.baglanti / puan.baglantiPuani : 0 };
+}
+
 /**
- * Türün oyundaki etkisinin kısa dökümü: inşaat seçeneği kartı ve inşaat onayı (ui.js
- * _formatBuildingEffects) bunu gösterir. Bina Sayfası'ndaki ayrıntılı etkiyle aynı içerik.
+ * Türün oyundaki etkisinin kısa dökümü: inşaat seçeneği kartı, inşaat onayı ve bina kartı (ui.js)
+ * bunu gösterir. Bina Sayfası'ndaki ayrıntılı etkiyle aynı içerik; her madde oyunun hesabından.
  * @param {string} tur
  * @returns {string[]}
  */
@@ -57,10 +94,21 @@ export function binaEtkiOzeti(tur) {
     case 'fakulte_binasi':
     case 'amfi':
       return ['Derslikleri bölümlerin öğrenci kapasitesini ve yeni alımını belirler (koltuk × 4 sınıf)'];
-    case 'arastirma_merkezi':
-      return ['Bağlı bölümde yayın beklentisi ×1,15', 'Bağlı bölümde dış proje kabul olasılığı ×1,15'];
-    case 'lab':
-      return ['Bağlı bölümün laboratuvar puanına düzey × 25'];
+    case 'arastirma_merkezi': {
+      const o = labOdaTanimi(tur);
+      return [
+        'Bağlı bölümde yayın beklentisi ×1,15',
+        'Bağlı bölümde dış proje kabul olasılığı ×1,15',
+        `Laboratuvar odalarını, laboratuvar gerektiren bağlı bölümler ihtiyaçları oranında paylaşır; her düzey +${o.artis} oda`,
+      ];
+    }
+    case 'lab': {
+      const o = labOdaTanimi(tur);
+      return [
+        `Odalarını, laboratuvar gerektiren bağlı bölümler ihtiyaçları oranında paylaşır; her ${LAB_ODA_BASINA_OGRENCI} öğrenciye bir oda gerekir, her düzey +${o.artis} oda`,
+        `Bölümün laboratuvar puanı ${LAB_PUAN_TABANI} + ${LAB_PUAN_ARALIGI} × karşılama (yayın beklentisi ve akreditasyon)`,
+      ];
+    }
     case 'kutuphane':
       return ['Sosyal Yaşam puanına en çok +20 (öğrenci memnuniyeti)'];
     case 'yurt':
@@ -77,8 +125,13 @@ export function binaEtkiOzeti(tur) {
       return ['İdari Hizmetler puanına düzeye göre +6, +10, +14 (öğrenci memnuniyeti)'];
     case 'ulasim_merkezi':
       return ['Ulaşım puanına düzeye göre +12, +18, +24 (öğrenci memnuniyeti)'];
-    case 'teknokent':
-      return ['Şu an oyun hesabında bir etkisi yok'];
+    case 'teknokent': {
+      const k = teknokentKurali();
+      return [
+        `Her dönem sponsorluk geliri (${tr(k.temel)} ₺, öğrenci başına ${tr(k.ogrenciBasina)} ₺ ve saygınlığa bağlı sanayi bağlantısı)`,
+        `Kariyer Desteği puanına +${KARIYER_TEKNOKENT} (öğrenci memnuniyeti)`,
+      ];
+    }
     default:
       return [];
   }
@@ -215,12 +268,101 @@ export function kapasiteDagilimi(state) {
   return { talep, binaPaylari, bolumKapasitesi, bolumBinalari, ortakKoltuk, ortakBinaSayisi: ortakBinalar.length };
 }
 
+const yuvarla2 = x => Math.round((Number(x) || 0) * 100) / 100;   // game.js _yuvarla2
+
+/** Binanın laboratuvar odası: düzeyine göre; currentCapacity.labs yoksa tanımdan (game.js _labOdasi). */
+function labOdasi(b) {
+  const oda = Number(b?.currentCapacity?.labs);
+  if (b?.currentCapacity && Number.isFinite(oda)) return Math.max(0, oda);
+  const tanim = BUILDINGS[b?.type];
+  return tanim?.capacity ? Math.max(0, duzeyKapasitesi(tanim, b.level || 1).labs || 0) : 0;
+}
+
+/** Binanın odalarını kullanabilen bölümler: Laboratuvarda bağlananlar, öteki binalarda atananlar (game.js _labKullananlari). */
+function labKullananlari(b) {
+  return (b?.type === 'lab' ? b.linkedDepartments : b?.assignedDepartments) || [];
+}
+
 /**
- * Bölüme bağlı binanın kullanımı: derslik, ofis, laboratuvar odası (game.js calculateBuildingUsage).
- * Laboratuvar binası bağlı bölümlerini (linkedDepartments), öteki binalar atanmış bölümlerini sayar.
+ * Laboratuvar odalarının bölümlere dağılımı (game.js _labDagilimi'nin aynısı): laboratuvar gerektiren
+ * bölümün ihtiyacı her 60 öğrenciye bir oda; her bina odalarını bağlı bölümlerin kalan ihtiyacı oranında
+ * böler, ihtiyaçtan fazla vermez; az tüketicili bina önce dağıtılır. Durumu değiştirmez.
+ * degisen = { id, oda } verilirse o binanın oda sayısı yerine verilen sayılır (yükseltme sonrası).
+ * @returns {{ bolumler: Map<string, { ihtiyac, ayrilan, bagli, karsilama }>,
+ *            binalar: Map<string, { oda, paylar: Object<string, number>, kullanilan }> }}
+ */
+export function labDagilimi(state, degisen = null) {
+  const bolumler = new Map();
+  for (const d of state?.departments || []) {
+    if (!d || !d.id || d.isOpen === false) continue;
+    const ihtiyac = labGerekir(d) ? Math.ceil(bolumOgrencisi(state, d.id) / LAB_ODA_BASINA_OGRENCI) : 0;
+    bolumler.set(d.id, { ihtiyac, kalan: ihtiyac, ayrilan: 0, bagli: false });
+  }
+  const binalar = [];
+  (state?.buildings || []).forEach((b, sira) => {
+    if (!b?.isCompleted) return;
+    const oda = degisen && b.id === degisen.id ? degisen.oda : labOdasi(b);
+    if (!(oda > 0)) return;
+    const uyeler = [...new Set(labKullananlari(b))].filter(id => bolumler.has(id));
+    uyeler.forEach(id => { bolumler.get(id).bagli = true; });
+    const tuketici = uyeler.filter(id => bolumler.get(id).ihtiyac > 0);
+    binalar.push({ bina: b, sira, oda, tuketici, paylar: {}, kullanilan: 0 });
+  });
+  const sirali = binalar.slice().sort((x, y) => (x.tuketici.length - y.tuketici.length) || (x.sira - y.sira));
+  for (const x of sirali) {
+    const kalanToplam = x.tuketici.reduce((s, id) => s + bolumler.get(id).kalan, 0);
+    for (const id of x.tuketici) {
+      const v = bolumler.get(id);
+      const pay = kalanToplam <= 1e-9 ? 0
+        : kalanToplam <= x.oda ? v.kalan
+        : x.oda * v.kalan / kalanToplam;
+      v.kalan    = Math.max(0, v.kalan - pay);
+      if (v.kalan < 1e-9) v.kalan = 0;
+      v.ayrilan += pay;
+      x.paylar[id] = pay;
+      x.kullanilan += pay;
+    }
+  }
+  for (const v of bolumler.values()) {
+    v.karsilama = v.ihtiyac > 0 ? Math.min(1, v.ayrilan / v.ihtiyac) : (v.bagli ? 1 : 0);
+  }
+  return { bolumler, binalar: new Map(binalar.map(x => [x.bina.id, x])) };
+}
+
+/**
+ * Bölümün laboratuvar durumu: oyunun yazdığı alanlar (labIhtiyaci, labAyrilan, labKarsilama; dönem sonunda,
+ * bağlamada ve yüklemede) varsa onlar, yoksa aynı kuralla hesap (dagilim: labDagilimi sonucu).
+ */
+function bolumLab(d, dagilim) {
+  const gerek = labGerekir(d);
+  const h = dagilim?.bolumler.get(d.id);
+  const al = (alan, yedek) => (d?.[alan] != null && Number.isFinite(Number(d[alan])) ? Number(d[alan]) : yedek);
+  return {
+    gerek,
+    ihtiyac:   gerek ? al('labIhtiyaci', h?.ihtiyac ?? 0) : 0,
+    ayrilan:   gerek ? al('labAyrilan', h?.ayrilan ?? 0) : 0,
+    karsilama: al('labKarsilama', h?.karsilama ?? 0),
+  };
+}
+
+/** Binanın bir bölüme ayırdığı oda: oyunun yazdığı labPaylari, yoksa hesap. */
+function binaLabPayi(b, id, dagilim) {
+  if (b?.labPaylari && typeof b.labPaylari === 'object') return Number(b.labPaylari[id]) || 0;
+  return dagilim?.binalar.get(b?.id)?.paylar[id] || 0;
+}
+
+/** Karşılamaya göre sınıf: %75 ve üstü iyi, %50 ve üstü uyarı, altı kritik (ui.js laboratuvar gösterimiyle aynı). */
+function karsilamaTuru(k) {
+  return k >= 0.75 ? 'iyi' : k >= 0.5 ? 'uyari' : 'kritik';
+}
+
+/**
+ * Bölüme bağlı binanın kullanımı: derslik, ofis (game.js calculateBuildingUsage). Laboratuvar binası
+ * bağlı bölümlerini (linkedDepartments), öteki binalar atanmış bölümlerini sayar. Laboratuvar odası
+ * kullanımı binaKullanimi'nde, oda dağılımından.
  */
 function bolumKullanimi(b, state) {
-  let derslik = 0, lab = 0, prof = 0, dr = 0, argo = 0;
+  let derslik = 0, prof = 0, dr = 0, argo = 0;
   const tanim = BUILDINGS[b.type];
   const duzey = b.level || 1;
   const liste = b.type === 'lab' ? (b.linkedDepartments || []) : (b.assignedDepartments || []);
@@ -235,7 +377,6 @@ function bolumKullanimi(b, state) {
     prof += hocalar.filter(f => ['profesor', 'docent'].includes(f.title)).length;
     dr   += hocalar.filter(f => f.title === 'dr_ogr_uyesi').length;
     argo += hocalar.filter(f => f.title === 'argö').length;
-    if (dept.category === 'muhendislik' || dept.category === 'fen') lab += Math.ceil(ogrenci / 60);
   }
   // Ofis: Prof. ve Doç. tek ofis; boş ofis varken Dr. Öğr. Üyesi ve Arş. Gör. de tek, yetmezse ikişer ve üçer
   const ofisVar = (tanim?.capacity?.offices ?? 0) + (duzey - 1) * (tanim?.capacityPerLevel?.offices ?? 0);
@@ -249,12 +390,13 @@ function bolumKullanimi(b, state) {
     if (bos >= argo) { ofis += argo; bos -= argo; }
     else { ofis += bos + Math.ceil((argo - bos) / 3); bos = 0; }
   }
-  return { classrooms: derslik, offices: ofis, labs: lab };
+  return { classrooms: derslik, offices: ofis };
 }
 
 /**
- * Binanın oyunun hesapladığı kullanımı (game.js _updateAllBuildingUsage; her dönem sonunda ve
- * bölüm atanınca yazılır). Tamamlanmamış binada null.
+ * Binanın oyunun hesapladığı kullanımı (game.js _updateAllBuildingUsage; oyun başında, her dönem
+ * sonunda ve bölüm atanınca yazılır). Laboratuvar odası kullanımı bölümlere ayrılan oda payları
+ * (game.js calculateBuildingUsage, _labDagilimi); odası olmayan binada 0. Tamamlanmamış binada null.
  */
 export function binaKullanimi(state, b) {
   if (!b?.isCompleted) return null;
@@ -266,38 +408,43 @@ export function binaKullanimi(state, b) {
     case 'yemekhane':   return { dailyMeals: Math.min(kap.dailyMeals || 0, ogrenci + hoca) };
     case 'kutuphane':   return { simultaneous: Math.min(kap.simultaneous || 0, Math.round(ogrenci * 0.25)), daily: Math.min(kap.daily || 0, ogrenci) };
     case 'spor_tesisi': return { dailyUsers: Math.min(kap.dailyUsers || 0, Math.round(ogrenci * 0.60)) };
-    default:            return bolumKullanimi(b, state);
+    default: {
+      const lab = labDagilimi(state).binalar.get(b.id);
+      return { ...bolumKullanimi(b, state), labs: lab ? yuvarla2(lab.kullanilan) : 0 };
+    }
   }
 }
 
 /**
- * Dönemlik bakım gideri ve dökümü (economy.js calculateExpenses, 4. altyapı bakımı).
- * Yapım sürerken ödenmez (odenen 0); tutar bina bitince ödenecek olandır.
+ * Zorluğun gider ve gelir çarpanı (economy.js calculateEconomy; Bütçe sekmesi aynı çarpanla gösterir).
+ * @returns {{ gider: number, gelir: number, ad: string }}
  */
-export function binaBakimi(b) {
-  const tanim = BUILDINGS[b?.type];
-  const sayi = (v) => { const n = Number(v); return Number.isFinite(n) ? n : 0; };
-  const yapimda = !b?.isCompleted;
-  let taban = 0, yontem = 'yok';
-  if (tanim) {
-    if (tanim.maintenanceCostPerM2 != null && b.area) {
-      taban = sayi(b.area) * sayi(tanim.maintenanceCostPerM2); yontem = 'alan';
-    } else if (b.maintenanceCost) {
-      taban = sayi(b.maintenanceCost); yontem = 'kayit';
-    } else {
-      taban = sayi(tanim.constructionCost || tanim.baseCost) * sayi(tanim.maintenanceCostRatio || 0.05) / 2; yontem = 'oran';
-    }
-  }
-  const durum = sayi(b?.condition || 80);
-  const durumCarpani = 1 + (1 - durum / 100) * BAKIM_DURUM_OLCEGI;
-  const duzey = sayi(b?.level || 1);
-  const duzeyCarpani = 1 + BAKIM_DUZEY_ARTISI * Math.max(0, duzey - 1);
-  const tutar = tanim ? taban * durumCarpani * duzeyCarpani : 0;
-  return { yapimda, odenen: yapimda ? 0 : tutar, tutar, taban, yontem, alan: sayi(b?.area), m2: sayi(tanim?.maintenanceCostPerM2), durum, durumCarpani, duzey, duzeyCarpani };
+export function zorlukCarpani(state) {
+  const d = DIFFICULTY_SETTINGS[state?.meta?.difficulty || 'normal'] || DIFFICULTY_SETTINGS.normal;
+  const sayi = (v) => { const n = Number(v); return Number.isFinite(n) ? n : 1; };
+  return { gider: sayi(d.expenseMultiplier ?? 1), gelir: sayi(d.incomeMultiplier ?? 1), ad: d.label || '' };
 }
 
-/** Sonraki düzey: maliyet ve süre (game.js upgrade_building), alan, kapasite ve bakım (yükseltme bitince). */
-export function sonrakiDuzey(b) {
+/**
+ * Dönemlik bakım gideri ve dökümü: economy.js binaDonemBakimi (calculateExpenses bina başına bunu
+ * toplar), state verilirse zorluğun gider çarpanıyla (dönem sonunda kasadan düşen tutar).
+ * Yapım sürerken ödenmez (odenen 0); tutar bina bitince ödenecek olandır.
+ * @param {object} b
+ * @param {object} [state]  verilmezse zorluk çarpanı 1 (calculateExpenses'in tutarı)
+ */
+export function binaBakimi(b, state = null) {
+  const k = binaDonemBakimi(b);
+  const yapimda = !b?.isCompleted;
+  const zorluk = state ? zorlukCarpani(state) : { gider: 1, ad: '' };
+  const tutar = k.tutar * zorluk.gider;
+  return { ...k, ham: k.tutar, tutar, yapimda, odenen: yapimda ? 0 : tutar, zorluk: zorluk.gider, zorlukAdi: zorluk.ad };
+}
+
+/**
+ * Sonraki düzey: maliyet ve süre (game.js upgrade_building), alan, kapasite ve bakım (yükseltme bitince;
+ * state verilirse zorluk çarpanıyla).
+ */
+export function sonrakiDuzey(b, state = null) {
   const tanim = BUILDINGS[b?.type];
   if (!tanim) return null;
   const duzey = b.level || 1;
@@ -311,12 +458,12 @@ export function sonrakiDuzey(b) {
     sure:     tanim.constructionTurns ?? tanim.constructionTime ?? 2,
     alan,
     kapasite: duzeyKapasitesi(tanim, sonraki),
-    bakim:    binaBakimi({ ...b, isCompleted: true, area: alan, level: sonraki }).tutar,
+    bakim:    binaBakimi({ ...b, isCompleted: true, area: alan, level: sonraki }, state).tutar,
   };
 }
 
-/** Bölümün araştırma merkezi çarpanı (game.js _getResearchCenterBonus). */
-function merkezCarpani(state, deptId) {
+/** Bölümün araştırma merkezi çarpanı (game.js _getResearchCenterBonus): yayın beklentisi ve dış proje kabul olasılığı. */
+export function merkezCarpani(state, deptId) {
   const n = (state.buildings || []).filter(b => b.type === 'arastirma_merkezi' && b.isCompleted
     && Array.isArray(b.assignedDepartments) && b.assignedDepartments.includes(deptId)).length;
   return n === 0 ? 1 : Math.min(MERKEZ_TAVANI, 1 + MERKEZ_ARTISI * n);
@@ -374,10 +521,17 @@ function duzeyToplami(state, tur, degisen = null) {
     .reduce((s, b) => s + (degisen && b.id === degisen.id ? degisen.duzey : (b.level || 1)), 0);
 }
 
-/** Laboratuvar odası payı alanları (laboratuvar kapasitesi işi ekler) binada ya da bölümlerinde var mı. */
-function labAlanlariVar(b, depts) {
-  return (b?.labPaylari != null && typeof b.labPaylari === 'object')
-    || depts.some(d => d?.labIhtiyaci != null || d?.labAyrilan != null || d?.labKarsilama != null);
+/**
+ * Binanın laboratuvar odası durumu: oda, bölümlere ayrılan (oyunun yazdığı labPaylari, yoksa hesap),
+ * bağlı ve laboratuvar gerektiren açık bölümlerin toplam ihtiyacı, bağlı bölümler.
+ */
+function binaLabDurumu(state, b, labDag) {
+  const oda = labOdasi(b);
+  const depts = [...new Set(labKullananlari(b))]
+    .map(id => (state.departments || []).find(d => d.id === id)).filter(d => d && d.isOpen !== false);
+  const ayrilan = depts.reduce((s, d) => s + binaLabPayi(b, d.id, labDag), 0);
+  const ihtiyac = depts.reduce((s, d) => s + bolumLab(d, labDag).ihtiyac, 0);
+  return { oda, ayrilan, ihtiyac, bos: Math.max(0, oda - ayrilan), depts };
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -474,15 +628,14 @@ function kapasiteKarti(state, b, tanim, h, dagilim) {
 
   if ((kap.labs || 0) > 0 && (b.type === 'lab' || b.type === 'arastirma_merkezi')) {
     satirlar.push(h.satir('Laboratuvar odası', sayi(kap.labs)));
-    const liste = b.type === 'lab' ? (b.linkedDepartments || []) : (b.assignedDepartments || []);
-    const depts = liste.map(id => (state.departments || []).find(d => d.id === id)).filter(Boolean);
-    if (labAlanlariVar(b, depts)) {
-      const ayrilan = Object.values(b.labPaylari || {}).reduce((s, v) => s + (Number(v) || 0), 0);
-      satirlar.push(h.satir('Bölümlere ayrılan oda', `${sayi(ayrilan)} <span class="ob-soluk">/ ${sayi(kap.labs)}</span>`, ayrilan > kap.labs ? 'ob-kritik' : ''));
-      satirlar.push(not('Odaların bölümlere dağılımı aşağıdaki Bölümler kartında.'));
-    } else if (bitti) {
-      satirlar.push(h.satir('Kullanılan oda', `${sayi(kul.labs)} <span class="ob-soluk">/ ${sayi(kap.labs)}</span>`, (kul.labs || 0) > kap.labs ? 'ob-kritik' : ''));
-      satirlar.push(not(`Bağlı mühendislik bölümlerinin her 60 öğrencisine bir oda sayılır. Oda sayısı şu an bir sonucu etkilemiyor${b.type === 'lab' ? '; katkıyı yalnız düzey belirler' : ''}.`));
+    if (bitti) {
+      const bl = binaLabDurumu(state, b, dagilim.lab);
+      satirlar.push(h.satir('Bölümlere ayrılan oda', `${h.ondalik(bl.ayrilan, 1)} <span class="ob-soluk">/ ${sayi(kap.labs)}</span>`));
+      satirlar.push(h.satir('Bağlı bölümlerin ihtiyacı', `${sayi(bl.ihtiyac)} oda`, bl.ihtiyac > kap.labs ? 'ob-uyari' : ''));
+      satirlar.push(cubuk(Math.min(1, bl.ayrilan / kap.labs), 'iyi'));
+      satirlar.push(not(`Odaları, laboratuvar gerektiren bağlı bölümler kalan ihtiyaçları oranında paylaşır; her ${LAB_ODA_BASINA_OGRENCI} öğrenciye bir oda gerekir, hiçbir bölüm ihtiyacından fazlasını almaz. Dağılım aşağıdaki kartta.`));
+    } else {
+      satirlar.push(not('Yapım bitince odalarını, laboratuvar gerektiren bağlı bölümler ihtiyaçları oranında paylaşır.'));
     }
   }
 
@@ -553,36 +706,42 @@ function derslikYeri(state, d, dagilim, h) {
 }
 
 /**
- * v0.7.2 laboratuvar payı kancası: laboratuvar kapasitesi işi binaya labPaylari ({bölüm: oda}),
- * bölüme labIhtiyaci, labAyrilan ve labKarsilama (0-1) ekleyince bağlı bölümlerin ihtiyaç,
- * ayrılan oda ve karşılama tablosu. Alanlar yoksa boş döner (bölüm listesi yeter).
+ * Laboratuvar odası payları tablosu (Laboratuvar ve araştırma merkezi): bağlı her açık bölümün oda
+ * ihtiyacı, bu binadan aldığı oda, bütün binalardan aldığı oda ve karşılama. Sayılar oyunun yazdığı
+ * alanlardan (labPaylari, labIhtiyaci, labAyrilan, labKarsilama); yoksa aynı kuralla hesaplanır.
  */
-export function labPayTablosu(state, b, h) {
+export function labPayTablosu(state, b, h, labDag = labDagilimi(state)) {
   if (b?.type !== 'lab' && b?.type !== 'arastirma_merkezi') return '';
   const liste = b.type === 'lab' ? (b.linkedDepartments || []) : (b.assignedDepartments || []);
-  const depts = liste.map(id => (state.departments || []).find(d => d.id === id)).filter(d => d && d.isOpen !== false);
-  if (depts.length === 0 || !labAlanlariVar(b, depts)) return '';
-  const sayi = (v) => (v == null || !Number.isFinite(Number(v)) ? '<span class="ob-soluk">yok</span>' : h.sayi(v));
+  const depts = [...new Set(liste)].map(id => (state.departments || []).find(d => d.id === id)).filter(d => d && d.isOpen !== false);
+  if (depts.length === 0) return '';
+  const oda = (v) => h.ondalik(Number(v) || 0, 1);
   const satirlar = depts.map(d => {
-    const karsilama = Number(d.labKarsilama);
-    const var_ = d.labKarsilama != null && Number.isFinite(karsilama);
-    const tur = !var_ ? '' : karsilama >= 1 ? 'ob-iyi' : karsilama >= 0.7 ? 'ob-uyari' : 'ob-kritik';
+    const lb = bolumLab(d, labDag);
+    if (!lb.gerek) {
+      return `
+      <tr>
+        <td class="ob-ad">${h.esc(d.shortName || d.name)}</td>
+        <td class="n ob-soluk" colspan="4">laboratuvar gerektirmiyor</td>
+      </tr>`;
+    }
     return `
       <tr>
         <td class="ob-ad">${h.esc(d.shortName || d.name)}</td>
-        <td class="n">${sayi(d.labIhtiyaci)}</td>
-        <td class="n ob-tek">${sayi(b.labPaylari?.[d.id])}<span class="ob-soluk"> / ${sayi(d.labAyrilan)}</span></td>
-        <td class="n ${tur}">${var_ ? `%${Math.round(karsilama * 100)}` : '<span class="ob-soluk">yok</span>'}</td>
+        <td class="n">${h.sayi(lb.ihtiyac)}</td>
+        <td class="n ob-tek">${oda(binaLabPayi(b, d.id, labDag))}</td>
+        <td class="n ob-tek">${oda(lb.ayrilan)}</td>
+        <td class="n ob-${karsilamaTuru(lb.karsilama)}">%${Math.round(lb.karsilama * 100)}</td>
       </tr>`;
   }).join('');
   return `
     <div class="bina-lab-tablo">
       <div class="bina-alt-baslik">Laboratuvar odası payları</div>
       <div class="ob-tablo-kap"><table class="ob-tablo ob-tablo--dar">
-        <thead><tr><th>Bölüm</th><th class="n">İhtiyaç</th><th class="n">Ayrılan</th><th class="n">Karşılama</th></tr></thead>
+        <thead><tr><th>Bölüm</th><th class="n">İhti&shy;yaç</th><th class="n">Bu bina&shy;dan</th><th class="n">Top&shy;lam</th><th class="n">Karşı&shy;lama</th></tr></thead>
         <tbody>${satirlar}</tbody>
       </table></div>
-      <div class="ob-tablo-dip">Ayrılan sütununda önce bu binadan, sonra bölümün bütün laboratuvarlarından ayrılan oda yazılı. İhtiyaç ve karşılama bölümün bütününe göre.</div>
+      <div class="ob-tablo-dip">İhtiyaç her ${LAB_ODA_BASINA_OGRENCI} öğrenciye bir oda. "Bu binadan" bu binanın bölüme ayırdığı oda, "Toplam" bölümün bütün laboratuvarlardan ve araştırma merkezlerinden aldığı oda. Karşılama toplamın ihtiyaca oranı; laboratuvar puanı ${LAB_PUAN_TABANI} + ${LAB_PUAN_ARALIGI} × karşılama.</div>
     </div>`;
 }
 
@@ -635,36 +794,93 @@ function bolumlerKarti(state, b, tanim, h, dagilim) {
     return kart(`Bölümler${sayac ? ` <span class="ob-sayi">${sayac}</span>` : ''}`, `${giris}${satirlar ? `<div class="bina-bolum-liste">${satirlar}</div>` : ''}${yedekNotu}`);
   }
 
+  // Bölümün bu binadan aldığı laboratuvar odası ve bütün binalardan karşılaması (laboratuvar gerektirmeyende yazı)
+  const labAlt = (d) => {
+    const lb = bolumLab(d, dagilim.lab);
+    if (!lb.gerek) return { alt: 'laboratuvar gerektirmiyor, oda kullanmaz', rozet: '<span class="ob-rozet ob-rozet--kucuk">laboratuvar gerekmiyor</span>' };
+    return {
+      alt: `laboratuvar ihtiyacı ${sayi(lb.ihtiyac)} oda, bu binadan ${h.ondalik(binaLabPayi(b, d.id, dagilim.lab), 1)} oda · laboratuvar puanı ${sayi(Number(d.labScore) || 0)}/100`,
+      rozet: `<span class="ob-rozet ob-rozet--${karsilamaTuru(lb.karsilama)} ob-rozet--kucuk" title="Bölümün bütün laboratuvar odası / ihtiyacı">%${Math.round(lb.karsilama * 100)} karşılama</span>`,
+    };
+  };
+
   if (b.type === 'lab') {
-    const duzey = b.level || 1;
     const depts = (b.linkedDepartments || []).map(acikBolum).filter(Boolean);
     const satirlar = depts.map(d => {
-      const gerek = Number(d.labRequirement) || 0;
-      const alt = [
-        `laboratuvar puanı ${sayi(Number(d.labScore) || 0)}/100`,
-        gerek > 0 ? `gereksinim ${gerek}/5` : 'laboratuvar gerektirmiyor',
-        derslikYeri(state, d, dagilim, h),
-      ].join(' · ');
-      return bolumSatiri(d, alt, `<span class="ob-rozet ob-rozet--iyi ob-rozet--kucuk">+${LAB_PUANI_DUZEY * duzey} puan</span>`, h);
+      const l = labAlt(d);
+      return bolumSatiri(d, [l.alt, derslikYeri(state, d, dagilim, h)].join(' · '), l.rozet, h);
     }).join('');
-    const giris = not(`Bağlı bölüm fakülte binasında kalır, derslikleri ve öğrenci alımı değişmez. Bu bina bölümün laboratuvar puanına düzey × 25 ekler (şimdi +${LAB_PUANI_DUZEY * duzey}).`);
+    const giris = not(`Bağlı bölüm fakülte binasında kalır, derslikleri ve öğrenci alımı değişmez. Binanın ${sayi(labOdasi(b))} laboratuvar odasını, laboratuvar gerektiren bağlı bölümler kalan ihtiyaçları oranında paylaşır; her ${LAB_ODA_BASINA_OGRENCI} öğrenciye bir oda gerekir. Karşılama, bölümün bütün binalardan aldığı odanın ihtiyacına oranı; laboratuvar puanı ${LAB_PUAN_TABANI} + ${LAB_PUAN_ARALIGI} × karşılama.`);
     return kart(`Bağlı bölümler${depts.length ? ` <span class="ob-sayi">${depts.length}</span>` : ''}`,
-      `${giris}${satirlar ? `<div class="bina-bolum-liste">${satirlar}</div>` : not('Henüz bağlı bölüm yok. "Bölüm bağla" düğmesiyle bağlayabilirsiniz.')}${labPayTablosu(state, b, h)}`);
+      `${giris}${satirlar ? `<div class="bina-bolum-liste">${satirlar}</div>` : not('Henüz bağlı bölüm yok. "Bölüm bağla" düğmesiyle bağlayabilirsiniz.')}${labPayTablosu(state, b, h, dagilim.lab)}`);
   }
 
   // Dersliği olmayan atanabilir bina (araştırma merkezi): bağlı bölüm burada ders vermez
+  const odali = labOdasi(b) > 0;
   const depts = (b.assignedDepartments || []).map(acikBolum).filter(Boolean);
   const satirlar = depts.map(d => {
     const carpan = merkezCarpani(state, d.id);
     const hoca = (state.faculty || []).filter(f => (f.department || f.departmentId) === d.id).length;
-    const alt = [`${sayi(hoca)} hoca`, derslikYeri(state, d, dagilim, h)].join(' · ');
+    const alt = [`${sayi(hoca)} hoca`, odali ? labAlt(d).alt : '', derslikYeri(state, d, dagilim, h)].filter(Boolean).join(' · ');
     return bolumSatiri(d, alt, `<span class="ob-rozet ob-rozet--iyi ob-rozet--kucuk" title="Yayın beklentisi ve dış proje kabul olasılığı çarpanı">×${h.ondalik(carpan, 2)}</span>`, h);
   }).join('');
   const giris = b.type === 'arastirma_merkezi'
-    ? not('Bağlı bölüm burada ders vermez ve öğrenci almaz; derslikleri ve öğrenci alımı kendi binasında sürer. Merkez, bu bölümün hocalarının yayın beklentisini ve dış proje kabul olasılığını 1,15 katına çıkarır; bölüm iki merkeze bağlıysa 1,30 katına.')
+    ? not(`Bağlı bölüm burada ders vermez ve öğrenci almaz; derslikleri ve öğrenci alımı kendi binasında sürer. Merkez, bu bölümün hocalarının yayın beklentisini ve dış proje kabul olasılığını 1,15 katına çıkarır; bölüm iki merkeze bağlıysa 1,30 katına.${odali ? ` Merkezin ${sayi(labOdasi(b))} laboratuvar odasını, laboratuvar gerektiren bağlı bölümler kalan ihtiyaçları oranında paylaşır.` : ''}`)
     : not('Bağlı bölüm burada ders vermez; derslikleri ve öğrenci alımı kendi binasında sürer.');
   return kart(`Bağlı bölümler${depts.length ? ` <span class="ob-sayi">${depts.length}</span>` : ''}`,
-    `${giris}${satirlar ? `<div class="bina-bolum-liste">${satirlar}</div>` : not('Henüz bağlı bölüm yok. "Bölüm ata" düğmesiyle bağlayabilirsiniz.')}${labPayTablosu(state, b, h)}`);
+    `${giris}${satirlar ? `<div class="bina-bolum-liste">${satirlar}</div>` : not('Henüz bağlı bölüm yok. "Bölüm ata" düğmesiyle bağlayabilirsiniz.')}${odali ? labPayTablosu(state, b, h, dagilim.lab) : ''}`);
+}
+
+/**
+ * Teknokentin bu dönemki sponsorluk geliri: economy.js teknokentGeliri × zorluğun gelir çarpanı
+ * (calculateEconomy). Teknokent açık değilse "açılsaydı" tutarıdır.
+ */
+export function teknokentDonemGeliri(state) {
+  return teknokentGeliri(state).toplam * zorlukCarpani(state).gelir;
+}
+
+/**
+ * Teknokent binasının durumu hakkında tek cümle, yalnız etkisi olmayacaksa: teknokent etkisi olayla
+ * zaten açıksa yeni bina ayrıca gelir ya da puan eklemez (ui.js inşaat seçeneği ve onayı).
+ */
+export function teknokentZatenAcikNotu(state) {
+  return state?.university?.hasTechnoPark && !(state.buildings || []).some(b => b?.type === 'teknokent')
+    ? 'Teknokent etkisi "Özel Sektör AR-GE Merkezi Teklifi" olayıyla zaten açık; bu bina ayrıca gelir ya da puan eklemez.'
+    : '';
+}
+
+/**
+ * Bina kartının "Etkileri" bölümü (ui.js bina kartı): türün doğrulanmış etki özeti (binaEtkiOzeti) ve
+ * hesaplanabiliyorsa bugünkü katkı; Bina Sayfası'ndaki "Oyundaki etkisi" kartıyla aynı hesap.
+ * @param {object} h  ui.js yardımcıları: ondalik, para
+ * @returns {string[]} madde metinleri (HTML)
+ */
+export function binaKartEtkileri(state, b, h) {
+  const maddeler = [...binaEtkiOzeti(b?.type)];
+  if (!b?.isCompleted) return maddeler;
+  const ond = (v) => h.ondalik(v, 1);
+  switch (b.type) {
+    case 'kutuphane': case 'yurt': case 'yemekhane': case 'spor_tesisi': {
+      const k = hizmetKatkisi(state, b.type);
+      const coklu = (state.buildings || []).filter(x => x.type === b.type && x.isCompleted).length > 1;
+      maddeler.push(`Şimdi ${k.bilesen} +${ond(k.puan)}${coklu ? ' (aynı türün bütün binalarıyla)' : ''}; genel memnuniyete yaklaşık +${ond(k.puan * k.agirlik)} puan`);
+      break;
+    }
+    case 'idari_bina':
+      maddeler.push(`Şimdi İdari Hizmetler +${idariKatki(duzeyToplami(state, 'idari_bina'))}`);
+      break;
+    case 'ulasim_merkezi':
+      maddeler.push(`Şimdi Ulaşım +${ulasimKatki(duzeyToplami(state, 'ulasim_merkezi'))}`);
+      break;
+    case 'teknokent':
+      if (state.university?.hasTechnoPark) {
+        maddeler.push(`Şimdi dönemde ${h.para(teknokentDonemGeliri(state))} sponsorluk geliri`);
+      }
+      break;
+    default:
+      break;
+  }
+  return maddeler;
 }
 
 /** Oyundaki etkisi: türün gerçekten yaptığı, oyunun hesabındaki büyüklükleriyle; hizmet binalarında şimdiki katkı. */
@@ -672,7 +888,6 @@ function etkiKarti(state, b, tanim, h) {
   const ond = (v, n = 1) => h.ondalik(v, n);
   const sayi = h.sayi;
   const bitti = !!b.isCompleted;
-  const duzey = bitti ? (b.level || 1) : 1;
   const zaman = bitti ? 'Şimdi' : 'Bina bitince';
   const degisen = bitti ? null : { id: b.id, kapasite: duzeyKapasitesi(tanim, 1), duzey: 1 };
   const maddeler = [];
@@ -681,6 +896,12 @@ function etkiKarti(state, b, tanim, h) {
   const hizmet = (tur) => {
     const k = hizmetKatkisi(state, tur, degisen);
     return k ? { ...k, genel: k.puan * k.agirlik } : null;
+  };
+  // Laboratuvar odalarının bugünkü durumu (bitmiş binada)
+  const labSimdi = () => {
+    if (!bitti) return [];
+    const bl = binaLabDurumu(state, b, labDagilimi(state));
+    return [`Şimdi ${sayi(bl.oda)} oda; bağlı bölümlerin ihtiyacı ${sayi(bl.ihtiyac)} oda, bölümlere ayrılan ${ond(bl.ayrilan)} oda.`];
   };
 
   switch (b.type) {
@@ -693,24 +914,31 @@ function etkiKarti(state, b, tanim, h) {
         'Doluluk %70\'i aşınca not ortalaması biraz düşer.',
       );
       break;
-    case 'arastirma_merkezi':
+    case 'arastirma_merkezi': {
+      const o = labOdaTanimi(b.type);
       maddeler.push(
         'Bağlı bölümün hocalarının dönemlik yayın beklentisi 1,15 katına çıkar. Bölüm iki merkeze bağlıysa 1,30 katına; daha fazlası artırmaz.',
         'Bağlı bölümün hocalarının dış proje başvurularında kabul olasılığı 1,15 katına çıkar (iki merkezle 1,30). Olasılık en çok %92.',
-        'Çarpan merkezin düzeyine bağlı değil.',
+        'Bu çarpanlar merkezin düzeyine bağlı değil.',
+        `Merkezin laboratuvar odalarını (düzey 1'de ${o.ilk}, her düzey +${o.artis}) laboratuvar gerektiren bağlı bölümler kalan ihtiyaçları oranında paylaşır; Laboratuvar binasıyla aynı kural. Bölümün laboratuvar puanı ${LAB_PUAN_TABANI} + ${LAB_PUAN_ARALIGI} × karşılama.`,
+        ...labSimdi(),
+        'Merkezin ofislerinin bir sonucu yok; ofis doluluğu bir ceza ya da ödül doğurmuyor.',
       );
-      if (!labAlanlariVar(b, (b.assignedDepartments || []).map(id => (state.departments || []).find(d => d.id === id)).filter(Boolean))) {
-        maddeler.push('Merkezin ofis ve laboratuvar odaları şu an bir sonucu etkilemiyor; yalnız Yerleşke özetindeki toplamlara eklenir.');
-      }
       break;
-    case 'lab':
+    }
+    case 'lab': {
+      const o = labOdaTanimi(b.type);
       maddeler.push(
-        `Bağlı her bölümün laboratuvar puanına düzey × 25 ekler, şimdi +${LAB_PUANI_DUZEY * duzey}. Puan en çok 100; laboratuvar gerektiren bölümde taban 30.`,
-        'Akreditasyonda her 25 laboratuvar puanı bir laboratuvar sayılır.',
-        'Laboratuvar gereksinimi 2 ve üstü olan bölümde yayın beklentisi puana göre ×0,94 (30 puan) ile ×1,15 (100 puan) arasında değişir.',
-        'Laboratuvar gerektirmeyen bölümün puanı zaten 100; bağlamak bir şey değiştirmez.',
+        `Binanın laboratuvar odalarını (düzey 1'de ${o.ilk}, her düzey +${o.artis}) laboratuvar gerektiren bağlı bölümler kalan ihtiyaçları oranında paylaşır. Her ${LAB_ODA_BASINA_OGRENCI} öğrenciye bir oda gerekir; hiçbir bölüm ihtiyacından fazlasını almaz, artan oda boş kalır.`,
+        'Az bölüme hizmet eden laboratuvar önce dağıtılır. Bir bölüm birden çok laboratuvardan ve araştırma merkezinden oda alabilir.',
+        `Bölümün laboratuvar puanı ${LAB_PUAN_TABANI} + ${LAB_PUAN_ARALIGI} × karşılama. Karşılama, bölümün bütün binalardan aldığı odanın ihtiyacına oranı.`,
+        ...labSimdi(),
+        `Akreditasyonda her 25 laboratuvar puanı bir laboratuvar sayılır${labSartlari() ? ` (${labSartlari()} laboratuvar ister)` : ''}.`,
+        'Laboratuvar gerektiren bölümde yayın beklentisi puana göre ×0,94 (30 puan) ile ×1,15 (100 puan) arasında değişir.',
+        `Laboratuvar gereksinimi ${LAB_GEREKSINIM_ESIGI}'nin altındaki bölüm laboratuvar gerektirmez, oda kullanmaz ve puanı 100; bağlamak bir şey değiştirmez.`,
       );
       break;
+    }
     case 'kutuphane': {
       const k = hizmet('kutuphane');
       maddeler.push(
@@ -795,12 +1023,23 @@ function etkiKarti(state, b, tanim, h) {
       );
       break;
     }
-    case 'teknokent':
+    case 'teknokent': {
+      const kural = teknokentKurali();
+      const z = zorlukCarpani(state);
+      const acik = !!state.university?.hasTechnoPark;
       maddeler.push(
-        'Şu an oyun hesabında bu binaya bağlı bir etki yok; yalnız bakım gideri var.',
-        'Bütçedeki sponsorluk (teknokent) geliri bu binayla açılmıyor. "Özel Sektör AR-GE Merkezi Teklifi" olayında teklif kabul edilince açılıyor.',
+        bitti
+          ? (acik ? 'Teknokent açık. Bütçeye her dönem sponsorluk geliri girer.' : 'Teknokent etkisi kapalı.')
+          : `Bina bitince teknokent açılır ve bütçeye her dönem sponsorluk geliri girer${acik ? '. Olayla zaten açık olduğu için bina ayrıca gelir eklemez' : ''}.`,
+        `Gelir ${tr(kural.temel)} ₺, öğrenci başına ${tr(kural.ogrenciBasina)} ₺ ve sanayi bağlantısı. Sanayi bağlantısı saygınlığın 0,3 katı puan (aşağı yuvarlanır), puan başına ${tr(kural.puanBasina)} ₺.`,
+        `${bitti && acik ? 'Şimdi' : 'Bugünkü durumla'} ${sayi(state.students?.totalEnrolled || 0)} öğrenci ve saygınlık ${ond(Number(state.university?.prestige) || 0)} ile dönemde <b>${h.para(teknokentDonemGeliri(state))}</b>${z.gelir !== 1 ? ` (zorluk ×${ond(z.gelir)} dahil)` : ''}.`,
+        `Kariyer Desteği puanına +${KARIYER_TEKNOKENT} (puan en çok 100). Kariyer Desteği öğrenci memnuniyetinin %9'u; genel memnuniyete en çok +${ond(Math.round(KARIYER_TEKNOKENT * MEMNUNIYET_AGIRLIGI.kariyer * 100) / 100)} puan.`,
+        'Teknokent "Özel Sektör AR-GE Merkezi Teklifi" olayında teklif kabul edilince de açılır; iki yoldan açılsa da etki bir kez sayılır.',
+        'Etkisi düzeye bağlı değil; yükseltme yalnız alanı ve bakımı büyütür.',
+        memnuniyetNotu,
       );
       break;
+    }
     default:
       maddeler.push('Bu bina türünün oyundaki etkisi tanımlı değil.');
   }
@@ -808,9 +1047,9 @@ function etkiKarti(state, b, tanim, h) {
   return kart('Oyundaki etkisi', `${ust}<ul class="ob-madde bina-etki">${maddeler.map(m => `<li>${m}</li>`).join('')}</ul>`);
 }
 
-/** Bakım gideri kartı: dönemlik tutar ve dökümü (economy.js), kayıtlıysa inşaat bedeli. */
-function bakimKarti(b, h) {
-  const k = binaBakimi(b);
+/** Bakım gideri kartı: dönemlik tutar ve dökümü (economy.js binaDonemBakimi, zorluk çarpanı), kayıtlıysa inşaat bedeli. */
+function bakimKarti(state, b, h) {
+  const k = binaBakimi(b, state);
   const ond = (v, n) => h.ondalik(v, n);
   const satirlar = [];
   if (k.yontem === 'alan') {
@@ -822,19 +1061,68 @@ function bakimKarti(b, h) {
   }
   satirlar.push(h.satir('Bina durumu', `%${ond(k.durum, 0)} <span class="ob-soluk">× ${ond(k.durumCarpani, 3)}</span>`));
   satirlar.push(h.satir('Düzey', `${k.duzey} <span class="ob-soluk">× ${ond(k.duzeyCarpani, 2)}</span>`));
+  if (k.zorluk !== 1) {
+    satirlar.push(h.satir('Zorluk', `${h.esc(k.zorlukAdi)} <span class="ob-soluk">× ${ond(k.zorluk, 2)}</span>`));
+  }
   satirlar.push(`<div class="ob-satir ob-satir--toplam"><span>${k.yapimda ? 'Bina bitince dönemlik' : 'Dönemlik bakım'}</span><b>${h.para(k.tutar)}</b></div>`);
   satirlar.push(`<div class="ob-aciklama">${k.yapimda
     ? 'Yapım sürerken bakım ödenmez.'
-    : 'Durum %100\'ün altındaysa bakım artar; her düzey m² başına bakımı %25 artırır.'}</div>`);
+    : `Durum %100'ün altındaysa bakım artar; her düzey m² başına bakımı %25 artırır.${k.zorluk !== 1 ? ' Zorluk bütün giderleri aynı oranda değiştirir.' : ''} Bu tutar dönem sonunda kasadan düşer.`}</div>`);
   if (Number.isFinite(Number(b.constructionCost)) && Number(b.constructionCost) > 0) {
     satirlar.push(h.satir('İnşaat bedeli', `${h.para(Number(b.constructionCost))} <span class="ob-soluk">ilk yapım</span>`));
   }
   return kart('Bakım gideri', satirlar.join(''));
 }
 
+/**
+ * Yükseltmenin etkideki değişimi, oyunun hesabıyla (HTML). Bina Sayfası'nın sonraki düzey kartı ve
+ * yükseltme onayı (ui.js _yukseltmeOnayIcerigi) gösterir. Bina yükseltilemiyorsa boş.
+ * @param {object} h  ui.js yardımcıları: sayi, ondalik, esc
+ */
+export function yukseltmeEtkisi(state, b, h) {
+  const tanim = BUILDINGS[b?.type];
+  const s = sonrakiDuzey(b, state);
+  if (!tanim || !s || s.ustte) return '';
+  const degisen = { id: b.id, kapasite: s.kapasite, duzey: s.sonraki };
+  switch (b.type) {
+    case 'fakulte_binasi':
+    case 'amfi': {
+      const koltuk = (s.kapasite.classrooms || 0) * derslikBoyu(tanim, s.sonraki);
+      return `${h.sayi(binaKoltugu(b))} → <b>${h.sayi(koltuk)}</b> koltuk (dört sınıf ${h.sayi(koltuk * SINIF_SAYISI)} öğrenci)`;
+    }
+    case 'lab':
+    case 'arastirma_merkezi': {
+      const odaSonra = s.kapasite.labs || 0;
+      const oda = `laboratuvar odası ${h.sayi(labOdasi(b))} → <b>${h.sayi(odaSonra)}</b>`;
+      const merkez = b.type === 'arastirma_merkezi' ? '; yayın ve proje çarpanı düzeye bağlı değil' : '';
+      if (!b.isCompleted) return `${oda}${merkez}`;
+      const once = labDagilimi(state);
+      const sonra = labDagilimi(state, { id: b.id, oda: odaSonra });
+      const degisim = [...new Set(labKullananlari(b))]
+        .map(id => (state.departments || []).find(d => d.id === id && d.isOpen !== false))
+        .filter(d => d && labGerekir(d))
+        .map(d => `${h.esc(d.shortName || d.name)} %${Math.round((once.bolumler.get(d.id)?.karsilama ?? 0) * 100)} → <b>%${Math.round((sonra.bolumler.get(d.id)?.karsilama ?? 0) * 100)}</b>`);
+      return degisim.length
+        ? `${oda}${merkez}. Bugünkü öğrenci sayısıyla karşılama ${degisim.slice(0, 4).join(', ')}${degisim.length > 4 ? ` ve ${degisim.length - 4} bölüm daha` : ''}`
+        : `${oda}${merkez}; bağlı ve laboratuvar gerektiren bölüm yok`;
+    }
+    case 'kutuphane': case 'yurt': case 'yemekhane': case 'spor_tesisi': {
+      const once = hizmetKatkisi(state, b.type);
+      const sonr = hizmetKatkisi(state, b.type, degisen);
+      return `${once.bilesen} +${h.ondalik(once.puan, 1)} → <b>+${h.ondalik(sonr.puan, 1)}</b>`;
+    }
+    case 'idari_bina':
+      return `İdari Hizmetler +${idariKatki(duzeyToplami(state, 'idari_bina'))} → <b>+${idariKatki(duzeyToplami(state, 'idari_bina', degisen))}</b>`;
+    case 'ulasim_merkezi':
+      return `Ulaşım +${ulasimKatki(duzeyToplami(state, 'ulasim_merkezi'))} → <b>+${ulasimKatki(duzeyToplami(state, 'ulasim_merkezi', degisen))}</b>`;
+    default:
+      return 'değişmez; bu türün etkisi düzeye bağlı değil, yalnız alan ve bakım büyür';
+  }
+}
+
 /** Sonraki düzey kartı: maliyet, süre, kapasite ve bakım değişimi, etkideki değişim; ya da neden yükseltilemediği. */
 function sonrakiDuzeyKarti(state, b, tanim, h) {
-  const s = sonrakiDuzey(b);
+  const s = sonrakiDuzey(b, state);
   if (!s) return '';
   const kasa = Number(state.university?.budget) || 0;
   if (!b.isCompleted) return kart('Sonraki düzey', '<div class="ob-aciklama">Yapım bitince yükseltilebilir.</div>');
@@ -853,37 +1141,8 @@ function sonrakiDuzeyKarti(state, b, tanim, h) {
   const sonraBoy = derslikBoyu(tanim, s.sonraki);
   const simdi = h.kapasiteParcalari(b.currentCapacity || duzeyKapasitesi(tanim, s.duzey), simdiBoy);
   const sonra = h.kapasiteParcalari(s.kapasite, sonraBoy);
-  const bakimSimdi = binaBakimi(b).tutar;
-
-  // Etkideki değişim (oyunun hesabıyla)
-  let etki = '';
-  const degisen = { id: b.id, kapasite: s.kapasite, duzey: s.sonraki };
-  switch (b.type) {
-    case 'fakulte_binasi':
-    case 'amfi':
-      etki = `${h.sayi(binaKoltugu(b))} → <b>${h.sayi((s.kapasite.classrooms || 0) * sonraBoy)}</b> koltuk`;
-      break;
-    case 'lab':
-      etki = `bağlı bölüme +${LAB_PUANI_DUZEY * s.duzey} → <b>+${LAB_PUANI_DUZEY * s.sonraki}</b> laboratuvar puanı`;
-      break;
-    case 'kutuphane': case 'yurt': case 'yemekhane': case 'spor_tesisi': {
-      const once = hizmetKatkisi(state, b.type);
-      const sonr = hizmetKatkisi(state, b.type, degisen);
-      etki = `${once.bilesen} +${h.ondalik(once.puan, 1)} → <b>+${h.ondalik(sonr.puan, 1)}</b>`;
-      break;
-    }
-    case 'idari_bina':
-      etki = `İdari Hizmetler +${idariKatki(duzeyToplami(state, 'idari_bina'))} → <b>+${idariKatki(duzeyToplami(state, 'idari_bina', degisen))}</b>`;
-      break;
-    case 'ulasim_merkezi':
-      etki = `Ulaşım +${ulasimKatki(duzeyToplami(state, 'ulasim_merkezi'))} → <b>+${ulasimKatki(duzeyToplami(state, 'ulasim_merkezi', degisen))}</b>`;
-      break;
-    case 'arastirma_merkezi':
-      etki = 'çarpan düzeye bağlı değil';
-      break;
-    default:
-      etki = 'değişmez; yalnız alan ve bakım büyür';
-  }
+  const bakimSimdi = binaBakimi(b, state).tutar;
+  const etki = yukseltmeEtkisi(state, b, h);
 
   const kisit = state._internal?.spendingRestricted
     ? '<div class="ob-aciklama ob-aciklama--kritik">Kasa açığı nedeniyle YÖK denetimi sürüyor; yükseltme donduruldu.</div>'
@@ -925,7 +1184,7 @@ function ustKisim(b, tanim, h) {
 
 /** İşlemler: yükselt, bölüm ata ya da bağla, adını değiştir, yerini değiştir (tanımlıysa). */
 function islemler(state, b, tanim, h) {
-  const s = sonrakiDuzey(b);
+  const s = sonrakiDuzey(b, state);
   const kasa = Number(state.university?.budget) || 0;
   const dugmeler = [];
   if (s && b.isCompleted && b.status !== 'upgrading' && !s.ustte) {
@@ -946,18 +1205,19 @@ function islemler(state, b, tanim, h) {
 function gostergeler(state, b, tanim, h) {
   const bitti = !!b.isCompleted;
   const kap = bitti ? (b.currentCapacity || {}) : duzeyKapasitesi(tanim, 1);
-  const bakim = binaBakimi(b);
+  const bakim = binaBakimi(b, state);
   const kutular = [
     h.kutu('Düzey', `${b.level || 1}<small>/${tanim?.maxLevel ?? 3}</small>`, bitti ? (b.status === 'upgrading' ? 'yükseltiliyor' : 'etkin') : 'yapım aşamasında'),
     h.kutu('Alan', `${h.sayi(b.area || 0)}<small>m²</small>`, tanim?.areaPerLevel ? `düzey başına +${h.sayi(tanim.areaPerLevel)} m²` : ''),
-    h.kutu('Dönemlik bakım', bakim.yapimda ? h.para(0) : h.para(bakim.odenen), bakim.yapimda ? `bitince ${h.para(bakim.tutar)}` : 'durum ve düzey dahil'),
+    h.kutu('Dönemlik bakım', bakim.yapimda ? h.para(0) : h.para(bakim.odenen),
+      bakim.yapimda ? `bitince ${h.para(bakim.tutar)}` : (bakim.zorluk !== 1 ? 'durum, düzey ve zorluk dahil' : 'durum ve düzey dahil')),
   ];
   const duzey = bitti ? (b.level || 1) : 1;
   if ((kap.classrooms || 0) > 0) {
     const boy = derslikBoyu(tanim, duzey);
     kutular.push(h.kutu('Koltuk', h.sayi(kap.classrooms * boy), `${h.sayi(kap.classrooms)} derslik × ${h.sayi(boy)} kişi`));
   } else if (b.type === 'lab') {
-    kutular.push(h.kutu('Bağlı bölüm', h.sayi((b.linkedDepartments || []).length), `+${LAB_PUANI_DUZEY * duzey} laboratuvar puanı`));
+    kutular.push(h.kutu('Bağlı bölüm', h.sayi((b.linkedDepartments || []).length), `${h.sayi(kap.labs || 0)} laboratuvar odasını paylaşır`));
   } else if (b.type === 'arastirma_merkezi') {
     kutular.push(h.kutu('Bağlı bölüm', h.sayi((b.assignedDepartments || []).length), 'yayın ve proje ×1,15'));
   } else if (kap.daily) {
@@ -993,6 +1253,7 @@ export function binaSayfasiHtml(state, binaId, h) {
     };
   }
   const dagilim = kapasiteDagilimi(state);
+  dagilim.lab = labDagilimi(state);   // laboratuvar odası dağılımı (oyunun yazdığı alanlar yoksa)
   return {
     baslik: 'Bina Sayfası',
     html: `
@@ -1008,7 +1269,7 @@ export function binaSayfasiHtml(state, binaId, h) {
           </div>
           <div class="bina-sayfa-yan">
             ${sonrakiDuzeyKarti(state, b, tanim, h)}
-            ${bakimKarti(b, h)}
+            ${bakimKarti(state, b, h)}
           </div>
         </div>
       </div>`,
@@ -1078,7 +1339,7 @@ export function binaSayfasiniCiz(state, binaId, h, islem = {}) {
     if (!dugme || !kok.contains(dugme) || dugme.disabled) return;
     switch (dugme.dataset.binaEylem) {
       case 'yukselt': {
-        const onay = h.yukseltmeOnayi(b, Number(state.university?.budget) || 0);
+        const onay = h.yukseltmeOnayi(b, Number(state.university?.budget) || 0, state);
         if (!onay) { islem.onDecision?.({ type: 'upgrade_building', buildingId: b.id }, { yenidenAc: true }); break; }
         h.showConfirmModal(onay.baslik, onay.html,
           () => islem.onDecision?.({ type: 'upgrade_building', buildingId: b.id }, { yenidenAc: true }),
@@ -1086,8 +1347,9 @@ export function binaSayfasiniCiz(state, binaId, h, islem = {}) {
         break;
       }
       case 'ata':
-        // Atama penceresi aynı pencere kabını kullanır; Bina Sayfası kapanır (her tık bir karar)
-        h.bolumAtamaPenceresi(state, b, (karar) => islem.onDecision?.(karar));
+        // Atama penceresi aynı pencere kabını kullanır (her tık bir karar). Pencere kapanınca
+        // (✕, Esc, arka plan) Bina Sayfası güncel durumla yeniden açılır.
+        h.bolumAtamaPenceresi(state, b, (karar) => islem.onDecision?.(karar), { onKapat: () => islem.yenidenAc?.() });
         break;
       case 'adlandir':
         adDuzenlemeyiAc(kok, b, h, islem);

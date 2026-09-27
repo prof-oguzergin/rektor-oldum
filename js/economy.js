@@ -102,6 +102,67 @@ function safeNum(val) {
 const BINA_DUZEY_BAKIM_ARTISI = 0.25;   // her düzey m² başına bakımı %25 artırır
 
 /**
+ * v0.7.2: bir binanın dönemlik bakımı ve dökümü; calculateExpenses her bitmiş bina için bunu toplar
+ * (zorluk çarpanından önce). Bina kartı, Yerleşke özeti ve Bina Sayfası aynı tutarı gösterir.
+ * Bitmiş olup olmadığına bakmaz; yapımdaki bina için bina bitince ödenecek tutardır.
+ * @param {object} building
+ * @returns {{ tutar: number, taban: number, yontem: 'alan'|'kayit'|'oran'|'yok', alan: number, m2: number,
+ *             durum: number, durumCarpani: number, duzey: number, duzeyCarpani: number }}
+ */
+export function binaDonemBakimi(building) {
+  const template = BUILDINGS[building?.type] || null;
+  const durum    = safeNum(building?.condition || 80);
+  const duzey    = safeNum(building?.level || 1);
+  const bos = { tutar: 0, taban: 0, yontem: 'yok', alan: safeNum(building?.area), m2: 0, durum, durumCarpani: 1, duzey, duzeyCarpani: 1 };
+  if (!template) return bos;
+
+  let semesterMaintenance;
+  let yontem;
+  if (template.maintenanceCostPerM2 != null && building.area) {
+    // Yeni alan bazlı model
+    semesterMaintenance = safeNum(building.area) * safeNum(template.maintenanceCostPerM2);
+    yontem = 'alan';
+  } else if (building.maintenanceCost) {
+    // instance'a kaydedilmiş değer
+    semesterMaintenance = safeNum(building.maintenanceCost);
+    yontem = 'kayit';
+  } else {
+    // Eski model: yapım maliyeti × oran / 2 (yılda 2 dönem)
+    const cost  = safeNum(template.constructionCost || template.baseCost);
+    const ratio = safeNum(template.maintenanceCostRatio || 0.05);
+    semesterMaintenance = (cost * ratio) / 2;
+    yontem = 'oran';
+  }
+
+  // Kalite düşükse bakım artar
+  const qualityMultiplier = 1 + (1 - durum / 100) * MAINTENANCE_QUALITY_SCALE;
+  // v0.7: yükseltilen bina yalnız büyümez, işletmesi de pahalanır (m² başına düzey başı %25)
+  const duzeyCarpani      = 1 + BINA_DUZEY_BAKIM_ARTISI * Math.max(0, duzey - 1);
+
+  return {
+    tutar: semesterMaintenance * qualityMultiplier * duzeyCarpani,
+    taban: semesterMaintenance, yontem,
+    alan: safeNum(building.area), m2: safeNum(template.maintenanceCostPerM2),
+    durum, durumCarpani: qualityMultiplier, duzey, duzeyCarpani,
+  };
+}
+
+/**
+ * v0.7.2: teknokentin dönemlik sponsorluk (endüstri katkısı) geliri ve dökümü, zorluk çarpanından önce.
+ * calculateIncome bunu state.university.hasTechnoPark açıkken ekler; teknokent binası bitince ya da
+ * "Özel Sektör AR-GE Merkezi Teklifi" olayında teklif kabul edilince açılır. Bayrağa bakmaz.
+ * @returns {{ temel: number, ogrenci: number, baglanti: number, baglantiPuani: number, toplam: number }}
+ */
+export function teknokentGeliri(state) {
+  const prestige          = safeNum(state?.university?.prestige);
+  const temel             = TECHNOPARKBASE_REVENUE;
+  const ogrenci           = safeNum(state?.students?.totalEnrolled) * TECHNOPARKSTUDENT_RATE;
+  const industryTiePoints = Math.floor(prestige * 0.3);
+  const baglanti          = industryTiePoints * INDUSTRY_TIE_PER_POINT;
+  return { temel, ogrenci, baglanti, baglantiPuani: industryTiePoints, toplam: temel + ogrenci + baglanti };
+}
+
+/**
  * Hoca başı araştırma fonunun yayın olasılığı ve dış proje başvurusu çarpanı.
  * Azalan getirili: 0 ₺ → 0,85; 50.000 ₺ → 0,99; 150.000 ₺ → 1,17; 500.000 ₺ → 1,33.
  * @param {number} fon  hoca başına dönemlik fon (₺)
@@ -375,13 +436,11 @@ export function calculateIncome(state) {
   }
 
   // ── 6. SPONSORLUK / ENDÜSTRİ KATKISI ────────────────────────────────────────
+  // v0.7.2: hesap teknokentGeliri'nde (Bina Sayfası aynı tutarı gösterir)
   let sponsorship = 0;
 
   if (state.university.hasTechnoPark) {
-    sponsorship += TECHNOPARKBASE_REVENUE;
-    sponsorship += safeNum(state.students?.totalEnrolled) * TECHNOPARKSTUDENT_RATE;
-    const industryTiePoints = Math.floor(prestige * 0.3);
-    sponsorship += industryTiePoints * INDUSTRY_TIE_PER_POINT;
+    sponsorship = teknokentGeliri(state).toplam;
   }
 
   // ── 7. PATENT LİSANS GELİRİ (TR modelleri) ──────────────────────────────────
@@ -615,38 +674,15 @@ export function calculateExpenses(state) {
   });
 
   // ── 4. ALTYAPI BAKIMI ───────────────────────────────────────────────────────
-  // Yeni model: alan (m²) × maintenanceCostPerM2 (dönem başına)
-  // Geriye dönük uyumluluk: eski model yapım maliyeti × maintenanceCostRatio
+  // Yeni model: alan (m²) × maintenanceCostPerM2 (dönem başına), durum ve düzey çarpanlarıyla.
+  // Geriye dönük uyumluluk: eski model yapım maliyeti × maintenanceCostRatio.
+  // v0.7.2: bina başına hesap binaDonemBakimi'nde (bina kartı ve Bina Sayfası aynı tutarı gösterir).
   let maintenance = 0;
 
   state.buildings.forEach(building => {
     if (!building.isCompleted) return;   // yapım aşamasındakiler bakım ödemez
-
-    const template = BUILDINGS[building.type];
-    if (!template) return;
-
-    let semesterMaintenance;
-
-    if (template.maintenanceCostPerM2 != null && building.area) {
-      // Yeni alan bazlı model
-      semesterMaintenance = safeNum(building.area) * safeNum(template.maintenanceCostPerM2);
-    } else if (building.maintenanceCost) {
-      // instance'a kaydedilmiş değer
-      semesterMaintenance = safeNum(building.maintenanceCost);
-    } else {
-      // Eski model: yapım maliyeti × oran / 2 (yılda 2 dönem)
-      const cost  = safeNum(template.constructionCost || template.baseCost);
-      const ratio = safeNum(template.maintenanceCostRatio || 0.05);
-      semesterMaintenance = (cost * ratio) / 2;
-    }
-
-    // Kalite düşükse bakım artar
-    const qualityScore      = safeNum(building.condition || 80);
-    const qualityMultiplier = 1 + (1 - qualityScore / 100) * MAINTENANCE_QUALITY_SCALE;
-    // v0.7: yükseltilen bina yalnız büyümez, işletmesi de pahalanır (m² başına düzey başı %25)
-    const duzeyCarpani      = 1 + BINA_DUZEY_BAKIM_ARTISI * Math.max(0, safeNum(building.level || 1) - 1);
-
-    maintenance += semesterMaintenance * qualityMultiplier * duzeyCarpani;
+    if (!BUILDINGS[building.type]) return;
+    maintenance += binaDonemBakimi(building).tutar;
   });
 
   // Bina yoksa bile bölüm işletme maliyetlerini ekle

@@ -21,7 +21,8 @@ import {
   basvuruUygunlugu, hocaTerfiListesi, idariTerfiListesi, idariOtomatikOku, kademeAdi,
 } from './idari_otomatik.js?v=0.7.1';
 // v0.7.2: Bina Sayfası (çizim ve hesaplar ayrı modülde; game.js'i içe aktarmaz)
-import { binaSayfasiniCiz, binaEtkiOzeti } from './bina_sayfasi.js?v=0.7.1';
+import { binaSayfasiniCiz, binaEtkiOzeti, binaKartEtkileri, binaBakimi, kapasiteDagilimi, labGerekir, yukseltmeEtkisi, merkezCarpani,
+  teknokentDonemGeliri, teknokentZatenAcikNotu, sonrakiDuzey, zorlukCarpani, SINIF_SAYISI as KOLTUK_SINIF } from './bina_sayfasi.js?v=0.7.1';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // DOM YARDIMCILARI
@@ -382,11 +383,18 @@ export function showScreen(screenId) {
 let _pencereKilitli = false;
 
 /**
+ * v0.7.2 doğruluk: pencere kapanınca bir kez çağrılacak işlev (showModal opts.onKapat). Bina Sayfası'ndan
+ * açılan atama penceresi kapanınca aynı Bina Sayfası'na döner. Pencereye başka içerik yazılınca silinir.
+ */
+let _pencereKapaninca = null;
+
+/**
  * Modal overlay göster / gizle.
  * @param {string} title    — Modal başlığı
  * @param {string} bodyHtml — İçerik HTML
  * @param {object} [opts]   Seçenekler: { wide: true } geniş modal için,
- *                            { kilitli: true } oyuncu kapatamasın (yalnız içerikteki seçimle kapanır)
+ *                            { kilitli: true } oyuncu kapatamasın (yalnız içerikteki seçimle kapanır),
+ *                            { onKapat: Function } pencere kapanınca bir kez çağrılır (başka içerik yazılırsa çağrılmaz)
  */
 export function showModal(title, bodyHtml, opts = {}) {
   const overlay  = el('modal-overlay');
@@ -404,6 +412,7 @@ export function showModal(title, bodyHtml, opts = {}) {
 
   titleEl.textContent = title;
   bodyEl.innerHTML    = bodyHtml;
+  _pencereKapaninca   = typeof opts.onKapat === 'function' ? opts.onKapat : null;
 
   // Genişlik sınıfı ayarla
   if (modalEl) {
@@ -439,6 +448,12 @@ export function hideModal() {
   if (kapatBtn) kapatBtn.style.display = '';
   // Body scroll lock kaldir
   document.body.style.overflow = '';
+  // v0.7.2 doğruluk: kapanınca dönülecek pencere (bir kez)
+  const kapaninca = _pencereKapaninca;
+  _pencereKapaninca = null;
+  if (kapaninca) {
+    try { kapaninca(); } catch (e) { console.warn('[ui] Pencere kapanış işlevi çalışmadı:', e); }
+  }
 }
 
 /**
@@ -3229,17 +3244,18 @@ function _binaLabUyeleri(b) {
 }
 
 /**
- * Bölümün laboratuvar durumu: gerek (labRequirement > 0), ihtiyaç (oda), ayrılan oda, karşılama (0-1)
- * ve oda veren bitmiş binalar ({ bina, oda }). Alanları game.js dönem sonunda, bağlamada ve kayıt
- * yüklenince yazar; yeni oyunun ilk dönemindeki gibi yoksa ihtiyaç öğrenci sayısından bulunur.
+ * Bölümün laboratuvar durumu: gerek (labRequirement ≥ 2, bina_sayfasi.js labGerekir; game.js aynı eşik),
+ * ihtiyaç (oda), ayrılan oda, karşılama (0-1) ve oda veren bitmiş binalar ({ bina, oda }). Alanları
+ * game.js dönem sonunda, bağlamada ve kayıt yüklenince yazar; yeni oyunun ilk dönemindeki gibi yoksa
+ * ihtiyaç öğrenci sayısından bulunur. Laboratuvar gerektirmeyen bölümün ihtiyacı 0.
  */
 function _labBilgisi(state, dept) {
-  const gerek = (Number(dept?.labRequirement) || 0) > 0;
+  const gerek = labGerekir(dept);
   const kaynaklar = (state?.buildings || [])
     .filter(b => b?.isCompleted && _binaLabOdasi(b) > 0 && _binaLabUyeleri(b).includes(dept?.id))
     .map(b => ({ bina: b, oda: Number(b.labPaylari?.[dept.id]) || 0 }));
   const sayi = alan => (dept?.[alan] != null && Number.isFinite(Number(dept[alan]))) ? Number(dept[alan]) : null;
-  let ihtiyac = sayi('labIhtiyaci');
+  let ihtiyac = gerek ? sayi('labIhtiyaci') : 0;
   if (ihtiyac == null) {
     const bd = state?.students?.byDepartment?.[dept?.id] || {};
     const ogrenci = ['year1', 'year2', 'year3', 'year4'].reduce((s, k) => s + (Number(bd[k]?.count) || 0), 0);
@@ -3322,7 +3338,7 @@ function _bsUyarilar(dept, v) {
     ekle('Yeni alım için yer yok; bölüm yeni öğrenci alamıyor. Bölümü boş dersliği olan bir binaya atayın ya da binasını yükseltin.', 'yerleske');
   }
   // v0.7.2: laboratuvar odası yetersiz (yayın çarpanı ve akreditasyonda sayılan laboratuvar düşer)
-  if ((Number(dept.labRequirement) || 0) >= 2 && v.lab.ihtiyac > 0 && v.lab.karsilama < 0.5) {
+  if (labGerekir(dept) && v.lab.ihtiyac > 0 && v.lab.karsilama < 0.5) {
     ekle(`Laboratuvar odası yetersiz (${_odaYaz(v.lab.ayrilan)}/${formatNumber(v.lab.ihtiyac)} oda, karşılama ${_bsYuzde(v.lab.karsilama)}). Yayınlar ve akreditasyon bundan zarar görür; laboratuvar yapın ya da bölümü boş odası olan bir laboratuvara bağlayın.`, 'yerleske');
   }
   if (v.hocasiz.length > 0) {
@@ -4144,7 +4160,7 @@ function _bsYerleske(state, dept, v, binalar) {
 
   const derslikler = binalar.derslik.length || binalar.merkez.length ? `
     ${binalar.derslik.map(b => binaSatiri(b)).join('')}
-    ${binalar.merkez.map(b => binaSatiri(b, '<div class="bs-bina-alt bs-iyi-metin">Bölüm hocalarının dış proje başarı olasılığı ×1,15 (merkez sayısıyla en çok ×1,30)</div>')).join('')}`
+    ${binalar.merkez.map(b => binaSatiri(b, `<div class="bs-bina-alt bs-iyi-metin">Bölüm hocalarının yayın beklentisi ve dış proje kabul olasılığı ×${ondalikYaz(merkezCarpani(state, dept.id), 2)} <span class="ob-soluk">(bir merkez ×1,15, iki ve daha çok merkez ×1,3)</span></div>`)).join('')}`
     : `<div class="bs-not bs-not--uyari">Bölüm hiçbir binaya atanmamış.${dept.kapasiteKaynagi === 'yedek' ? ' Kullanabileceği ortak derslik de yok.' : ''}</div>`;
 
   return `
@@ -5152,22 +5168,24 @@ const BUILDING_CATALOG = Object.values(BUILDINGS).map(b => ({
  * Binanın oyundaki etkisinin kısa dökümü (inşaat seçeneği kartı ve inşaat onayı).
  * v0.7.2: eskiden data.js effects / qualityEffects alanlarını yazıyordu ("+5 eğitim kalitesi",
  * "+%5 araştırma bonusu", "yurt geliri" ...); oyun bu alanları hiç kullanmıyor. Artık Bina Sayfası'yla
- * aynı, oyunun hesabından doğrulanmış metin (bina_sayfasi.js binaEtkiOzeti). Çağıranlar yalnız etki
- * nesnesini verir; bina türü bu nesneden bulunur (her türün nesnesi farklı).
+ * aynı, oyunun hesabından doğrulanmış metin (bina_sayfasi.js binaEtkiOzeti). v0.7.2 doğruluk: tür
+ * doğrudan verilir (eskiden etki nesnesinin imzasından bulunuyordu).
+ * @param {string} tur  bina türü
  */
-function _formatBuildingEffects(effects) {
-  const tur = _BINA_ETKI_IMZASI.get(_binaEtkiImzasi(effects));
+function _formatBuildingEffects(tur) {
   return tur ? binaEtkiOzeti(tur) : [];
 }
 
-/** Etki nesnesinin sıradan bağımsız imzası (türü bulmak için). */
-function _binaEtkiImzasi(nesne) {
-  return JSON.stringify(Object.keys(nesne || {}).sort().map(k => [k, nesne[k]]));
+/**
+ * v0.7.2 doğruluk: yeni binanın bina bitince ödeyeceği dönemlik bakım (economy.js binaDonemBakimi,
+ * zorluk çarpanıyla). Yeni bina düzey 1'de, taban alanında ve durumu 100 olarak yapılır (game.js start_construction).
+ */
+function _yeniBinaBakimi(tur, state) {
+  const tanim = BUILDINGS[tur];
+  if (!tanim) return 0;
+  return binaBakimi({ type: tur, level: 1, condition: 100, area: tanim.baseArea ?? 1000,
+    maintenanceCost: Math.round((tanim.baseArea ?? 1000) * (tanim.maintenanceCostPerM2 ?? 50)), isCompleted: true }, state).odenen;
 }
-
-/** Tür imzaları: çağıranların birleştirdiği { ...qualityEffects, ...effects } nesnesiyle aynı. */
-const _BINA_ETKI_IMZASI = new Map(Object.values(BUILDINGS).map(b =>
-  [_binaEtkiImzasi({ ...(b.qualityEffects || {}), ...(b.effects || {}) }), b.id]));
 
 /**
  * v0.7.2: Bina Sayfası'nı geniş pencerede açar (çizim, hesaplar ve işlemler bina_sayfasi.js'te).
@@ -5337,16 +5355,24 @@ function _onaySatirlari(satirlar) {
     `<div class="onay-satir"><span>${ad}</span><b>${deger}</b></div>`).join('')}</div>`;
 }
 
-/** Yeni bina inşaatı onay penceresinin içeriği: maliyet, süre, alan, bakım, kazanç. */
-function _insaatOnayIcerigi(katalog, kasa) {
+/**
+ * Yeni bina inşaatı onay penceresinin içeriği: maliyet, süre, alan, bakım, kazanç.
+ * v0.7.2 doğruluk: kazanç listesi yalnız doğrulanmış etki (binaEtkiOzeti); data.js benefitText
+ * eklenmiyor. Bakım economy.js'in hesabıyla, zorluk çarpanı dahil (state verilirse).
+ */
+function _insaatOnayIcerigi(katalog, kasa, state = null) {
   const tanim   = BUILDINGS[katalog.type] || {};
   const kazanc  = [
     ..._kapasiteParcalari(_duzeyKapasitesi(tanim, 1), _derslikBoyu(tanim, 1)),
-    ..._formatBuildingEffects({ ...katalog.qualityEffects, ...katalog.effects }),
+    ..._formatBuildingEffects(katalog.type),
   ];
-  if (katalog.benefitText) kazanc.push(_veriMetni(katalog.benefitText));
+  // Teknokent: olayla zaten açıksa bina bir şey eklemez; değilse bugünkü durumla gelir
+  if (katalog.type === 'teknokent' && state) {
+    kazanc.push(teknokentZatenAcikNotu(state)
+      || `Bugünkü öğrenci sayısı ve saygınlıkla dönemde ${formatMoney(teknokentDonemGeliri(state))} sponsorluk geliri`);
+  }
   const bakim = katalog.baseArea && katalog.maintenanceCostPerM2
-    ? formatMoney(katalog.baseArea * katalog.maintenanceCostPerM2) : null;
+    ? formatMoney(_yeniBinaBakimi(katalog.type, state)) : null;
   return `
     <div class="onay-bina">
       ${_binaGorseli(katalog.type, 1, 72)}
@@ -5356,7 +5382,7 @@ function _insaatOnayIcerigi(katalog, kasa) {
       ['Maliyet', `${formatMoney(katalog.cost)} (şimdi kasadan düşer)`],
       ['Süre', `${katalog.constructionTime} dönem`],
       ['Alan', `${(katalog.baseArea || 0).toLocaleString('tr-TR')} m²`],
-      bakim ? ['Dönemlik bakım', `~${bakim} (bina bitince)`] : null,
+      bakim ? ['Dönemlik bakım', `${bakim} (bina bitince)`] : null,
       ['İnşaattan sonra kasa', formatMoney(kasa - katalog.cost)],
     ])}
     ${kazanc.length ? `<div class="onay-kazanc"><div class="onay-kazanc-baslik">Ne kazandırır</div>
@@ -5454,8 +5480,14 @@ window._yerleskeDuzenle = (buildingId) => {
   requestAnimationFrame(() => el('campus-hero')?.scrollIntoView?.({ block: 'nearest' }));
 };
 
-/** Düzey yükseltme onay penceresinin içeriği; bina yükseltilemiyorsa null. */
-function _yukseltmeOnayIcerigi(bina, kasa) {
+/**
+ * Düzey yükseltme onay penceresinin içeriği; bina yükseltilemiyorsa null.
+ * v0.7.2 doğruluk: etkideki değişim ve bakım Bina Sayfası'yla aynı hesap (bina_sayfasi.js yukseltmeEtkisi,
+ * sonrakiDuzey, binaBakimi). Laboratuvarda oda değişimi ve bağlı bölümlerin karşılaması yazılır; eskiden
+ * "+25 → +50 laboratuvar puanı" yazıyordu, puan düzeyden değil oda karşılamasından gelir.
+ * @param {object} [state]  güncel durum (etki ve zorluk çarpanlı bakım için)
+ */
+function _yukseltmeOnayIcerigi(bina, kasa, state = null) {
   const tanim = BUILDINGS[bina.type];
   if (!tanim) return null;
   const duzey  = bina.level || 1;
@@ -5468,6 +5500,9 @@ function _yukseltmeOnayIcerigi(bina, kasa) {
   const simdi   = _kapasiteParcalari(bina.currentCapacity || _duzeyKapasitesi(tanim, duzey), _derslikBoyu(tanim, duzey));
   const sonra   = _kapasiteParcalari(_duzeyKapasitesi(tanim, sonraki), _derslikBoyu(tanim, sonraki));
   const ad      = bina.name || tanim.name;
+  const bakimSimdi = binaBakimi(bina, state).tutar;
+  const bakimSonra = sonrakiDuzey(bina, state)?.bakim ?? bakimSimdi;
+  const etki = state ? yukseltmeEtkisi(state, bina, { sayi: formatNumber, ondalik: ondalikYaz, esc: _escHtml }) : '';
   return {
     maliyet,
     baslik: `${ad}: Düzey ${sayiEkle(sonraki)} Yükseltme`,
@@ -5479,15 +5514,17 @@ function _yukseltmeOnayIcerigi(bina, kasa) {
       ${_onaySatirlari([
         ['Maliyet', `${formatMoney(maliyet)} (şimdi kasadan düşer)`],
         ['Süre', `${sure} dönem; bu sürede bina mevcut kapasitesiyle çalışır`],
+        ['Dönemlik bakım', `${formatMoney(bakimSimdi)} → ${formatMoney(bakimSonra)} (yükseltme bitince)`],
         ['Yükseltmeden sonra kasa', formatMoney(kasa - maliyet)],
       ])}
-      ${sonra.length ? `<div class="onay-kazanc"><div class="onay-kazanc-baslik">Ne kazandırır</div>
+      <div class="onay-kazanc"><div class="onay-kazanc-baslik">Ne kazandırır</div>
         <ul>
-          <li>Şimdi: ${simdi.join(' · ') || 'kapasite yok'}</li>
-          <li>Düzey ${sonraki}: <b>${sonra.join(' · ')}</b></li>
-          ${bina.type === 'lab' ? `<li>Bağlı bölümlere laboratuvar puanı: +${25 * duzey} → <b>+${25 * sonraki}</b></li>` : ''}
-        </ul></div>` : `<div class="onay-kazanc"><div class="onay-kazanc-baslik">Ne kazandırır</div>
-        <ul><li>Bu binanın düzeye bağlı bir kapasitesi yok${tanim.benefitText ? ` (${_veriMetni(tanim.benefitText)})` : ''}.</li></ul></div>`}`,
+          ${sonra.length
+            ? `<li>Şimdi: ${simdi.join(' · ') || 'kapasite yok'}</li>
+               <li>Düzey ${sonraki}: <b>${sonra.join(' · ')}</b></li>`
+            : '<li>Bu binanın düzeye bağlı bir kapasitesi yok.</li>'}
+          ${etki ? `<li>Etkisi: ${etki}</li>` : ''}
+        </ul></div>`,
   };
 }
 
@@ -5503,15 +5540,19 @@ export function renderCampusPanel(state, onBuildStart, onDecision) {
   const completedBuildings = buildings.filter(b => b.isCompleted);
   const inProgressBuildings = buildings.filter(b => !b.isCompleted);
 
+  // v0.7.2 doğruluk: bakım economy.js'in hesabıyla (durum, düzey ve zorluk dahil; dönem sonunda
+  // kasadan düşen tutar). Eskiden kayıtlı taban tutar (b.maintenanceCost) toplanıyordu.
   let totalArea = 0, totalMaintenance = 0;
   completedBuildings.forEach(b => {
     totalArea        += b.area || 0;
-    totalMaintenance += b.maintenanceCost || 0;
+    totalMaintenance += binaBakimi(b, state).odenen;
   });
 
   // Kapasite/kullanım özeti: her bölüm bir kez sayılır (çift sayım önlenir, Issue #28)
   const _usage = calculateCampusUsageSummary(state);
   const { totalOffices, usedOffices, totalClassrooms, usedClassrooms, totalLabs, usedLabs, totalBeds } = _usage;
+  // v0.7.2 doğruluk: derslik koltuklarının bölümlere dağılımı (Bina Sayfası'yla aynı hesap; bina kartındaki kullanım)
+  const kapDagilim = kapasiteDagilimi(state);
 
   // Katalog sözlüğü
   const catalogMap = {};
@@ -5536,7 +5577,7 @@ export function renderCampusPanel(state, onBuildStart, onDecision) {
       ${_obKutu('Ofisler', kullanim(usedOffices, totalOffices), 'kullanımda / toplam', _kullanimSinifi(usedOffices, totalOffices))}
       ${_obKutu('Laboratuvarlar', kullanim(usedLabs, totalLabs), 'kullanımda / toplam', _kullanimSinifi(usedLabs, totalLabs))}
       ${_obKutu('Yurt yatağı', sayi(totalBeds), `${sayi(totalStudents)} öğrenci için`)}
-      ${_obKutu('Dönemlik bakım', formatMoney(totalMaintenance), 'bitmiş binaların bakımı')}
+      ${_obKutu('Dönemlik bakım', formatMoney(totalMaintenance), zorlukCarpani(state).gider !== 1 ? 'bitmiş binalar, durum, düzey ve zorluk dahil' : 'bitmiş binalar, durum ve düzey dahil')}
     </div>`;
 
   /** Mevcut bina kartı: kimlik satırı, alan ve bakım, türe göre ayrıntı, yükseltme ve atama düğmeleri. */
@@ -5594,36 +5635,57 @@ export function renderCampusPanel(state, onBuildStart, onDecision) {
 
     // Türe göre ayrıntı
     let detailsHtml = '';
+    // v0.7.2 doğruluk: etki metni Bina Sayfası'yla aynı kaynaktan (bina_sayfasi.js binaKartEtkileri);
+    // eskiden kart oyunun kullanmadığı sayılar yazıyordu (kütüphane +5 / +%5 / +0,1, yemekhane ±6,
+    // yurt +8 ve "Yurt geliri", spor "saygınlık", idari bina "+%15 / +3").
+    const etkiBolumu = () => {
+      const maddeler = binaKartEtkileri(state, b, { ondalik: ondalikYaz, para: formatMoney });
+      return maddeler.length
+        ? _binaBolumu('Etkileri', `<ul class="ob-madde ob-madde--iyi bina-kart-etki">${maddeler.map(m => `<li>${m}</li>`).join('')}</ul>`)
+        : '';
+    };
 
     if (b.type === 'fakulte_binasi' || b.type === 'amfi') {
-      const studentCapacity = cap.classrooms ? cap.classrooms * clsSize : 0;
-      const nextStudentCap  = nextLvlCap.classrooms ? nextLvlCap.classrooms * nextLvlClsSize : 0;
-      const assignedDepts   = (b.assignedDepartments || []).map(dId => {
-        const d = depts.find(dep => dep.id === dId);
-        if (!d) return null;
-        const dDeptData = state.students?.byDepartment?.[dId];
-        const dStudents = dDeptData
-          ? ((dDeptData.year1?.count || 0) + (dDeptData.year2?.count || 0) +
-             (dDeptData.year3?.count || 0) + (dDeptData.year4?.count || 0))
-          : 0;
-        const dFaculty  = (state.faculty || []).filter(f => (f.department || f.departmentId) === dId).length;
-        return _obSatir(d.shortName || d.name, `${sayi(dStudents)} öğrenci · ${dFaculty} hoca`);
+      // v0.7.2 doğruluk: kullanım Bina Sayfası'yla aynı hesap (bina_sayfasi.js kapasiteDagilimi, game.js
+      // _updateDeptCapacities). Hiçbir bölüme atanmamış binanın dersliklerini kendine derslik binası
+      // atanmamış bölümler ortak kullanır; eskiden kart bu binada "Kullanılan 0" yazıyordu.
+      const koltuk     = cap.classrooms ? cap.classrooms * clsSize : 0;
+      const yer        = koltuk * KOLTUK_SINIF;
+      const nextKoltuk = nextLvlCap.classrooms ? nextLvlCap.classrooms * nextLvlClsSize : 0;
+      const pay        = kapDagilim.binaPaylari.get(b.id);
+      const kullanan   = pay ? pay.satirlar.reduce((s, x) => s + x.talep, 0) : 0;
+      const oran       = yer > 0 ? kullanan / yer : 0;
+      const dolulukTur = oran > 1 ? 'kritik' : oran > 0.9 ? 'uyari' : 'iyi';
+      const bolumSatirlari = (pay?.satirlar || []).map(x => {
+        const d = depts.find(dep => dep.id === x.id);
+        if (!d) return '';
+        const dFaculty = (state.faculty || []).filter(f => (f.department || f.departmentId) === x.id).length;
+        const bolunmus = !pay.ortak && (kapDagilim.bolumBinalari.get(x.id) || []).length > 1;
+        return _obSatir(d.shortName || d.name, `${sayi(x.talep)} öğrenci${bolunmus ? ' <span class="ob-soluk">(bu binaya düşen)</span>' : ''} · ${dFaculty} hoca`);
       }).filter(Boolean).join('');
+      const ortakNotu = pay?.ortak
+        ? `<div class="ob-aciklama">${pay.satirlar.length
+          ? 'Bu binaya bölüm atanmadı. Derslikleri, kendine derslik binası atanmamış bölümlerin ortak alanı.'
+          : 'Bu binaya bölüm atanmadı ve dersliklerini kullanan bölüm yok.'}</div>`
+        : '';
 
       detailsHtml = `
         ${cap.classrooms ? _binaBolumu('Derslikler', `
-          ${_obSatir('Kapasite', `${cap.classrooms} × ${clsSize} kişi = ${sayi(studentCapacity)} öğrenci`)}
-          ${_obSatir('Kullanılan / boş', `${used.classrooms ?? 0} / ${Math.max(0, cap.classrooms - (used.classrooms ?? 0))}`)}
-          ${nextLvlCap.classrooms ? sonrakiNot(`${nextLvlCap.classrooms} derslik × ${nextLvlClsSize} kişi = ${sayi(nextStudentCap)} öğrenci${nextLvlClsSize > clsSize ? ` (derslikler ${clsSize} kişiden ${nextLvlClsSize} kişiye büyür)` : ''}.`) : ''}`) : ''}
+          ${_obSatir('Kapasite', `${cap.classrooms} × ${clsSize} kişi = ${sayi(koltuk)} koltuk`)}
+          ${_obSatir('Dört sınıflık yer', `${sayi(yer)} öğrenci`)}
+          ${_obSatir('Kullanan öğrenci', `${sayi(kullanan)} <span class="ob-soluk">/ ${sayi(yer)} · %${Math.round(oran * 100)}</span>`, `ob-${dolulukTur}`)}
+          <div class="ob-cubuk ob-cubuk--${dolulukTur}"><span style="width:${Math.min(100, Math.round(oran * 100))}%"></span></div>
+          ${ortakNotu}
+          ${nextLvlCap.classrooms ? sonrakiNot(`${nextLvlCap.classrooms} derslik × ${nextLvlClsSize} kişi = ${sayi(nextKoltuk)} koltuk${nextLvlClsSize > clsSize ? ` (derslikler ${clsSize} kişiden ${nextLvlClsSize} kişiye büyür)` : ''}.`) : ''}`) : ''}
         ${cap.offices ? _binaBolumu('Ofisler', `
           ${_obSatir('Ofis', cap.offices)}
           ${_obSatir('Kullanılan / boş', `${used.offices ?? 0} / ${Math.max(0, cap.offices - (used.offices ?? 0))}`)}
-          <div class="ob-aciklama">Boş ofis varken her hocaya bir ofis düşer; yetmezse Dr. Öğr. Üyeleri ikişer, araştırma görevlileri üçer kişi paylaşır.</div>
+          <div class="ob-aciklama">Yalnız bu binaya atanmış bölümlerin hocaları sayılır. Boş ofis varken her hocaya bir ofis düşer; yetmezse Dr. Öğr. Üyeleri ikişer, araştırma görevlileri üçer kişi paylaşır. Ofis doluluğunun bir sonucu yok.</div>
           ${nextLvlCap.offices ? sonrakiNot(`${nextLvlCap.offices} ofis.`) : ''}`) : ''}
         ${cap.labs != null ? _binaBolumu('Laboratuvarlar', cap.labs === 0
-          ? _obSatir('Laboratuvar', '0 <span class="ob-soluk">(laboratuvar binası gerekir)</span>')
+          ? _obSatir('Laboratuvar', '0 <span class="ob-soluk">(laboratuvar odası Laboratuvar binasında ve araştırma merkezinde)</span>')
           : `${_obSatir('Laboratuvar', cap.labs)}${_obSatir('Kullanılan / boş', `${used.labs ?? 0} / ${Math.max(0, cap.labs - (used.labs ?? 0))}`)}`) : ''}
-        ${_binaBolumu('Atanmış bölümler', assignedDepts || '<div class="ob-aciklama">Henüz bölüm atanmadı; aşağıdaki "Bölüm ata" düğmesiyle ekleyebilirsiniz.</div>')}`;
+        ${_binaBolumu(pay?.ortak ? 'Ortak kullanan bölümler' : 'Atanmış bölümler', bolumSatirlari || '<div class="ob-aciklama">Henüz bölüm atanmadı; aşağıdaki "Bölüm ata" düğmesiyle ekleyebilirsiniz.</div>')}`;
     } else if (b.type === 'kutuphane') {
       const simCap   = cap.simultaneous || 200;
       const dailyCap = cap.daily || 800;
@@ -5633,15 +5695,12 @@ export function renderCampusPanel(state, onBuildStart, onDecision) {
       detailsHtml = `
         ${_binaBolumu('Hizmet kapasitesi', `
           ${_obSatir('Aynı anda çalışabilen', `${sayi(simCap)} öğrenci`)}
-          ${_obSatir('Günlük kapasite', `~${sayi(dailyCap)} öğrenci`)}
+          ${_obSatir('Günlük kapasite', `${sayi(dailyCap)} öğrenci`)}
           ${_obSatir('Öğrenci sayısı', sayi(totalStudents))}
           ${_yeterlilik(pct)}
-          ${pct > 100 ? `<div class="ob-aciklama ob-aciklama--kritik">Öğrenci sayısı günlük kapasiteyi (${sayi(dailyCap)}) aşıyor.</div>` : ''}
+          ${pct > 100 ? `<div class="ob-aciklama ob-aciklama--kritik">Öğrenci sayısı günlük kapasiteyi (${sayi(dailyCap)}) aşıyor; Sosyal Yaşam katkısı karşılama oranıyla azalır.</div>` : ''}
           ${sonrakiNot(`aynı anda ${sayi(nextSim)}, günde ${sayi(nextDly)} öğrenci.`)}`)}
-        ${_binaBolumu('Etkileri', `
-          ${_obSatir('Öğrenci memnuniyeti', '+5', 'ob-iyi')}
-          ${_obSatir('Araştırma bonusu', '+%5', 'ob-iyi')}
-          ${_obSatir('Not ortalaması', '+0,1', 'ob-iyi')}`)}`;
+        ${etkiBolumu()}`;
     } else if (b.type === 'yemekhane') {
       const mealsBuildings = (state.buildings || []).filter(bld => bld.type === 'yemekhane' && bld.isCompleted);
       const totalMealCap   = mealsBuildings.reduce((s, bld) => s + ((bld.currentCapacity?.dailyMeals) || 0), 0);
@@ -5649,40 +5708,36 @@ export function renderCampusPanel(state, onBuildStart, onDecision) {
       const pct            = need > 0 && totalMealCap > 0 ? Math.round((need / totalMealCap) * 100) : 0;
       const myCap          = cap.dailyMeals || 0;
       const nextCap2       = nextLvlCap.dailyMeals || 0;
-      const yeterli        = pct <= 100;
       detailsHtml = `
         ${_binaBolumu('Hizmet kapasitesi', `
           ${_obSatir('Bu yemekhane', `günde ${sayi(myCap)} öğün`)}
           ${_obSatir('Yerleşke toplamı', `günde ${sayi(totalMealCap)} öğün`)}
           ${_obSatir('İhtiyaç', `${sayi(totalStudents)} öğrenci + ${sayi(totalFaculty)} hoca = ${sayi(need)}`)}
           ${_yeterlilik(pct)}
-          ${pct > 100 ? '<div class="ob-aciklama ob-aciklama--kritik">Kuyruklar uzuyor, memnuniyet düşüyor.</div>' : ''}
+          ${pct > 100 ? '<div class="ob-aciklama ob-aciklama--kritik">Günlük öğün ihtiyacı karşılamıyor; Yemekhane puanı karşılama oranıyla düşük kalır.</div>' : ''}
           ${sonrakiNot(`günde ${sayi(nextCap2)} öğün.`)}`)}
-        ${_binaBolumu('Etkileri', `
-          ${_obSatir('Öğrenci memnuniyeti', yeterli ? '+6' : '-3', yeterli ? 'ob-iyi' : 'ob-kritik')}
-          ${_obSatir('Hoca memnuniyeti', yeterli ? '+4' : '-2', yeterli ? 'ob-iyi' : 'ob-kritik')}`)}`;
+        ${etkiBolumu()}`;
     } else if (b.type === 'yurt') {
       const totalBedCap = ((state.buildings || []).filter(bld => bld.type === 'yurt' && bld.isCompleted)
         .reduce((s, bld) => s + ((bld.currentCapacity?.beds) || 0), 0));
       const dormPct  = totalBedCap > 0 && totalStudents > 0
         ? Math.round((Math.min(totalBedCap, totalStudents) / totalStudents) * 100)
         : 0;
-      const usedBeds = used.beds ?? Math.min(totalStudents, cap.beds || 0);
+      // Dolu yatak game.js _updateAllBuildingUsage: öğrencilerin %40'ı, kapasiteyle sınırlı
+      const usedBeds = used.beds ?? Math.min(cap.beds || 0, Math.round(totalStudents * 0.40));
       const freeBeds = Math.max(0, (cap.beds || 0) - usedBeds);
       const ocpPct   = cap.beds ? Math.round((usedBeds / cap.beds) * 100) : 0;
-      const dormRev  = usedBeds * 5_000;
       const nextBeds = nextLvlCap.beds || 0;
+      // v0.7.2 doğruluk: "Yurt geliri" satırı kaldırıldı; economy.js yurttan gelir hesaplamıyor
       detailsHtml = `
         ${_binaBolumu('Yatak kapasitesi', `
           ${_obSatir('Yatak', sayi(cap.beds || 0))}
           ${_obSatir('Dolu / boş', `${sayi(usedBeds)} / ${sayi(freeBeds)}`)}
           ${_obSatir('Doluluk', `%${ocpPct}`)}
           ${_obSatir('Yurt imkânı', `%${dormPct} <span class="ob-soluk">(yatak / öğrenci)</span>`)}
+          <div class="ob-aciklama">Oyun öğrencilerin %40'ını yurtta sayar. Yurt İmkânı puanı ise yerleşkedeki toplam yatağı bütün öğrencilerle karşılaştırır. Oyun yurttan gelir hesaplamıyor.</div>
           ${sonrakiNot(`${sayi(nextBeds)} yatak.`)}`)}
-        ${_binaBolumu('Etkileri', `
-          ${_obSatir('Yurtlu öğrenci memnuniyeti', '+8', 'ob-iyi')}
-          ${dormPct < 40 ? '<div class="ob-aciklama ob-aciklama--kritik">Yurtsuz öğrenci oranı yüksek; memnuniyet düşer.</div>' : ''}`)}
-        ${_binaBolumu('Gelir', _obSatir('Yurt geliri', `${sayi(usedBeds)} × 5.000 ₺ = ${formatMoney(dormRev)}/dönem`, 'ob-iyi'))}`;
+        ${etkiBolumu()}`;
     } else if (b.type === 'spor_tesisi') {
       const sporCap  = cap.dailyUsers || 500;
       const nextSCap = nextLvlCap.dailyUsers || 0;
@@ -5692,24 +5747,19 @@ export function renderCampusPanel(state, onBuildStart, onDecision) {
           ${_obSatir('Günlük kapasite', `${sayi(sporCap)} kullanıcı`)}
           ${_obSatir('Öğrenci sayısı', sayi(totalStudents))}
           ${_yeterlilik(pct)}
+          ${pct > 130 ? '<div class="ob-aciklama ob-aciklama--kritik">Günlük kapasite öğrenci sayısının gerisinde; Spor Tesisleri puanı karşılama oranıyla düşük kalır.</div>' : ''}
           ${sonrakiNot(`günde ${sayi(nextSCap)} kullanıcı.`)}`)}
-        ${_binaBolumu('Etkileri', `
-          ${_obSatir('Öğrenci memnuniyeti', '+6', 'ob-iyi')}
-          ${_obSatir('Saygınlık', 'katkı sağlar', 'ob-iyi')}
-          ${pct > 130 ? '<div class="ob-aciklama ob-aciklama--kritik">Kapasite aşıldı; öğrenci şikâyeti artıyor.</div>' : ''}`)}`;
+        ${etkiBolumu()}`;
     } else if (b.type === 'idari_bina') {
       const adminStaffCount = (state.adminStaff || []).length;
       const offices         = cap.offices || 0;
-      const pct             = offices > 0 ? Math.round((adminStaffCount / offices) * 100) : 0;
       detailsHtml = `
         ${_binaBolumu('Ofis kapasitesi', `
           ${_obSatir('Ofis', `${offices} <span class="ob-soluk">(Düzey ${b.level || 1})</span>`)}
           ${_obSatir('İdari personel', `${adminStaffCount} kişi`)}
-          ${_yeterlilik(pct, 100)}
+          <div class="ob-aciklama">Oyun idari personeli bu ofislere yerleştirmiyor; ofis sayısının bir sonucu yok.</div>
           ${nextLvlCap.offices ? sonrakiNot(`${nextLvlCap.offices} ofis.`) : ''}`)}
-        ${_binaBolumu('Etkileri', `
-          ${_obSatir('İdari verimlilik', '+%15', 'ob-iyi')}
-          ${_obSatir('Öğrenci memnuniyeti', '+3', 'ob-iyi')}`)}`;
+        ${etkiBolumu()}`;
     } else if (b.type === 'lab') {
       // v0.7.2: Laboratuvar binası: odaları bağlı bölümler ihtiyaçları oranında paylaşır
       const bl = _binaLabBilgisi(state, b);
@@ -5723,19 +5773,25 @@ export function renderCampusPanel(state, onBuildStart, onDecision) {
           ${_obSatir('Oda', `${_odaYaz(bl.oda)} <span class="ob-soluk">(Düzey ${b.level || 1})</span>`)}
           ${_obSatir('Kullanılan / boş', `${_odaYaz(bl.kullanilan)} / ${_odaYaz(bl.bos)}`)}
           ${_obSatir('Bağlı bölümlerin ihtiyacı', `${_odaYaz(bl.ihtiyac)} oda`, bl.ihtiyac > bl.oda ? 'ob-uyari' : '')}
-          <div class="ob-aciklama">Odaları bağlı bölümler ihtiyaçları oranında paylaşır; her ${LAB_ODA_OGRENCI} öğrenciye bir oda gerekir. Bir bölüm başka laboratuvardan ya da araştırma merkezinden de oda alabilir.</div>`)}
+          <div class="ob-aciklama">Odaları, laboratuvar gerektiren bağlı bölümler ihtiyaçları oranında paylaşır; her ${LAB_ODA_OGRENCI} öğrenciye bir oda gerekir. Bir bölüm başka laboratuvardan ya da araştırma merkezinden de oda alabilir. Bölümün laboratuvar puanı 30 + 70 × karşılama.</div>`)}
         ${_binaBolumu('Bağlı bölümler', linkedLabDepts || '<div class="ob-aciklama">Henüz bağlı bölüm yok; aşağıdaki "Bölüm bağla" düğmesiyle ekleyebilirsiniz.</div>')}`;
     } else {
-      // Öteki binalar (araştırma merkezi, konferans vb.): kapasite çubukları
+      // Öteki binalar (araştırma merkezi, konferans vb.): kapasite çubukları ve doğrulanmış etki
+      // (v0.7.2 doğruluk: eskiden data.js benefitText yazılıyordu)
       const capBarsHtml = [
         cap.offices    ? _capacityBar('Ofis',        used.offices    ?? 0, cap.offices)    : '',
         cap.classrooms ? _capacityBar('Derslik',     used.classrooms ?? 0, cap.classrooms) : '',
         cap.labs       ? _capacityBar('Laboratuvar', used.labs       ?? 0, cap.labs)       : '',
         cap.beds       ? _capacityBar('Yatak',       used.beds       ?? 0, cap.beds)       : '',
       ].join('');
+      const ofisNotu = cap.offices
+        ? `<div class="ob-aciklama">${b.type === 'arastirma_merkezi'
+          ? 'Ofiste yalnız bu merkeze atanmış bölümlerin hocaları sayılır; ofis doluluğunun bir sonucu yok.'
+          : 'Oyun bu ofislere kimseyi yerleştirmiyor; ofis sayısının bir sonucu yok.'}</div>`
+        : '';
       detailsHtml = `
-        ${_binaBolumu('Kapasite', capBarsHtml)}
-        ${cat.benefitText ? `<div class="ob-aciklama">${_veriMetni(cat.benefitText)}</div>` : ''}`;
+        ${_binaBolumu('Kapasite', capBarsHtml ? `${capBarsHtml}${ofisNotu}` : '')}
+        ${etkiBolumu()}`;
     }
 
     const durumRozeti = b.status === 'upgrading'
@@ -5754,7 +5810,7 @@ export function renderCampusPanel(state, onBuildStart, onDecision) {
           </div>
           ${durumRozeti}
         </header>
-        <div class="bina-kart-meta">${sayi(b.area || 0)} m² · bakım ${formatMoney(b.maintenanceCost || 0)}/dönem</div>
+        <div class="bina-kart-meta">${sayi(b.area || 0)} m² · bakım ${formatMoney(binaBakimi(b, state).odenen)}/dönem</div>
         <div class="bina-kart-govde">${detailsHtml}</div>
         <div class="ob-dugmeler ob-dugmeler--alt">
           ${upgCost > 0 ? `
@@ -5777,9 +5833,11 @@ export function renderCampusPanel(state, onBuildStart, onDecision) {
     const inProgress    = buildings.some(bld => bld.type === b.type && !bld.isCompleted);
     const blockedSingle = !b.canHaveMultiple && count > 0;
     const canAfford     = budget >= b.cost;
-    const effects       = _formatBuildingEffects({ ...b.qualityEffects, ...b.effects });
+    const effects       = _formatBuildingEffects(b.type);
     const disabled      = blockedSingle || inProgress;
-    const maintEst      = b.baseArea && b.maintenanceCostPerM2 ? formatMoney(b.baseArea * b.maintenanceCostPerM2) : null;
+    // v0.7.2 doğruluk: bina bitince ödenecek bakım economy.js'in hesabıyla (zorluk dahil)
+    const maintEst      = b.baseArea && b.maintenanceCostPerM2 ? formatMoney(_yeniBinaBakimi(b.type, state)) : null;
+    const etkisizNotu   = b.type === 'teknokent' && !disabled ? teknokentZatenAcikNotu(state) : '';
     const durum = blockedSingle
       ? '<span class="ob-rozet ob-rozet--iyi">Yapıldı</span>'
       : inProgress
@@ -5796,8 +5854,9 @@ export function renderCampusPanel(state, onBuildStart, onDecision) {
           </div>
         </header>
         ${effects.length ? `<ul class="ob-madde ob-madde--iyi">${effects.map(e => `<li>${e}</li>`).join('')}</ul>` : ''}
+        ${etkisizNotu ? `<div class="ob-aciklama ob-aciklama--kritik">${etkisizNotu}</div>` : ''}
         <div class="bina-secenek-alt">
-          <span class="bina-secenek-meta">${b.constructionTime} dönem · ${sayi(b.baseArea || 0)} m²${maintEst ? ` · bakım ~${maintEst}/dönem` : ''}${b.canHaveMultiple ? ' · birden çok yapılabilir' : ''}</span>
+          <span class="bina-secenek-meta">${b.constructionTime} dönem · ${sayi(b.baseArea || 0)} m²${maintEst ? ` · bakım ${maintEst}/dönem` : ''}${b.canHaveMultiple ? ' · birden çok yapılabilir' : ''}</span>
           ${durum}
         </div>
       </article>`;
@@ -6144,7 +6203,7 @@ export function renderCampusPanel(state, onBuildStart, onDecision) {
       }
 
       // v0.5.2: tek tıkla para harcanmasın; önce maliyet, süre ve kazanç gösterilir
-      showConfirmModal(`${catalog.name} İnşaatı`, _insaatOnayIcerigi(catalog, currentBudget), () => {
+      showConfirmModal(`${catalog.name} İnşaatı`, _insaatOnayIcerigi(catalog, currentBudget, panel._currentState), () => {
         if (panel._onBuildStart) panel._onBuildStart(btype, catalog);
       }, { onayMetni: `Onayla (${formatMoney(catalog.cost)})` });
     });
@@ -6155,7 +6214,7 @@ export function renderCampusPanel(state, onBuildStart, onDecision) {
       const buildingId = btn.dataset.buildingId;
       if (!buildingId) return;
       const building = (panel._currentState?.buildings || []).find(b => b.id === buildingId);
-      const onay = building ? _yukseltmeOnayIcerigi(building, panel._currentBudget ?? 0) : null;
+      const onay = building ? _yukseltmeOnayIcerigi(building, panel._currentBudget ?? 0, panel._currentState) : null;
       if (!onay) {
         if (panel._onDecision) panel._onDecision({ type: 'upgrade_building', buildingId });
         return;
@@ -6252,8 +6311,9 @@ function derslikliBina(b) {
  * @param {object}   state      — Oyun durumu
  * @param {object}   building   — Hedef bina nesnesi
  * @param {Function} onDecision — Karar callback
+ * @param {{ onKapat?: Function }} [secenek]  onKapat: pencere kapanınca (v0.7.2: Bina Sayfası'na dönüş)
  */
-function _showDepartmentAssignModal(state, building, onDecision) {
+function _showDepartmentAssignModal(state, building, onDecision, secenek = {}) {
   const allDepts     = state.departments || [];
   const allBuildings = state.buildings || [];
   const isLab        = building.type === 'lab';
@@ -6365,7 +6425,7 @@ function _showDepartmentAssignModal(state, building, onDecision) {
 
   // İlk açılış
   const modalTitle = isLab ? `${building.name}: Bölüm Bağla` : `${building.name}: Bölüm Ata`;
-  showModal(modalTitle, _buildModalBody());
+  showModal(modalTitle, _buildModalBody(), { onKapat: secenek?.onKapat });
 
   // Olay dinleyicisi: pencere gövdesi üzerinde delegasyon.
   // Her açılışta yeni dinleyici birikmesin diye önce eskisi kaldırılır.
@@ -9045,7 +9105,7 @@ function _getWarnings(state) {
     }
   }
   const labEksik = acikBolumler
-    .filter(d => (Number(d.labRequirement) || 0) >= 2)
+    .filter(d => labGerekir(d))
     .map(d => ({ d, lab: _labBilgisi(state, d) }))
     .filter(x => x.lab.ihtiyac > 0 && x.lab.karsilama < 0.5);
   if (labEksik.length > 0) {
