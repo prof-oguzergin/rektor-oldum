@@ -9,7 +9,7 @@
  *   - Bina tipine özgü dekoratif unsurlar
  */
 
-import { GRID_SIZE, BUILDING_FOOTPRINTS, PLAZA } from './campus-layout.js?v=0.5.0';
+import { GRID_SIZE, BUILDING_FOOTPRINTS, PLAZA, checkBuildingMove } from './campus-layout.js?v=0.5.0';
 import { BUILDING_SPRITES, PROP_SPRITES } from './building-sprites.js?v=0.5.0';
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -265,6 +265,12 @@ const COLORS = {
 let _hoveredTile = null;   // { col, row }
 let _selectedBuilding = null;
 let _hoveredBuilding = null;           // v0.5.0: imlecin görsel olarak üstünde olduğu bina
+
+// v0.7.2 yerleşke düzenleme: düzenleme kipindeki tuvalin ayarı (seçili bina), imlecin
+// gösterdiği hedef (hayalet) ve o çizimde seçili görünen bina
+const _duzenAyari = new WeakMap();     // canvas -> { seciliId }
+let _hayalet = null;                   // { canvas, col, row, ok, sebep, kisa, mesaj, ayniYer }
+let _cizimSecili = null;
 
 // v0.5.0: isabet listesi. Her çizimde binaların ekrandaki görsel dikdörtgenleri
 // çizim sırasıyla kaydedilir; imleç en üstteki binanın saydam olmayan pikseline
@@ -1603,20 +1609,25 @@ function _drawConstructionOverlay(ctx, x, baseY, buildW, height, progress) {
   ctx.fillRect(x - barW / 2, barY, barW * (progress / 100), 4);
 }
 
-/**
- * Bina görselini taban izine oturtur. Ölçek zemin plakasından alınır; plakanın
- * alt ucu taban izinin alt köşesine, plaka ortası taban izinin ortasına gelir.
- */
-function _drawBuildingSprite(ctx, b, img, m, x, baseY, gw, gh) {
+/** Görselin taban izine oturduğu dikdörtgen (bina ve v0.7.2 taşıma hayaleti ortak kullanır). */
+function _spriteKutusu(m, x, baseY, gw, gh) {
   // 1x1 binalar çok küçük kalmasın diye hafifçe büyütülür (taşma çeyrek karoyu geçmez)
   const fpW  = (gw + gh) * TILE_W / 2 * (gw * gh === 1 ? 1.2 : 0.98);
   const padW = Math.max(1, m.padR - m.padL + 1);
   const k    = fpW / padW;
   const dx   = x - ((m.padL + m.padR) / 2) * k;
   const dy   = baseY - m.padB * k;
-  const topY = dy + (m.top || 0) * k;
+  return { fpW, k, dx, dy, topY: dy + (m.top || 0) * k };
+}
 
-  const secili   = _ayniBina(_selectedBuilding, b);
+/**
+ * Bina görselini taban izine oturtur. Ölçek zemin plakasından alınır; plakanın
+ * alt ucu taban izinin alt köşesine, plaka ortası taban izinin ortasına gelir.
+ */
+function _drawBuildingSprite(ctx, b, img, m, x, baseY, gw, gh) {
+  const { fpW, k, dx, dy, topY } = _spriteKutusu(m, x, baseY, gw, gh);
+
+  const secili   = _ayniBina(_cizimSecili, b);
   const uzerinde = _ayniBina(_hoveredBuilding, b);
   if (_currentHits) _currentHits.push({ b, img, dx, dy, dw: m.w * k, dh: m.h * k });
 
@@ -1692,12 +1703,156 @@ function _drawTileHighlight(ctx, col, row, color) {
   drawIsoDiamond(ctx, x, y + TILE_H / 2, TILE_W, TILE_H, color, null);
 }
 
-function _drawBuildingHighlight(ctx, building) {
+function _drawBuildingHighlight(ctx, building, renk = COLORS.selectionGlow) {
   for (let dc = 0; dc < (building.gridW || 1); dc++) {
     for (let dr = 0; dr < (building.gridH || 1); dr++) {
-      _drawTileHighlight(ctx, building.gridX + dc, building.gridY + dr, COLORS.selectionGlow);
+      _drawTileHighlight(ctx, building.gridX + dc, building.gridY + dr, renk);
     }
   }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// v0.7.2 YERLEŞKE DÜZENLEME: ızgara, hayalet ve neden etiketi
+// Düzenleme kipinde kamera bütün yerleşkeyi gösterir ve taşıma boyunca sabit kalır
+// (bina taşındıkça görünüm kaymaz). Uygunluk kuralı campus-layout.js checkBuildingMove:
+// otomatik yerleşimle aynı kural.
+// ─────────────────────────────────────────────────────────────────────────────
+
+const DUZEN = {
+  izgara:     'rgba(255, 255, 255, 0.16)',
+  kenar:      'rgba(6, 12, 4, 0.34)',               // bina konamayan kenar şeridi
+  secili:     'rgba(78, 204, 163, 0.38)',
+  uygun:      'rgba(78, 204, 163, 0.46)',
+  uygunCizgi: 'rgba(170, 255, 222, 0.95)',
+  yasak:      'rgba(233, 69, 96, 0.46)',
+  yasakCizgi: 'rgba(255, 160, 175, 0.95)',
+};
+
+/** Bütün dünyayı (yerleşke adası ve bina yükseklikleri) tuvale sığdıran sabit kamera. */
+function _duzenKamerasi() {
+  const s = Math.min(VIEW_W / CANVAS_W, VIEW_H / CANVAS_H);
+  return { s, tx: (VIEW_W - s * CANVAS_W) / 2, ty: (VIEW_H - s * CANVAS_H) / 2 };
+}
+
+/** Karo ızgarası ve bina konamayan kenar şeridi (zemin üstüne, binaların altına). */
+function _drawDuzenIzgarasi(ctx, size) {
+  // Bina konabilen karolar 1 .. size-3 (campus-layout.js yerleşim kuralı)
+  const son = size - 3;
+  for (let row = 0; row < size; row++) {
+    for (let col = 0; col < size; col++) {
+      if (col < 1 || row < 1 || col > son || row > son) _drawTileHighlight(ctx, col, row, DUZEN.kenar);
+    }
+  }
+  ctx.save();
+  ctx.strokeStyle = DUZEN.izgara;
+  ctx.lineWidth = 0.6;
+  ctx.beginPath();
+  for (let i = 1; i <= son + 1; i++) {
+    const a = isoProject(i, 1), b = isoProject(i, son + 1);
+    ctx.moveTo(a.x, a.y); ctx.lineTo(b.x, b.y);
+    const c = isoProject(1, i), d = isoProject(son + 1, i);
+    ctx.moveTo(c.x, c.y); ctx.lineTo(d.x, d.y);
+  }
+  ctx.stroke();
+  ctx.restore();
+}
+
+/** Taban izinin dış çerçevesi (izometrik dörtgen). */
+function _tabanYolu(ctx, col, row, gw, gh) {
+  const ust = isoProject(col, row), sag = isoProject(col + gw, row);
+  const alt = isoProject(col + gw, row + gh), sol = isoProject(col, row + gh);
+  ctx.beginPath();
+  ctx.moveTo(ust.x, ust.y); ctx.lineTo(sag.x, sag.y);
+  ctx.lineTo(alt.x, alt.y); ctx.lineTo(sol.x, sol.y);
+  ctx.closePath();
+}
+
+/** Taşınacak binanın hayaleti: yeşil (uygun) ya da kırmızı taban izi ve yarı saydam görsel. */
+function _drawHayalet(ctx, b, h) {
+  const gw = b.gridW || 1, gh = b.gridH || 1;
+  for (let dc = 0; dc < gw; dc++) {
+    for (let dr = 0; dr < gh; dr++) _drawTileHighlight(ctx, h.col + dc, h.row + dr, h.ok ? DUZEN.uygun : DUZEN.yasak);
+  }
+  ctx.save();
+  _tabanYolu(ctx, h.col, h.row, gw, gh);
+  ctx.strokeStyle = h.ok ? DUZEN.uygunCizgi : DUZEN.yasakCizgi;
+  ctx.lineWidth = 1.6;
+  ctx.stroke();
+  const anahtar = _spriteKeyFor(b);
+  if (_spriteDurum(anahtar) === 'hazir') {
+    const m = BUILDING_SPRITES[anahtar];
+    const { x } = isoProject(h.col + gw / 2, h.row + gh / 2);
+    const baseY = isoProject(h.col + gw - 1, h.row + gh - 1).y + TILE_H;
+    const kutu = _spriteKutusu(m, x, baseY, gw, gh);
+    ctx.globalAlpha = h.ok ? 0.62 : 0.38;
+    ctx.drawImage(_getSprite(anahtar), kutu.dx, kutu.dy, m.w * kutu.k, m.h * kutu.k);
+  }
+  ctx.restore();
+}
+
+/** Uygun olmayan hedefin kısa nedeni, hayaletin altında (fiziksel tuval koordinatı). */
+function _drawNedenEtiketi(ctx, canvas, cam, b, h) {
+  if (h.ok || !h.kisa) return;
+  const gw = b.gridW || 1, gh = b.gridH || 1;
+  const alt = isoProject(h.col + gw, h.row + gh);
+  const gorunen = canvas.clientWidth || VIEW_W;
+  const kz = Math.max(1, Math.min(2.6, 12 / (22 * gorunen / VIEW_W)));
+  ctx.font = `700 ${22 * kz}px "Segoe UI", system-ui, sans-serif`;
+  const w = ctx.measureText(h.kisa).width + 28 * kz;
+  const yuk = 38 * kz;
+  let cx = cam.s * alt.x + cam.tx;
+  let y0 = cam.s * alt.y + cam.ty + 8 * kz;
+  if (y0 + yuk > VIEW_H - 4) y0 = cam.s * isoProject(h.col, h.row).y + cam.ty - yuk - 8 * kz;
+  cx = Math.max(w / 2 + 4, Math.min(VIEW_W - w / 2 - 4, cx));
+  y0 = Math.max(4, y0);
+  ctx.fillStyle = 'rgba(120, 14, 32, 0.9)';
+  ctx.beginPath();
+  if (ctx.roundRect) ctx.roundRect(cx - w / 2, y0, w, yuk, yuk / 2); else ctx.rect(cx - w / 2, y0, w, yuk);
+  ctx.fill();
+  ctx.strokeStyle = 'rgba(255, 170, 185, 0.9)';
+  ctx.lineWidth = 1.5;
+  ctx.stroke();
+  ctx.fillStyle = '#fff1f3';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText(h.kisa, cx, y0 + yuk / 2 + 1);
+}
+
+/** İmlecin zemindeki kesirli karo konumu: karo (c, r) → [c, c+1) × [r, r+1). */
+function _zeminNoktasi(e, canvas) {
+  const p = _worldPoint(e, canvas);
+  const a = (p.x - ORIGIN_X) / (TILE_W / 2);
+  const b = (p.y - ORIGIN_Y) / (TILE_H / 2);
+  return { fc: (a + b) / 2, fr: (b - a) / 2 };
+}
+
+function _tabanIcinde(b, fc, fr) {
+  return fc >= b.gridX && fc < b.gridX + (b.gridW || 1) && fr >= b.gridY && fr < b.gridY + (b.gridH || 1);
+}
+
+/**
+ * Düzenleme kipinde imlecin anlamı. Başka bir binanın görseli: o bina seçilir. Seçili
+ * binanın taban izi ya da boş zemin: hedef (taban izi imlecin ortasına gelir). Seçili
+ * binanın çatısı (zemin taban izinin dışında): binanın üstü sayılır, hedef yok.
+ * @returns {{ bina: object|null, secili: object|null, hedef: object|null }}
+ */
+function _duzenNoktasi(e, canvas, state, ayar) {
+  const binalar = (state?.buildings || []).filter(b => b.gridX != null && b.gridY != null);
+  const secili = ayar.seciliId ? (binalar.find(b => b.id === ayar.seciliId) || null) : null;
+  const { fc, fr } = _zeminNoktasi(e, canvas);
+  const gorsel = pickBuildingAt(e, canvas);
+  const zemindeki = binalar.find(b => _tabanIcinde(b, fc, fr)) || null;
+  if (!secili) return { bina: gorsel || zemindeki, secili: null, hedef: null };
+  if (gorsel && !_ayniBina(gorsel, secili)) return { bina: gorsel, secili, hedef: null };
+  const tabanda = _ayniBina(zemindeki, secili);
+  if (gorsel && !tabanda) return { bina: secili, secili, hedef: null };
+  if (zemindeki && !tabanda) return { bina: zemindeki, secili, hedef: null };
+  const gw = secili.gridW || 1, gh = secili.gridH || 1;
+  const col = Math.round(fc - gw / 2) || 0;
+  const row = Math.round(fr - gh / 2) || 0;
+  const ayniYer = col === secili.gridX && row === secili.gridY;
+  const s = ayniYer ? { ok: true, sebep: null, kisa: '', mesaj: '' } : checkBuildingMove(state, secili, col, row);
+  return { bina: tabanda ? secili : null, secili, hedef: { col, row, ok: s.ok, sebep: s.sebep, kisa: s.kisa, mesaj: s.mesaj, ayniYer } };
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -1741,10 +1896,23 @@ function _computeCamera(state) {
   return { s, tx: VIEW_W / 2 - s * (minX + maxX) / 2, ty: VIEW_H / 2 - s * (minY + maxY) / 2 };
 }
 
-export function renderCampusMap(canvas, state) {
+/**
+ * Yerleşke haritasını çizer.
+ * v0.7.2: üçüncü parametre tuvalin düzenleme ayarıdır ve tuvalde saklanır (görseller geç
+ * yüklenince yapılan yeniden çizimde de geçerli kalır):
+ *   renderCampusMap(cv, state)                 son ayarla çizer (ilk çizimde olağan kip)
+ *   renderCampusMap(cv, state, null)           olağan kip
+ *   renderCampusMap(cv, state, { seciliId })   düzenleme kipi; seciliId taşınacak bina ya da null
+ */
+export function renderCampusMap(canvas, state, duzen) {
   if (!canvas) return;
   const ctx = canvas.getContext('2d');
   if (!ctx) return;
+  if (duzen !== undefined) {
+    if (duzen) _duzenAyari.set(canvas, { seciliId: duzen.seciliId ?? null });
+    else _duzenAyari.delete(canvas);
+  }
+  const ayar = _duzenAyari.get(canvas) || null;
 
   canvas.width = VIEW_W;
   canvas.height = VIEW_H;
@@ -1760,8 +1928,8 @@ export function renderCampusMap(canvas, state) {
   const campus = state.campus;
   if (!campus || !campus.grid) return;
 
-  // Kamera: dolu bölgeye odaklan, dünyayı tuvale ölçekle
-  const cam = _computeCamera(state);
+  // Kamera: dolu bölgeye odaklan, dünyayı tuvale ölçekle (düzenleme kipinde bütün yerleşke)
+  const cam = ayar ? _duzenKamerasi() : _computeCamera(state);
   _cameras.set(canvas, cam);
   _camS = cam.s;
   ctx.setTransform(cam.s, 0, 0, cam.s, cam.tx, cam.ty);
@@ -1771,6 +1939,10 @@ export function renderCampusMap(canvas, state) {
   const size = grid.length;
   const buildings = state.buildings || [];
   const decorations = campus.decorations || [];
+  const duzenSecili = ayar && ayar.seciliId
+    ? (buildings.find(b => b.id === ayar.seciliId && b.gridX != null && b.gridY != null) || null) : null;
+  _cizimSecili = ayar ? duzenSecili : _selectedBuilding;
+  const hayalet = ayar && duzenSecili && _hayalet && _hayalet.canvas === canvas && !_hayalet.ayniYer ? _hayalet : null;
 
   // 0. Kampüs adası: ızgaranın ön iki yüzüne toprak kalınlığı (diorama görünümü)
   {
@@ -1804,13 +1976,15 @@ export function renderCampusMap(canvas, state) {
   }
 
   // 2. Hover highlight (bina üzerindeyken bina parlar, karo vurgusu gerekmez)
-  if (_hoveredTile && !_hoveredBuilding) {
+  if (ayar) {
+    _drawDuzenIzgarasi(ctx, size);
+  } else if (_hoveredTile && !_hoveredBuilding) {
     _drawTileHighlight(ctx, _hoveredTile.col, _hoveredTile.row, COLORS.hoverGlow);
   }
 
   // 3. Seçili bina highlight
-  if (_selectedBuilding) {
-    _drawBuildingHighlight(ctx, _selectedBuilding);
+  if (_cizimSecili) {
+    _drawBuildingHighlight(ctx, _cizimSecili, ayar ? DUZEN.secili : COLORS.selectionGlow);
   }
 
   // 4. Dekorasyonlar ve binalar — derinlik sırasıyla
@@ -1853,6 +2027,9 @@ export function renderCampusMap(canvas, state) {
   _currentHits = null;
   _hitLists.set(canvas, hits);
 
+  // 4b. v0.7.2: taşınacak binanın hayaleti (her şeyin üstünde)
+  if (hayalet) _drawHayalet(ctx, duzenSecili, hayalet);
+
   // 5. Kampüs etiketleri (fiziksel tuval koordinatlarında, yarı saydam hap içinde)
   ctx.setTransform(1, 0, 0, 1, 0, 0);
   const totalArea = buildings.reduce((s, b) => s + (b.isCompleted ? (b.area || 0) : 0), 0);
@@ -1865,6 +2042,8 @@ export function renderCampusMap(canvas, state) {
     _drawPill(ctx, `${buildings.filter(b => b.isCompleted).length} bina · ${totalArea.toLocaleString('tr-TR')} m²`,
       VIEW_W - pay, VIEW_H - pay, 'right', false, kz);
   }
+  // v0.7.2: uygun olmayan hedefin kısa nedeni (etiketlerin de üstünde)
+  if (hayalet) _drawNedenEtiketi(ctx, canvas, cam, duzenSecili, hayalet);
 }
 
 function _drawPill(ctx, metin, x, y, hiza, kalin, kz = 1) {
@@ -1889,9 +2068,19 @@ function _drawPill(ctx, metin, x, y, hiza, kalin, kz = 1) {
 
 /**
  * Canvas tıklama — tıklanan tile'daki binayı döner.
- * @returns {object|null} — building object veya null
+ * v0.7.2: tuval düzenleme kipindeyse (renderCampusMap üçüncü parametresi) durum
+ * değiştirmez; imlecin anlamını döner: { bina, secili, hedef }. bina: tıklanan bina
+ * (seçili binadan başkaysa o seçilir); hedef: seçili binanın taban izinin gideceği yer
+ * { col, row, ok, sebep, kisa, mesaj, ayniYer } ya da null. Taşımayı çağıran yapar.
+ * @returns {object|null} building object veya null (düzenleme kipinde yukarıdaki nesne)
  */
 export function handleCampusClick(e, canvas, state) {
+  const ayar = _duzenAyari.get(canvas);
+  if (ayar) {
+    const r = _duzenNoktasi(e, canvas, state, ayar);
+    _hayalet = r.hedef ? { canvas, ...r.hedef } : null;   // dokunmatikte hayalet dokunuşla görünür
+    return r;
+  }
   const secilen = pickBuildingAt(e, canvas);
   if (secilen) {
     _selectedBuilding = secilen;
@@ -1917,8 +2106,19 @@ export function handleCampusClick(e, canvas, state) {
 
 /**
  * Canvas hover — tile vurgulama.
+ * v0.7.2: düzenleme kipinde hayaleti imlecin gösterdiği yere taşır ve { bina, secili, hedef }
+ * döner (handleCampusClick ile aynı anlam); olağan kipte imlecin altındaki binayı döner.
  */
 export function handleCampusHover(e, canvas, state) {
+  const ayar = _duzenAyari.get(canvas);
+  if (ayar) {
+    const r = _duzenNoktasi(e, canvas, state, ayar);
+    _hoveredTile = null;
+    _hoveredBuilding = r.hedef ? null : r.bina;
+    _hayalet = r.hedef ? { canvas, ...r.hedef } : null;
+    canvas.style.cursor = r.hedef && !r.hedef.ayniYer ? (r.hedef.ok ? 'pointer' : 'not-allowed') : (r.bina ? 'pointer' : '');
+    return r;
+  }
   const tile = isoUnproject(e.offsetX, e.offsetY, canvas);
   if (tile.col >= 0 && tile.col < GRID_SIZE && tile.row >= 0 && tile.row < GRID_SIZE) {
     _hoveredTile = tile;
@@ -1937,4 +2137,5 @@ export function clearHover() {
   _hoveredTile = null;
   _hoveredBuilding = null;
   _selectedBuilding = null;
+  _hayalet = null;
 }

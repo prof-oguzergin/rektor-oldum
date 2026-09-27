@@ -6308,6 +6308,29 @@ export function applyDecision(decision) {
       return { success: true, message: `Bina adı "${building.name}" olarak güncellendi.` };
     }
 
+    // ── Bina Taşı (v0.7.2) ────────────────────────────────────────────────────
+    // Oyuncu binayı yerleşkede başka bir yere taşır: ücretsiz, dönem harcamaz; yapımı ya da
+    // yükseltmesi süren bina da taşınabilir. Kural otomatik yerleşimle aynı (campus-layout.js
+    // checkBuildingMove); grid ve süslemeler yeniden kurulur, öteki binalar yerinde kalır.
+    case 'move_building': {
+      const { buildingId } = decision;
+      if (!buildingId) return { success: false, message: 'buildingId eksik.' };
+      const building = _state.buildings.find(b => b.id === buildingId);
+      if (!building) return { success: false, message: `Bina bulunamadı: ${buildingId}` };
+      const gridX = Number(decision.gridX);
+      const gridY = Number(decision.gridY);
+      const ad = building.name || BUILDINGS[building.type]?.name || 'Bina';
+      const sonuc = assignBuildingPosition(_state, building, { gridX, gridY });
+      if (!sonuc?.ok) {
+        return { success: false, message: `${ad} oraya taşınamaz. ${sonuc?.mesaj || ''}`.trim(), reason: sonuc?.sebep || null };
+      }
+      return {
+        success: true,
+        message: sonuc.degisti === false ? `${ad} zaten orada.` : `${ad} yeni yerine taşındı.`,
+        gridX, gridY,
+      };
+    }
+
     // ── Bütçe Dağılımı Güncelle ───────────────────────────────────────────────
     case 'set_budget_allocation': {
       const { allocation } = decision;

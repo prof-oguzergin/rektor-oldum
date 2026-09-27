@@ -144,23 +144,110 @@ function _bestSpot(grid, w, h, gap, dMin, dMax) {
 
 /** Grid'de belirli bir alana yerleştirilebilir mi? (gap: çevrede bina olmayacak karo sayısı) */
 function _canPlace(grid, col, row, w, h, gap = 1) {
+  return _yerlesimSorunu(grid, col, row, w, h, gap) === null;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// YERLEŞİM KURALI (v0.7.2)
+// Otomatik yerleşim (findPlacement) ile oyuncunun taşıması (checkBuildingMove,
+// moveBuilding) aynı kuralı kullanır: harita içinde (kenar şeridi dışında), meydan
+// ve ana yollar dışında, öteki binalarla arada en az bir karo boşluk.
+// ─────────────────────────────────────────────────────────────────────────────
+
+/** Uygun olmayan yerin nedeni: kısa (haritadaki etiket) ve tam metin (şerit, karar iletisi). */
+export const YERLESIM_SEBEPLERI = {
+  harita_disi: { kisa: 'Harita dışı',      metin: 'Harita dışına taşıyor.' },
+  ust_uste:    { kisa: 'Üst üste',         metin: 'Başka bir binayla üst üste geliyor.' },
+  meydan_yol:  { kisa: 'Meydan ya da yol', metin: 'Meydan ya da ana yol üstünde.' },
+  bosluk:      { kisa: 'Çok yakın',        metin: 'Başka bir binaya çok yakın, arada bir karo boşluk kalmalı.' },
+};
+
+/**
+ * Yerleşim kuralının tek uygulaması.
+ * @returns {null|'harita_disi'|'ust_uste'|'meydan_yol'|'bosluk'} null: uygun
+ */
+function _yerlesimSorunu(grid, col, row, w, h, gap = 1) {
   const size = grid.length;
-  if (col < 1 || row < 1 || col + w >= size - 1 || row + h >= size - 1) return false;
+  if (col < 1 || row < 1 || col + w >= size - 1 || row + h >= size - 1) return 'harita_disi';
+  let ayrilmis = false;
   for (let dc = 0; dc < w; dc++) {
     for (let dr = 0; dr < h; dr++) {
-      if (grid[row + dr][col + dc] === 'building') return false;
-      if (_isReserved(col + dc, row + dr)) return false;
+      if (grid[row + dr][col + dc] === 'building') return 'ust_uste';
+      if (_isReserved(col + dc, row + dr)) ayrilmis = true;
     }
   }
+  if (ayrilmis) return 'meydan_yol';
   if (gap > 0) {
     for (let r = row - gap; r < row + h + gap; r++) {
       for (let c = col - gap; c < col + w + gap; c++) {
         if (r < 0 || c < 0 || r >= size || c >= size) continue;
-        if (grid[r][c] === 'building') return false;
+        if (grid[r][c] === 'building') return 'bosluk';
       }
     }
   }
-  return true;
+  return null;
+}
+
+/** Binanın taban izi (karo): kayıttaki boyut, yoksa türün boyutu. */
+function _binaBoyutu(b) {
+  const fp = BUILDING_FOOTPRINTS[b.type] || { w: 1, h: 1 };
+  return { w: b.gridW || fp.w || 1, h: b.gridH || fp.h || 1 };
+}
+
+/** Binaların kapladığı hücreler ('building'); haric verilen bina sayılmaz. */
+function _dolulukIzgarasi(state, haric) {
+  const grid = createEmptyGrid(state.campus?.grid?.length || GRID_SIZE);
+  for (const b of state.buildings || []) {
+    if (b === haric || (haric && b.id != null && b.id === haric.id)) continue;
+    if (b.gridX == null || b.gridY == null || b.gridX < 0 || b.gridY < 0) continue;
+    placeBuildingOnGrid(grid, b);
+  }
+  return grid;
+}
+
+/**
+ * Bina (col, row) konumuna taşınabilir mi? Otomatik yerleşimle aynı kural; binanın
+ * kendi eski hücreleri sayılmaz. Arayüzün önizlemesi ve applyDecision bunu kullanır.
+ * @param {object} state
+ * @param {object|string} building  bina ya da kimliği
+ * @returns {{ ok: boolean, sebep: string|null, kisa: string, mesaj: string }}
+ */
+export function checkBuildingMove(state, building, col, row) {
+  const b = building && typeof building === 'object'
+    ? building
+    : (state?.buildings || []).find(x => x.id === building);
+  if (!b) return { ok: false, sebep: 'bina_yok', kisa: 'Bina yok', mesaj: 'Bina bulunamadı.' };
+  let sebep = 'harita_disi';
+  if (Number.isInteger(col) && Number.isInteger(row)) {
+    const { w, h } = _binaBoyutu(b);
+    sebep = _yerlesimSorunu(_dolulukIzgarasi(state, b), col, row, w, h, 1);
+  }
+  if (!sebep) return { ok: true, sebep: null, kisa: '', mesaj: '' };
+  return { ok: false, sebep, kisa: YERLESIM_SEBEPLERI[sebep].kisa, mesaj: YERLESIM_SEBEPLERI[sebep].metin };
+}
+
+/**
+ * Binayı oyuncunun seçtiği yere taşır: kural denetlenir, konum güncellenir, grid ve
+ * süslemeler (yollar, ağaçlar) initCampusState'in belirlenimci yordamıyla yeniden kurulur.
+ * Öteki binalar yerinde kalır. Bina elle konmuş diye işaretlenir (gridManual).
+ * @returns {{ ok: boolean, sebep: string|null, kisa: string, mesaj: string, degisti?: boolean }}
+ */
+export function moveBuilding(state, building, col, row) {
+  ensureCampusLayout(state);
+  const b = building && typeof building === 'object'
+    ? building
+    : (state?.buildings || []).find(x => x.id === building);
+  const sonuc = checkBuildingMove(state, b, col, row);
+  if (!sonuc.ok) return sonuc;
+  if (b.gridX === col && b.gridY === row) return { ...sonuc, degisti: false };
+  const { w, h } = _binaBoyutu(b);
+  b.gridX = col;
+  b.gridY = row;
+  b.gridW = w;
+  b.gridH = h;
+  b.gridManual = true;
+  initCampusState(state);
+  return { ...sonuc, degisti: true };
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -389,7 +476,20 @@ export function initCampusState(state, { relayout = false } = {}) {
   const buildings = state.buildings || [];
 
   if (relayout) {
-    for (const b of buildings) { b.gridX = null; b.gridY = null; }
+    // v0.7.2: oyuncunun elle yerleştirdiği binalar (gridManual) yeni düzenin kuralına
+    // uyuyorsa yerinde kalır; uymuyorsa ötekilerle birlikte yeniden yerleşir.
+    for (const b of buildings) {
+      if (!b.gridManual) { b.gridX = null; b.gridY = null; }
+    }
+    for (const b of buildings) {
+      if (b.gridX == null || b.gridY == null) continue;
+      const { w, h } = _binaBoyutu(b);
+      if (_yerlesimSorunu(grid, b.gridX, b.gridY, w, h, 1)) {
+        b.gridX = null; b.gridY = null; b.gridManual = false;
+      } else {
+        placeBuildingOnGrid(grid, b);
+      }
+    }
   }
 
   // Konumu olan binalar yerinde kalır
@@ -435,8 +535,11 @@ function _assign(grid, building) {
 /**
  * Yeni bina için pozisyon bul ve grid'e yerleştir.
  * Dekorasyonları yenile.
+ * v0.7.2: hedef ({ gridX, gridY }) verilirse bina oyuncunun seçtiği yere taşınır
+ * (moveBuilding; aynı kural denetlenir) ve sonuç { ok, sebep, kisa, mesaj } döner.
  */
-export function assignBuildingPosition(state, building) {
+export function assignBuildingPosition(state, building, hedef = null) {
+  if (hedef) return moveBuilding(state, building, hedef.gridX, hedef.gridY);
   if (!state.campus) initCampusState(state);
   ensureCampusLayout(state);
   // initCampusState bu binayı zaten yerleştirmiş olabilir
