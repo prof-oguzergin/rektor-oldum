@@ -78,12 +78,15 @@ service cloud.firestore {
 
       // Mevcut kaydı güncelleme: yeni skor MEVCUT skordan yüksek olmalı
       // (R-Fatih önerisi — kullanıcı başına yalnızca en iyi skor tutulur)
+      // v0.7.2: 25 Eylül 2026 00:00 UTC'den (Sezon 2 kesimi, 1790294400000 ms) önceki kayıtlar
+      // donduruldu. Önbellekte eski sürüm kalan istemci eski sezon kaydının üstüne yazamaz.
       allow update: if
         request.auth != null
         && scoreId == request.auth.uid
         && !isBanned(request.auth.uid)
         && validScore(request.resource.data, request.auth.uid)
-        && request.resource.data.score > resource.data.score;
+        && request.resource.data.score > resource.data.score
+        && resource.data.createdAt >= timestamp.value(1790294400000);
 
       // Silme yasak
       allow delete: if false;

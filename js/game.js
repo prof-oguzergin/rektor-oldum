@@ -3518,6 +3518,10 @@ function runSimulation() {
     syncAdminUnitStats(_state.adminUnits, _state.adminStaff, _state.buildings);
   }
 
+  // v0.7.2: laboratuvar odaları öğrenci sayısına göre paylaşılır. Bu dönemin kayıt ve mezuniyetinden
+  // sonra yeniden dağıtılır ki yayın ve akreditasyon güncel karşılamayı kullansın.
+  _recalcDeptLabScores(_state);
+
   // ── 4. ARAŞTIRMA İLERLEMESİ ────────────────────────────────────────────────
   // Her hoca için araştırma puanı ve bölüm potansiyeline göre yayın üret
   let newPubs = 0;

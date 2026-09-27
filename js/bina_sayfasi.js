@@ -863,7 +863,7 @@ export function binaKartEtkileri(state, b, h) {
     case 'kutuphane': case 'yurt': case 'yemekhane': case 'spor_tesisi': {
       const k = hizmetKatkisi(state, b.type);
       const coklu = (state.buildings || []).filter(x => x.type === b.type && x.isCompleted).length > 1;
-      maddeler.push(`Şimdi ${k.bilesen} +${ond(k.puan)}${coklu ? ' (aynı türün bütün binalarıyla)' : ''}, genel memnuniyete yaklaşık +${ond(k.puan * k.agirlik)} puan`);
+      maddeler.push(`Şimdi ${k.bilesen} puanına katkı +${ond(k.puan)}${coklu ? ' (aynı türün bütün binalarıyla)' : ''}, genel memnuniyete en çok +${ond(k.puan * k.agirlik)} puan`);
       break;
     }
     case 'idari_bina':
@@ -944,7 +944,7 @@ function etkiKarti(state, b, tanim, h) {
       maddeler.push(
         'Yerleşkedeki kütüphanelerin günlük kapasitesi öğrenci sayısını karşıladığı oranda Sosyal Yaşam puanına en çok +20 ekler.',
         `${zaman} günde ${sayi(k.toplam)} kişi, ${sayi(k.ihtiyac)} öğrenci. Karşılama %${Math.round(k.oran * 100)}, katkı <b>+${ond(k.puan)}</b>.`,
-        `Sosyal Yaşam öğrenci memnuniyetinin %10'u. Bu katkı genel memnuniyete yaklaşık +${ond(k.genel)} puan ekler.`,
+        `Sosyal Yaşam öğrenci memnuniyetinin %10'u. Bu katkı genel memnuniyete en çok +${ond(k.genel)} puan ekler.`,
         'Aynı anda oturma kapasitesi yalnız gösterilir. Memnuniyet hesabı günlük kapasiteye bakar.',
         idariNotu('Kütüphane Hizmetleri', 10),
         memnuniyetNotu,
@@ -956,7 +956,7 @@ function etkiKarti(state, b, tanim, h) {
       maddeler.push(
         'Yerleşkedeki toplam yatak öğrenci sayısını karşıladığı oranda Yurt İmkânı puanı 30\'dan 85\'e çıkar.',
         `${zaman} ${sayi(k.toplam)} yatak, ${sayi(k.ihtiyac)} öğrenci. Karşılama %${Math.round(k.oran * 100)}, puana katkı <b>+${ond(k.puan)}</b>.`,
-        `Yurt İmkânı öğrenci memnuniyetinin %10'u. Genel memnuniyete yaklaşık +${ond(k.genel)} puan ekler.`,
+        `Yurt İmkânı öğrenci memnuniyetinin %10'u. Genel memnuniyete en çok +${ond(k.genel)} puan ekler.`,
         'Oyun yurttan gelir hesaplamıyor.',
         memnuniyetNotu,
       );
@@ -967,7 +967,7 @@ function etkiKarti(state, b, tanim, h) {
       maddeler.push(
         'Yemekhane puanı 30 + 33 × oran. Oran, yerleşkedeki günlük öğünün öğrenci ve hoca sayısına bölümü. En çok 1,2 sayılır.',
         `${zaman} günde ${sayi(k.toplam)} öğün, ${sayi(k.ihtiyac)} kişi. Oran ${ond(k.oran, 2)}, katkı <b>+${ond(k.puan)}</b>.`,
-        `Yemekhane öğrenci memnuniyetinin %7'si. Genel memnuniyete yaklaşık +${ond(k.genel)} puan ekler.`,
+        `Yemekhane öğrenci memnuniyetinin %7'si. Genel memnuniyete en çok +${ond(k.genel)} puan ekler.`,
         'Hoca mutluluğunu etkilemiyor.',
         idariNotu('Yemekhane Yönetimi', 10),
         memnuniyetNotu,
@@ -979,7 +979,7 @@ function etkiKarti(state, b, tanim, h) {
       maddeler.push(
         'Spor Tesisleri puanı 38 + 28 × oran. Oran, yerleşkedeki günlük kullanıcı kapasitesinin öğrenci sayısına bölümü. En çok 1,2 sayılır.',
         `${zaman} günde ${sayi(k.toplam)} kullanıcı, ${sayi(k.ihtiyac)} öğrenci. Oran ${ond(k.oran, 2)}, katkı <b>+${ond(k.puan)}</b>.`,
-        `Spor Tesisleri öğrenci memnuniyetinin %5'i. Genel memnuniyete yaklaşık +${ond(k.genel)} puan ekler.`,
+        `Spor Tesisleri öğrenci memnuniyetinin %5'i. Genel memnuniyete en çok +${ond(k.genel)} puan ekler.`,
         'Basketbol, futbol, voleybol ve yüzme takımı kurmak için gerekli.',
         'Takımların maç gücüne +15 ekler ama ikinci tesis bunu artırmaz.',
         memnuniyetNotu,
@@ -988,7 +988,7 @@ function etkiKarti(state, b, tanim, h) {
     }
     case 'konferans':
       maddeler.push(
-        'Kalite puanında Uluslararasılaşma bileşenine +15 ekler. Bileşenin ağırlığı %10, kalite puanına yaklaşık +1,5.',
+        'Kalite puanında Uluslararasılaşma bileşenine +15 ekler. Bileşenin ağırlığı %10, kalite puanına en çok +1,5.',
         'Saygınlık her dönem kalite puanına yavaşça yaklaşır. Sıralama hesabı da aynı +15\'i kullanır.',
         'Uluslararası sıralamada Uluslararası görünüm puanına +12.',
         'Sosyal Yaşam puanına +8 (öğrenci memnuniyetinin %10\'u).',
@@ -997,7 +997,7 @@ function etkiKarti(state, b, tanim, h) {
       break;
     case 'saglik_merkezi':
       maddeler.push(
-        'Sağlık hizmeti puanına +12. Bu puan İdari Hizmetler puanının beşte biri, İdari Hizmetler de öğrenci memnuniyetinin %12\'si. Genel memnuniyete yaklaşık +0,3 puan ekler.',
+        'Sağlık hizmeti puanına +12. Bu puan İdari Hizmetler puanının beşte biri, İdari Hizmetler de öğrenci memnuniyetinin %12\'si. Genel memnuniyete en çok +0,3 puan ekler.',
         'Etkisi düzeye ve günlük hasta kapasitesine bağlı değil.',
         idariNotu('Sağlık Merkezi', 15),
         memnuniyetNotu,
@@ -1007,7 +1007,7 @@ function etkiKarti(state, b, tanim, h) {
       const katki = idariKatki(duzeyToplami(state, 'idari_bina', degisen));
       maddeler.push(
         `İdari Hizmetler puanına düzey 1'de +6, düzey 2'de +10, düzey 3'te +14 ekler. ${zaman} <b>+${katki}</b>.`,
-        `İdari Hizmetler öğrenci memnuniyetinin %12'si. Genel memnuniyete yaklaşık +${ond(katki * MEMNUNIYET_AGIRLIGI.idari)} puan ekler.`,
+        `İdari Hizmetler öğrenci memnuniyetinin %12'si. Genel memnuniyete en çok +${ond(katki * MEMNUNIYET_AGIRLIGI.idari)} puan ekler.`,
         'İdari sekmesinde bütün birimlere düzeye göre "+%10, +%15, +%20 verimlilik" yazılır. Bu yalnız gösterimdir, bir sonucu yok.',
         memnuniyetNotu,
       );
@@ -1017,7 +1017,7 @@ function etkiKarti(state, b, tanim, h) {
       const katki = ulasimKatki(duzeyToplami(state, 'ulasim_merkezi', degisen));
       maddeler.push(
         `Ulaşım puanına düzey 1'de +12, düzey 2'de +18, düzey 3'te +24 ekler. ${zaman} <b>+${katki}</b>.`,
-        `Ulaşım öğrenci memnuniyetinin %5'i. Genel memnuniyete yaklaşık +${ond(katki * MEMNUNIYET_AGIRLIGI.ulasim)} puan ekler.`,
+        `Ulaşım öğrenci memnuniyetinin %5'i. Genel memnuniyete en çok +${ond(katki * MEMNUNIYET_AGIRLIGI.ulasim)} puan ekler.`,
         idariNotu('Ulaşım Hizmetleri', 10),
         memnuniyetNotu,
       );
