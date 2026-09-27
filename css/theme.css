@@ -3579,3 +3579,70 @@ input[type="range"].ob-kaydirici:focus-visible { outline: 2px solid var(--gold-s
   .geri-dugmeler .btn { flex: 1 1 0; min-width: 0; min-height: 44px; }
   .geri-yedek { text-align: center; }
 }
+
+/* v0.7.2 bina sayfası */
+/* Bina Sayfası (js/bina_sayfasi.js): geniş pencerede kimlik, işlemler, gösterge kutuları; altında iki
+   sütun (kapasite, bölümler, etki | sonraki düzey, bakım). Telefonda tek sütun. Kart, satır, rozet ve
+   çubuk ortak bileşenlerden (ob-). */
+#general-modal.modal-wide:has(.bina-sayfa) { max-width: min(1120px, 92vw); width: min(1120px, 92vw); }
+.bina-sayfa { display: flex; flex-direction: column; gap: 14px; min-width: 0; }
+.bina-sayfa-ust { display: flex; align-items: center; gap: 16px; min-width: 0; }
+.bina-sayfa-gorsel { flex-shrink: 0; display: grid; place-items: center; }
+.bina-sayfa-gorsel .bina-gorsel { width: 96px; height: 96px; }
+.bina-sayfa-kimlik { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 4px; }
+.bina-sayfa-ad { font-size: 22px; }
+.bina-sayfa-kimlik .ob-kimlik-alt { margin-top: 0; }
+.bina-sayfa-kimlik .ob-kimlik-alt .ob-puan { margin: 0 4px 0 2px; }
+.bina-sayfa-durum { display: flex; flex-wrap: wrap; gap: 6px; }
+.bina-sayfa-islev { margin: 2px 0 0; font-size: 13px; line-height: 1.5; color: var(--ob-metin); }
+.bina-sayfa-ilerleme { margin: -4px 0 0; }
+.bina-sayfa-ad-form { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.bina-sayfa-ad-girdi { flex: 1 1 200px; min-width: 0; min-height: 36px; font-size: 15px; font-weight: 700; }
+.bina-sayfa-eylemler { gap: 8px; }
+.bina-sayfa-govde { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 360px); gap: 14px; align-items: start; }
+.bina-sayfa-ana, .bina-sayfa-yan { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+.bina-sayfa-kart .ob-satir b { overflow-wrap: anywhere; }
+.bina-sayfa-kart .ob-kart-baslik .ob-sayi { letter-spacing: 0; }
+.bina-bolum-not { margin: 0 0 8px; }
+.bina-bolum-liste { display: flex; flex-direction: column; gap: 8px; }
+.bina-bolum-satir {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  padding: 8px 10px;
+  border-radius: 10px;
+  background: var(--ob-cukur);
+  border: 1px solid rgba(150, 175, 255, 0.12);
+}
+.bina-bolum-ikon { flex-shrink: 0; display: grid; place-items: center; width: 30px; height: 30px; font-size: 20px; }
+.bina-bolum-govde { flex: 1; min-width: 0; }
+.bina-bolum-ad { font-size: 13.5px; color: var(--ob-metin-guclu); overflow-wrap: anywhere; }
+.bina-bolum-alt { margin-top: 2px; font-size: 12px; line-height: 1.45; color: var(--ob-metin-soluk); overflow-wrap: anywhere; }
+.bina-bolum-satir > .ob-rozet { flex-shrink: 0; }
+.bina-etki { gap: 6px; }
+.bina-etki b { color: var(--ob-iyi); }
+.bina-lab-tablo { margin-top: 12px; }
+.bina-alt-baslik { margin-bottom: 6px; font-size: 10.5px; font-weight: 800; letter-spacing: 0.08em; text-transform: uppercase; color: var(--ob-etiket); }
+/* Yerleşke: bina kartına tıklamak Bina Sayfası'nı açar */
+.bina-kart[data-building-id] { cursor: pointer; transition: border-color 0.15s ease; }
+.bina-kart[data-building-id]:hover { border-color: rgba(240, 192, 64, 0.45); }
+
+@media (max-width: 900px) {
+  .bina-sayfa-govde { grid-template-columns: minmax(0, 1fr); }
+}
+
+@media (max-width: 600px) {
+  .bina-sayfa-ust { align-items: flex-start; gap: 12px; }
+  .bina-sayfa-gorsel .bina-gorsel { width: 72px; height: 72px; }
+  .bina-sayfa-ad { font-size: 19px; }
+  /* Dokunma hedefi en az 44 piksel */
+  .bina-sayfa .btn, .bina-kart .ob-dugmeler--alt .btn { min-height: 44px; }
+  .bina-sayfa-eylemler .btn, .bina-kart .ob-dugmeler--alt .btn { flex: 1 1 auto; justify-content: center; }
+  .bina-sayfa .bs-link { display: inline-flex; align-items: center; min-width: 44px; min-height: 44px; }
+  .bina-sayfa-ad-girdi { min-height: 44px; }
+  #general-modal:has(.bina-sayfa) #btn-close-modal { min-width: 44px; min-height: 44px; }
+  .bina-bolum-satir { flex-wrap: wrap; }
+  .bina-sayfa .ob-tablo-kap > .ob-tablo th, .bina-sayfa .ob-tablo-kap > .ob-tablo td { padding: 7px 5px; }
+  .bina-sayfa .ob-tablo-kap > .ob-tablo th { font-size: 10px; letter-spacing: 0.02em; white-space: normal; }
+}
