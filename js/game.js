@@ -377,8 +377,11 @@ export function calculateCampusUsageSummary(state) {
 // v0.7.2: LABORATUVAR ODALARI PAYLAŞILIR
 // Oyuncu bildirimi (27 Eyl 2026): bir laboratuvar binasına bütün bölümler bağlanabiliyor, her
 // bağlanan bölüm binanın düzeyi × 25 puanı tam alıyordu. Şimdi:
-//  - Laboratuvar gerektiren bölümün (labRequirement > 0) oda ihtiyacı her 60 öğrenciye bir oda.
-//    Laboratuvar gerektirmeyen bölüm oda kullanmaz, laboratuvar puanı 100 kalır.
+//  - Laboratuvar gerektiren bölümün (labRequirement ≥ 2) oda ihtiyacı her 60 öğrenciye bir oda.
+//    Laboratuvar gerektirmeyen bölüm oda kullanmaz, laboratuvar puanı 100 kalır. v0.7.2 doğruluk:
+//    labRequirement 1 olan bölümler (İşletme, İktisat, İletişim, Güzel Sanatlar) de laboratuvar
+//    gerektirmeyen sayılır; puanlarını hiçbir hesap okumuyordu (yayın çarpanı labRequirement ≥ 2'de,
+//    laboratuvar şartı olan akreditasyonlar yalnız mühendislikte), ama oda alıp mühendislikten eksiltiyorlardı.
 //  - Bitmiş Laboratuvar binasının odalarını ona bağlı bölümler (linkedDepartments), araştırma
 //    merkezinin odalarını ona bağlanan bölümler (assignedDepartments) paylaşır.
 //  - Her bina odalarını bölümlerin kalan ihtiyacı oranında böler; hiçbir bölüm ihtiyacından
@@ -396,6 +399,12 @@ export function calculateCampusUsageSummary(state) {
 const LAB_ODA_BASINA_OGRENCI = 60;   // bir laboratuvar odası 60 öğrenciye yeter
 const LAB_PUAN_TABANI        = 30;   // hiç oda ayrılmamış bölümün laboratuvar puanı
 const LAB_PUAN_ARALIGI       = 70;   // tam karşılamada eklenen (30 + 70 = 100)
+const LAB_GEREKSINIM_ESIGI   = 2;    // labRequirement bu ve üstündeyse bölüm laboratuvar gerektirir (bina_sayfasi.js aynı)
+
+/** Bölüm laboratuvar gerektiriyor mu (oda ihtiyacı, laboratuvar puanı ve yayın çarpanı). */
+function _labGerekir(d) {
+  return (Number(d?.labRequirement) || 0) >= LAB_GEREKSINIM_ESIGI;
+}
 
 const _yuvarla2 = x => Math.round((Number(x) || 0) * 100) / 100;
 
@@ -424,7 +433,7 @@ function _labDagilimi(state) {
     if (!d || !d.id || d.isOpen === false) continue;
     const bd = state.students?.byDepartment?.[d.id] || {};
     const ogrenci = (bd.year1?.count || 0) + (bd.year2?.count || 0) + (bd.year3?.count || 0) + (bd.year4?.count || 0);
-    const ihtiyac = (Number(d.labRequirement) || 0) > 0 ? Math.ceil(ogrenci / LAB_ODA_BASINA_OGRENCI) : 0;
+    const ihtiyac = _labGerekir(d) ? Math.ceil(ogrenci / LAB_ODA_BASINA_OGRENCI) : 0;
     bolumler.set(d.id, { ihtiyac, kalan: ihtiyac, ayrilan: 0, bagli: false });
   }
 
@@ -491,7 +500,7 @@ function _recalcDeptLabScores(state) {
     d.labIhtiyaci  = v.ihtiyac;
     d.labAyrilan   = _yuvarla2(v.ayrilan);
     d.labKarsilama = Math.round(karsilama * 1000) / 1000;
-    d.labScore     = (Number(d.labRequirement) || 0) > 0
+    d.labScore     = _labGerekir(d)
       ? Math.min(100, Math.round(LAB_PUAN_TABANI + LAB_PUAN_ARALIGI * karsilama))
       : 100;
   }
@@ -1291,7 +1300,7 @@ function buildDepartmentState(deptId) {
     // Kalite göstergeleri
     educationQuality:    50,           // 0-100
     studentSatisfaction: 50,
-    labScore:            template.labRequirement > 0 ? 30 : 100,
+    labScore:            _labGerekir(template) ? 30 : 100,   // v0.7.2: _recalcDeptLabScores ile aynı kural
 
     // Durum
     isOpen:              true,
@@ -2026,6 +2035,11 @@ export function initGame(playerName, universityName, universityType, difficulty,
   _state.university.prestigeCeiling = Math.round(_prestijTavani(_state));
   _state.university.qualityScore    = Math.round(calculateQualityScore(_state));
   updateRankings(_state);
+
+  // v0.7.2 doğruluk: binaların kullanımı (usedCapacity) oyun başında da yazılır; eskiden ilk dönem
+  // sonuna dek 0 kalıyor, bina kartı 0 gösterirken Bina Sayfası hesaplanan kullanımı gösteriyordu.
+  // usedCapacity'yi yalnız arayüz okur; oyunun hesabı değişmez.
+  _updateAllBuildingUsage(_state);
 
   return {
     success: true,
@@ -2917,7 +2931,7 @@ function _calcSuccessProb(faculty, call, state) {
   const prestige      = isNaN(state.university.prestige) ? 0 : (state.university.prestige || 0);
   const base          = call.baseSuccessChance || 0.30;
   // Araştırma merkezine atanan bölümlerin hocalarına +%15 başarı çarpanı
-  // (data.js arastirma_merkezi.benefitText: "atanan bölümün araştırma çıktısı %15 artar")
+  // (data.js arastirma_merkezi.benefitText: "yayın beklentisi ve dış proje kabul olasılığı 1,15 katına çıkar")
   const researchCenterBonus = _getResearchCenterBonus(state, faculty.department);
   const prob          = base * (1 + researchScore / 100) * (1 + prestige / 200) * researchCenterBonus;
   return Math.min(0.92, parseFloat(prob.toFixed(2)));
@@ -3516,7 +3530,7 @@ function runSimulation() {
     // v0.7: yayın olasılığı araştırma fonuna, araştırma merkezine (atanan bölüme %15) ve
     // laboratuvar gerektiren bölümde lab puanına bağlı (lab yokken 0,94, tam labda 1,15)
     const merkezCarpani = _getResearchCenterBonus(_state, dept.id);
-    const labCarpani    = (dept.labRequirement || 0) >= 2
+    const labCarpani    = _labGerekir(dept)
       ? 0.85 + 0.30 * Math.max(0, Math.min(100, dept.labScore ?? 30)) / 100 : 1;
     const bolumCarpani  = fonCarpani * merkezCarpani * labCarpani;
     deptFaculty.forEach(f => {
@@ -3677,6 +3691,9 @@ function runSimulation() {
       building.isCompleted          = true;
       building.status               = 'operational';
       building.constructionProgress = 100;
+      // v0.7.2: biten teknokent teknokent etkisini açar (economy.js sponsorluk geliri, students.js
+      // Kariyer Desteği +15). Eskiden bayrağı yalnız "Özel Sektör AR-GE Merkezi Teklifi" olayı açıyordu.
+      if (building.type === 'teknokent' && _state.university) _state.university.hasTechnoPark = true;
     }
   });
 
@@ -5719,6 +5736,12 @@ function migrateState(state) {
         building.assignedDepartments = [];
       }
     }
+  }
+
+  // v0.7.2 doğruluk: bitmiş teknokent teknokent etkisini açar (sponsorluk geliri, Kariyer Desteği +15).
+  // Eskiden bina bitince bayrak açılmıyordu; teknokenti bitmiş kayıtta yüklemede açılır.
+  if (state.university && (state.buildings || []).some(b => b?.type === 'teknokent' && b.isCompleted)) {
+    state.university.hasTechnoPark = true;
   }
 
   // v0.7.2: laboratuvar odaları paylaşılır (_recalcDeptLabScores); laboratuvar puanı yüklemede yeni

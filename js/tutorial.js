@@ -41,7 +41,7 @@ Her dönem sonunda <strong>"Sonraki Dönem"</strong> butonuna basarak ilerleyece
     id: 'yerleske',
     title: '🏛️ Yerleşke: Bina İnşaatı',
     content: `<strong>Yerleşke</strong> sekmesinde bina yapabilir, düzey yükseltebilir, bölüm atayabilirsiniz.<br><br>
-Derslik ve ofis kapasitesi öğrenci/hoca sayınızı sınırlar.`,
+Derslik koltukları bölümlerin öğrenci kapasitesini ve yeni alımını sınırlar. Bir binaya tıklayınca Bina Sayfası o binanın oyundaki etkisini gösterir.`,
     highlightSelector: '.sidebar-tab[data-tab="campus"]',
   },
   {
