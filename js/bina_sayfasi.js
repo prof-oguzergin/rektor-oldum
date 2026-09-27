@@ -99,13 +99,13 @@ export function binaEtkiOzeti(tur) {
       return [
         'Bağlı bölümde yayın beklentisi ×1,15',
         'Bağlı bölümde dış proje kabul olasılığı ×1,15',
-        `Laboratuvar odalarını, laboratuvar gerektiren bağlı bölümler ihtiyaçları oranında paylaşır; her düzey +${o.artis} oda`,
+        `Laboratuvar odalarını, laboratuvar gerektiren bağlı bölümler ihtiyaçları oranında paylaşır. Her düzey +${o.artis} oda ekler`,
       ];
     }
     case 'lab': {
       const o = labOdaTanimi(tur);
       return [
-        `Odalarını, laboratuvar gerektiren bağlı bölümler ihtiyaçları oranında paylaşır; her ${LAB_ODA_BASINA_OGRENCI} öğrenciye bir oda gerekir, her düzey +${o.artis} oda`,
+        `Odalarını, laboratuvar gerektiren bağlı bölümler ihtiyaçları oranında paylaşır. Her ${LAB_ODA_BASINA_OGRENCI} öğrenciye bir oda gerekir, her düzey +${o.artis} oda ekler`,
         `Bölümün laboratuvar puanı ${LAB_PUAN_TABANI} + ${LAB_PUAN_ARALIGI} × karşılama (yayın beklentisi ve akreditasyon)`,
       ];
     }
@@ -605,7 +605,7 @@ function kapasiteKarti(state, b, tanim, h, dagilim) {
       satirlar.push(cubuk(oran));
       satirlar.push(not(pay.ortak
         ? (pay.satirlar.length
-          ? `Bu binaya bölüm atanmadı. Derslikleri, kendine derslik binası atanmamış bölümlerin ortak alanı${dagilim.ortakBinaSayisi > 1 ? ` (${dagilim.ortakBinaSayisi} bina, toplam ${sayi(dagilim.ortakKoltuk)} koltuk; bu bina koltuğu oranında pay taşır)` : ''}.`
+          ? `Bu binaya bölüm atanmadı. Derslikleri, kendine derslik binası atanmamış bölümlerin ortak alanı${dagilim.ortakBinaSayisi > 1 ? ` (${dagilim.ortakBinaSayisi} bina, toplam ${sayi(dagilim.ortakKoltuk)} koltuk). Bu bina koltuğu oranında pay taşır` : ''}.`
           : 'Bu binaya bölüm atanmadı ve dersliklerini kullanan bölüm yok.')
         : 'Koltuklar bu binaya atanmış bölümler arasında öğrenci sayısı oranında paylaşılır. Yetmezse önce küçük bölümlerin ihtiyacı karşılanır.'));
     }
@@ -617,12 +617,12 @@ function kapasiteKarti(state, b, tanim, h, dagilim) {
     if (b.type === 'fakulte_binasi' || b.type === 'arastirma_merkezi') {
       if (bitti && atanan) {
         satirlar.push(h.satir('Kullanılan ofis', `${sayi(kul.offices)} <span class="ob-soluk">/ ${sayi(kap.offices)}</span>`, (kul.offices || 0) > kap.offices ? 'ob-kritik' : ''));
-        satirlar.push(not('Bu binaya bağlı bölümlerin hocaları sayılır. Prof. ve Doç. tek ofis alır; boş ofis yetmezse Dr. Öğr. Üyeleri ikişer, araştırma görevlileri üçer kişi paylaşır. Ofis doluluğu şu an bir ceza ya da ödül doğurmuyor.'));
+        satirlar.push(not('Bu binaya bağlı bölümlerin hocaları sayılır. Prof. ve Doç. tek ofis alır. Boş ofis yetmezse Dr. Öğr. Üyeleri ikişer, araştırma görevlileri üçer kişi paylaşır. Ofis doluluğu şu an bir ceza ya da ödül doğurmuyor.'));
       } else if (bitti) {
-        satirlar.push(not('Ofis kullanımı yalnız bu binaya atanmış bölümlerin hocaları için hesaplanır; ofis doluluğu şu an bir ceza ya da ödül doğurmuyor.'));
+        satirlar.push(not('Ofis kullanımı yalnız bu binaya atanmış bölümlerin hocaları için hesaplanır. Ofis doluluğu şu an bir ceza ya da ödül doğurmuyor.'));
       }
     } else {
-      satirlar.push(not('Oyun bu ofislere kimseyi yerleştirmiyor; ofis sayısının bir sonucu yok.'));
+      satirlar.push(not('Oyun bu ofislere kimseyi yerleştirmiyor. Ofis sayısının bir sonucu yok.'));
     }
   }
 
@@ -633,7 +633,7 @@ function kapasiteKarti(state, b, tanim, h, dagilim) {
       satirlar.push(h.satir('Bölümlere ayrılan oda', `${h.ondalik(bl.ayrilan, 1)} <span class="ob-soluk">/ ${sayi(kap.labs)}</span>`));
       satirlar.push(h.satir('Bağlı bölümlerin ihtiyacı', `${sayi(bl.ihtiyac)} oda`, bl.ihtiyac > kap.labs ? 'ob-uyari' : ''));
       satirlar.push(cubuk(Math.min(1, bl.ayrilan / kap.labs), 'iyi'));
-      satirlar.push(not(`Odaları, laboratuvar gerektiren bağlı bölümler kalan ihtiyaçları oranında paylaşır; her ${LAB_ODA_BASINA_OGRENCI} öğrenciye bir oda gerekir, hiçbir bölüm ihtiyacından fazlasını almaz. Dağılım aşağıdaki kartta.`));
+      satirlar.push(not(`Odaları, laboratuvar gerektiren bağlı bölümler kalan ihtiyaçları oranında paylaşır. Her ${LAB_ODA_BASINA_OGRENCI} öğrenciye bir oda gerekir, hiçbir bölüm ihtiyacından fazlasını almaz. Dağılım aşağıdaki kartta.`));
     } else {
       satirlar.push(not('Yapım bitince odalarını, laboratuvar gerektiren bağlı bölümler ihtiyaçları oranında paylaşır.'));
     }
@@ -650,7 +650,7 @@ function kapasiteKarti(state, b, tanim, h, dagilim) {
         satirlar.push(h.satir('Günlük kullanım', `${sayi(kul.daily)} <span class="ob-soluk">/ ${sayi(kap.daily || 0)} · öğrenci ${sayi(ogrenci)}</span>`, `ob-${dolulukTuru(oran)}`));
         satirlar.push(cubuk(oran));
         satirlar.push(h.satir('Aynı anda kullanım', `${sayi(kul.simultaneous)} <span class="ob-soluk">/ ${sayi(kap.simultaneous || 0)}</span>`));
-        satirlar.push(not('Oyun her öğrenciyi günde bir kez, öğrencilerin dörtte birini aynı anda sayar; kullanım kapasiteyle sınırlı.'));
+        satirlar.push(not('Oyun her öğrenciyi günde bir kez, öğrencilerin dörtte birini aynı anda sayar. Kullanım kapasiteyle sınırlı.'));
       }
       break;
     }
@@ -660,7 +660,7 @@ function kapasiteKarti(state, b, tanim, h, dagilim) {
         const oran = kap.beds ? kul.beds / kap.beds : 0;
         satirlar.push(h.satir('Dolu yatak', `${sayi(kul.beds)} <span class="ob-soluk">/ ${sayi(kap.beds || 0)}</span>`));
         satirlar.push(cubuk(oran, 'iyi'));
-        satirlar.push(not('Oyun öğrencilerin %40\'ını yurtta sayar; dolu yatak kapasiteyle sınırlı. Memnuniyet hesabı ise toplam yatağı bütün öğrencilerle karşılaştırır.'));
+        satirlar.push(not('Oyun öğrencilerin %40\'ını yurtta sayar. Dolu yatak kapasiteyle sınırlı. Memnuniyet hesabı ise toplam yatağı bütün öğrencilerle karşılaştırır.'));
       }
       break;
     }
@@ -671,7 +671,7 @@ function kapasiteKarti(state, b, tanim, h, dagilim) {
         const oran = kap.dailyMeals ? ihtiyac / kap.dailyMeals : 0;
         satirlar.push(h.satir('Günlük kullanım', `${sayi(kul.dailyMeals)} <span class="ob-soluk">/ ${sayi(kap.dailyMeals || 0)} · ihtiyaç ${sayi(ihtiyac)}</span>`, `ob-${dolulukTuru(oran)}`));
         satirlar.push(cubuk(oran));
-        satirlar.push(not(`İhtiyaç ${sayi(ogrenci)} öğrenci ile ${sayi(hoca)} hocanın toplamı; her kişi günde bir öğün sayılır.`));
+        satirlar.push(not(`İhtiyaç ${sayi(ogrenci)} öğrenci ile ${sayi(hoca)} hocanın toplamı. Her kişi günde bir öğün sayılır.`));
       }
       break;
     }
@@ -682,7 +682,7 @@ function kapasiteKarti(state, b, tanim, h, dagilim) {
         const oran = kap.dailyUsers ? istek / kap.dailyUsers : 0;
         satirlar.push(h.satir('Günlük kullanım', `${sayi(kul.dailyUsers)} <span class="ob-soluk">/ ${sayi(kap.dailyUsers || 0)} · isteyen ${sayi(istek)}</span>`, `ob-${dolulukTuru(oran)}`));
         satirlar.push(cubuk(oran));
-        satirlar.push(not('Oyun öğrencilerin %60\'ını günlük kullanıcı sayar; kullanım kapasiteyle sınırlı.'));
+        satirlar.push(not('Oyun öğrencilerin %60\'ını günlük kullanıcı sayar. Kullanım kapasiteyle sınırlı.'));
       }
       break;
     }
@@ -741,7 +741,7 @@ export function labPayTablosu(state, b, h, labDag = labDagilimi(state)) {
         <thead><tr><th>Bölüm</th><th class="n">İhti&shy;yaç</th><th class="n">Bu bina&shy;dan</th><th class="n">Top&shy;lam</th><th class="n">Karşı&shy;lama</th></tr></thead>
         <tbody>${satirlar}</tbody>
       </table></div>
-      <div class="ob-tablo-dip">İhtiyaç her ${LAB_ODA_BASINA_OGRENCI} öğrenciye bir oda. "Bu binadan" bu binanın bölüme ayırdığı oda, "Toplam" bölümün bütün laboratuvarlardan ve araştırma merkezlerinden aldığı oda. Karşılama toplamın ihtiyaca oranı; laboratuvar puanı ${LAB_PUAN_TABANI} + ${LAB_PUAN_ARALIGI} × karşılama.</div>
+      <div class="ob-tablo-dip">İhtiyaç her ${LAB_ODA_BASINA_OGRENCI} öğrenciye bir oda. "Bu binadan" bu binanın bölüme ayırdığı oda, "Toplam" bölümün bütün laboratuvarlardan ve araştırma merkezlerinden aldığı oda. Karşılama toplamın ihtiyaca oranı. Laboratuvar puanı ${LAB_PUAN_TABANI} + ${LAB_PUAN_ARALIGI} × karşılama.</div>
     </div>`;
 }
 
@@ -754,7 +754,7 @@ function bolumlerKarti(state, b, tanim, h, dagilim) {
   const derslikli = (bitti ? (b.currentCapacity?.classrooms || 0) : (duzeyKapasitesi(tanim, 1).classrooms || 0)) > 0;
 
   if (!tanim.assignable) {
-    return kart('Bölümler', not('Bu binaya bölüm atanmaz; bütün yerleşkeye hizmet eder.'));
+    return kart('Bölümler', not('Bu binaya bölüm atanmaz. Bütün yerleşkeye hizmet eder.'));
   }
   if (!bitti) {
     return kart('Bölümler', not('Yapım bitince bölüm atanabilir.'));
@@ -780,7 +780,7 @@ function bolumlerKarti(state, b, tanim, h, dagilim) {
     }).filter(Boolean).join('');
     const giris = pay?.ortak
       ? (satirlar ? not('Bu binaya bölüm atanmadı. Kendine derslik binası atanmamış şu bölümler dersliklerini paylaşıyor.') : not('Dersliklerini kullanan bölüm yok. "Bölüm ata" düğmesiyle bölüm atayabilirsiniz.'))
-      : not('Bu binaya atanmış bölümler ve bu binadan aldıkları yer. Yer dört sınıflıktır (koltuk × 4); bölüm %90\'ı aşınca başarısızlık artar.');
+      : not('Bu binaya atanmış bölümler ve bu binadan aldıkları yer. Yer dört sınıflıktır (koltuk × 4). Bölüm %90\'ı aşınca başarısızlık artar.');
     // Hiçbir dersliğe erişemeyen bölümler (game.js _updateDeptCapacities 'yedek'): son atanmamış derslik
     // binasına da bölüm atanınca ortak alan kalmaz, kendine binası olmayan bölümler tek derslik sayılır
     const yedekte = (state.departments || [])
@@ -810,7 +810,7 @@ function bolumlerKarti(state, b, tanim, h, dagilim) {
       const l = labAlt(d);
       return bolumSatiri(d, [l.alt, derslikYeri(state, d, dagilim, h)].join(' · '), l.rozet, h);
     }).join('');
-    const giris = not(`Bağlı bölüm fakülte binasında kalır, derslikleri ve öğrenci alımı değişmez. Binanın ${sayi(labOdasi(b))} laboratuvar odasını, laboratuvar gerektiren bağlı bölümler kalan ihtiyaçları oranında paylaşır; her ${LAB_ODA_BASINA_OGRENCI} öğrenciye bir oda gerekir. Karşılama, bölümün bütün binalardan aldığı odanın ihtiyacına oranı; laboratuvar puanı ${LAB_PUAN_TABANI} + ${LAB_PUAN_ARALIGI} × karşılama.`);
+    const giris = not(`Bağlı bölüm fakülte binasında kalır, derslikleri ve öğrenci alımı değişmez. Binanın ${sayi(labOdasi(b))} laboratuvar odasını, laboratuvar gerektiren bağlı bölümler kalan ihtiyaçları oranında paylaşır. Her ${LAB_ODA_BASINA_OGRENCI} öğrenciye bir oda gerekir. Karşılama, bölümün bütün binalardan aldığı odanın ihtiyacına oranı. Laboratuvar puanı ${LAB_PUAN_TABANI} + ${LAB_PUAN_ARALIGI} × karşılama.`);
     return kart(`Bağlı bölümler${depts.length ? ` <span class="ob-sayi">${depts.length}</span>` : ''}`,
       `${giris}${satirlar ? `<div class="bina-bolum-liste">${satirlar}</div>` : not('Henüz bağlı bölüm yok. "Bölüm bağla" düğmesiyle bağlayabilirsiniz.')}${labPayTablosu(state, b, h, dagilim.lab)}`);
   }
@@ -825,8 +825,8 @@ function bolumlerKarti(state, b, tanim, h, dagilim) {
     return bolumSatiri(d, alt, `<span class="ob-rozet ob-rozet--iyi ob-rozet--kucuk" title="Yayın beklentisi ve dış proje kabul olasılığı çarpanı">×${h.ondalik(carpan, 2)}</span>`, h);
   }).join('');
   const giris = b.type === 'arastirma_merkezi'
-    ? not(`Bağlı bölüm burada ders vermez ve öğrenci almaz; derslikleri ve öğrenci alımı kendi binasında sürer. Merkez, bu bölümün hocalarının yayın beklentisini ve dış proje kabul olasılığını 1,15 katına çıkarır; bölüm iki merkeze bağlıysa 1,30 katına.${odali ? ` Merkezin ${sayi(labOdasi(b))} laboratuvar odasını, laboratuvar gerektiren bağlı bölümler kalan ihtiyaçları oranında paylaşır.` : ''}`)
-    : not('Bağlı bölüm burada ders vermez; derslikleri ve öğrenci alımı kendi binasında sürer.');
+    ? not(`Bağlı bölüm burada ders vermez ve öğrenci almaz. Derslikleri ve öğrenci alımı kendi binasında sürer. Merkez, bu bölümün hocalarının yayın beklentisini ve dış proje kabul olasılığını 1,15 katına, bölüm iki merkeze bağlıysa 1,30 katına çıkarır.${odali ? ` Merkezin ${sayi(labOdasi(b))} laboratuvar odasını, laboratuvar gerektiren bağlı bölümler kalan ihtiyaçları oranında paylaşır.` : ''}`)
+    : not('Bağlı bölüm burada ders vermez. Derslikleri ve öğrenci alımı kendi binasında sürer.');
   return kart(`Bağlı bölümler${depts.length ? ` <span class="ob-sayi">${depts.length}</span>` : ''}`,
     `${giris}${satirlar ? `<div class="bina-bolum-liste">${satirlar}</div>` : not('Henüz bağlı bölüm yok. "Bölüm ata" düğmesiyle bağlayabilirsiniz.')}${odali ? labPayTablosu(state, b, h, dagilim.lab) : ''}`);
 }
@@ -845,7 +845,7 @@ export function teknokentDonemGeliri(state) {
  */
 export function teknokentZatenAcikNotu(state) {
   return state?.university?.hasTechnoPark && !(state.buildings || []).some(b => b?.type === 'teknokent')
-    ? 'Teknokent etkisi "Özel Sektör AR-GE Merkezi Teklifi" olayıyla zaten açık; bu bina ayrıca gelir ya da puan eklemez.'
+    ? 'Teknokent etkisi "Özel Sektör AR-GE Merkezi Teklifi" olayıyla zaten açık. Bu bina ayrıca gelir ya da puan eklemez.'
     : '';
 }
 
@@ -863,7 +863,7 @@ export function binaKartEtkileri(state, b, h) {
     case 'kutuphane': case 'yurt': case 'yemekhane': case 'spor_tesisi': {
       const k = hizmetKatkisi(state, b.type);
       const coklu = (state.buildings || []).filter(x => x.type === b.type && x.isCompleted).length > 1;
-      maddeler.push(`Şimdi ${k.bilesen} +${ond(k.puan)}${coklu ? ' (aynı türün bütün binalarıyla)' : ''}; genel memnuniyete yaklaşık +${ond(k.puan * k.agirlik)} puan`);
+      maddeler.push(`Şimdi ${k.bilesen} +${ond(k.puan)}${coklu ? ' (aynı türün bütün binalarıyla)' : ''}, genel memnuniyete yaklaşık +${ond(k.puan * k.agirlik)} puan`);
       break;
     }
     case 'idari_bina':
@@ -892,7 +892,7 @@ function etkiKarti(state, b, tanim, h) {
   const degisen = bitti ? null : { id: b.id, kapasite: duzeyKapasitesi(tanim, 1), duzey: 1 };
   const maddeler = [];
   const memnuniyetNotu = 'Öğrenci memnuniyeti kalite puanına ve saygınlığa da yansır.';
-  const idariNotu = (birim, deger) => `İdari sekmesinde ${birim} birimine "+%${deger} verimlilik" yazılır; bu yalnız gösterimdir, bir sonucu yok.`;
+  const idariNotu = (birim, deger) => `İdari sekmesinde ${birim} birimine "+%${deger} verimlilik" yazılır. Bu yalnız gösterimdir, bir sonucu yok.`;
   const hizmet = (tur) => {
     const k = hizmetKatkisi(state, tur, degisen);
     return k ? { ...k, genel: k.puan * k.agirlik } : null;
@@ -901,14 +901,14 @@ function etkiKarti(state, b, tanim, h) {
   const labSimdi = () => {
     if (!bitti) return [];
     const bl = binaLabDurumu(state, b, labDagilimi(state));
-    return [`Şimdi ${sayi(bl.oda)} oda; bağlı bölümlerin ihtiyacı ${sayi(bl.ihtiyac)} oda, bölümlere ayrılan ${ond(bl.ayrilan)} oda.`];
+    return [`Şimdi ${sayi(bl.oda)} oda, bağlı bölümlerin ihtiyacı ${sayi(bl.ihtiyac)} oda, bölümlere ayrılan ${ond(bl.ayrilan)} oda.`];
   };
 
   switch (b.type) {
     case 'fakulte_binasi':
     case 'amfi':
       maddeler.push(
-        'Derslik koltukları bölümlerin öğrenci kapasitesini belirler. Bir koltuk bir yıllık alım sayılır; dört sınıf için koltuk × 4.',
+        'Derslik koltukları bölümlerin öğrenci kapasitesini belirler. Bir koltuk bir yıllık alım sayılır. Dört sınıf için koltuk × 4.',
         'Yeni alım, kapasiteden üst sınıflara geçecek öğrenciler çıkınca kalan yerle sınırlı.',
         'Bölümün öğrenci sayısı yerinin %90\'ını aşınca başarısızlık oranı 5 puan, %100\'ünü aşınca 10 puan artar.',
         'Doluluk %70\'i aşınca not ortalaması biraz düşer.',
@@ -917,25 +917,25 @@ function etkiKarti(state, b, tanim, h) {
     case 'arastirma_merkezi': {
       const o = labOdaTanimi(b.type);
       maddeler.push(
-        'Bağlı bölümün hocalarının dönemlik yayın beklentisi 1,15 katına çıkar. Bölüm iki merkeze bağlıysa 1,30 katına; daha fazlası artırmaz.',
+        'Bağlı bölümün hocalarının dönemlik yayın beklentisi 1,15 katına çıkar. Bölüm iki merkeze bağlıysa 1,30 katına çıkar. Daha fazla merkez bunu artırmaz.',
         'Bağlı bölümün hocalarının dış proje başvurularında kabul olasılığı 1,15 katına çıkar (iki merkezle 1,30). Olasılık en çok %92.',
         'Bu çarpanlar merkezin düzeyine bağlı değil.',
-        `Merkezin laboratuvar odalarını (düzey 1'de ${o.ilk}, her düzey +${o.artis}) laboratuvar gerektiren bağlı bölümler kalan ihtiyaçları oranında paylaşır; Laboratuvar binasıyla aynı kural. Bölümün laboratuvar puanı ${LAB_PUAN_TABANI} + ${LAB_PUAN_ARALIGI} × karşılama.`,
+        `Merkezin laboratuvar odalarını (düzey 1'de ${o.ilk}, her düzey +${o.artis}) laboratuvar gerektiren bağlı bölümler kalan ihtiyaçları oranında paylaşır. Kural Laboratuvar binasıyla aynı. Bölümün laboratuvar puanı ${LAB_PUAN_TABANI} + ${LAB_PUAN_ARALIGI} × karşılama.`,
         ...labSimdi(),
-        'Merkezin ofislerinin bir sonucu yok; ofis doluluğu bir ceza ya da ödül doğurmuyor.',
+        'Merkezin ofislerinin bir sonucu yok. Ofis doluluğu bir ceza ya da ödül doğurmuyor.',
       );
       break;
     }
     case 'lab': {
       const o = labOdaTanimi(b.type);
       maddeler.push(
-        `Binanın laboratuvar odalarını (düzey 1'de ${o.ilk}, her düzey +${o.artis}) laboratuvar gerektiren bağlı bölümler kalan ihtiyaçları oranında paylaşır. Her ${LAB_ODA_BASINA_OGRENCI} öğrenciye bir oda gerekir; hiçbir bölüm ihtiyacından fazlasını almaz, artan oda boş kalır.`,
+        `Binanın laboratuvar odalarını (düzey 1'de ${o.ilk}, her düzey +${o.artis}) laboratuvar gerektiren bağlı bölümler kalan ihtiyaçları oranında paylaşır. Her ${LAB_ODA_BASINA_OGRENCI} öğrenciye bir oda gerekir. Hiçbir bölüm ihtiyacından fazlasını almaz, artan oda boş kalır.`,
         'Az bölüme hizmet eden laboratuvar önce dağıtılır. Bir bölüm birden çok laboratuvardan ve araştırma merkezinden oda alabilir.',
         `Bölümün laboratuvar puanı ${LAB_PUAN_TABANI} + ${LAB_PUAN_ARALIGI} × karşılama. Karşılama, bölümün bütün binalardan aldığı odanın ihtiyacına oranı.`,
         ...labSimdi(),
         `Akreditasyonda her 25 laboratuvar puanı bir laboratuvar sayılır${labSartlari() ? ` (${labSartlari()} laboratuvar ister)` : ''}.`,
         'Laboratuvar gerektiren bölümde yayın beklentisi puana göre ×0,94 (30 puan) ile ×1,15 (100 puan) arasında değişir.',
-        `Laboratuvar gereksinimi ${LAB_GEREKSINIM_ESIGI}'nin altındaki bölüm laboratuvar gerektirmez, oda kullanmaz ve puanı 100; bağlamak bir şey değiştirmez.`,
+        `Laboratuvar gereksinimi ${LAB_GEREKSINIM_ESIGI}'nin altındaki bölüm laboratuvar gerektirmez, oda kullanmaz ve puanı 100. Bağlamak bir şey değiştirmez.`,
       );
       break;
     }
@@ -943,9 +943,9 @@ function etkiKarti(state, b, tanim, h) {
       const k = hizmet('kutuphane');
       maddeler.push(
         'Yerleşkedeki kütüphanelerin günlük kapasitesi öğrenci sayısını karşıladığı oranda Sosyal Yaşam puanına en çok +20 ekler.',
-        `${zaman} günde ${sayi(k.toplam)} kişi, ${sayi(k.ihtiyac)} öğrenci; karşılama %${Math.round(k.oran * 100)}, katkı <b>+${ond(k.puan)}</b>.`,
-        `Sosyal Yaşam öğrenci memnuniyetinin %10'u; bu katkı genel memnuniyete yaklaşık +${ond(k.genel)} puan.`,
-        'Aynı anda oturma kapasitesi yalnız gösterilir; memnuniyet hesabı günlük kapasiteye bakar.',
+        `${zaman} günde ${sayi(k.toplam)} kişi, ${sayi(k.ihtiyac)} öğrenci. Karşılama %${Math.round(k.oran * 100)}, katkı <b>+${ond(k.puan)}</b>.`,
+        `Sosyal Yaşam öğrenci memnuniyetinin %10'u. Bu katkı genel memnuniyete yaklaşık +${ond(k.genel)} puan ekler.`,
+        'Aynı anda oturma kapasitesi yalnız gösterilir. Memnuniyet hesabı günlük kapasiteye bakar.',
         idariNotu('Kütüphane Hizmetleri', 10),
         memnuniyetNotu,
       );
@@ -955,8 +955,8 @@ function etkiKarti(state, b, tanim, h) {
       const k = hizmet('yurt');
       maddeler.push(
         'Yerleşkedeki toplam yatak öğrenci sayısını karşıladığı oranda Yurt İmkânı puanı 30\'dan 85\'e çıkar.',
-        `${zaman} ${sayi(k.toplam)} yatak, ${sayi(k.ihtiyac)} öğrenci; karşılama %${Math.round(k.oran * 100)}, puana katkı <b>+${ond(k.puan)}</b>.`,
-        `Yurt İmkânı öğrenci memnuniyetinin %10'u; genel memnuniyete yaklaşık +${ond(k.genel)} puan.`,
+        `${zaman} ${sayi(k.toplam)} yatak, ${sayi(k.ihtiyac)} öğrenci. Karşılama %${Math.round(k.oran * 100)}, puana katkı <b>+${ond(k.puan)}</b>.`,
+        `Yurt İmkânı öğrenci memnuniyetinin %10'u. Genel memnuniyete yaklaşık +${ond(k.genel)} puan ekler.`,
         'Oyun yurttan gelir hesaplamıyor.',
         memnuniyetNotu,
       );
@@ -965,9 +965,9 @@ function etkiKarti(state, b, tanim, h) {
     case 'yemekhane': {
       const k = hizmet('yemekhane');
       maddeler.push(
-        'Yemekhane puanı 30 + 33 × oran. Oran, yerleşkedeki günlük öğünün öğrenci ve hoca sayısına bölümü; en çok 1,2 sayılır.',
-        `${zaman} günde ${sayi(k.toplam)} öğün, ${sayi(k.ihtiyac)} kişi; oran ${ond(k.oran, 2)}, katkı <b>+${ond(k.puan)}</b>.`,
-        `Yemekhane öğrenci memnuniyetinin %7'si; genel memnuniyete yaklaşık +${ond(k.genel)} puan.`,
+        'Yemekhane puanı 30 + 33 × oran. Oran, yerleşkedeki günlük öğünün öğrenci ve hoca sayısına bölümü. En çok 1,2 sayılır.',
+        `${zaman} günde ${sayi(k.toplam)} öğün, ${sayi(k.ihtiyac)} kişi. Oran ${ond(k.oran, 2)}, katkı <b>+${ond(k.puan)}</b>.`,
+        `Yemekhane öğrenci memnuniyetinin %7'si. Genel memnuniyete yaklaşık +${ond(k.genel)} puan ekler.`,
         'Hoca mutluluğunu etkilemiyor.',
         idariNotu('Yemekhane Yönetimi', 10),
         memnuniyetNotu,
@@ -977,11 +977,11 @@ function etkiKarti(state, b, tanim, h) {
     case 'spor_tesisi': {
       const k = hizmet('spor_tesisi');
       maddeler.push(
-        'Spor Tesisleri puanı 38 + 28 × oran. Oran, yerleşkedeki günlük kullanıcı kapasitesinin öğrenci sayısına bölümü; en çok 1,2 sayılır.',
-        `${zaman} günde ${sayi(k.toplam)} kullanıcı, ${sayi(k.ihtiyac)} öğrenci; oran ${ond(k.oran, 2)}, katkı <b>+${ond(k.puan)}</b>.`,
-        `Spor Tesisleri öğrenci memnuniyetinin %5'i; genel memnuniyete yaklaşık +${ond(k.genel)} puan.`,
+        'Spor Tesisleri puanı 38 + 28 × oran. Oran, yerleşkedeki günlük kullanıcı kapasitesinin öğrenci sayısına bölümü. En çok 1,2 sayılır.',
+        `${zaman} günde ${sayi(k.toplam)} kullanıcı, ${sayi(k.ihtiyac)} öğrenci. Oran ${ond(k.oran, 2)}, katkı <b>+${ond(k.puan)}</b>.`,
+        `Spor Tesisleri öğrenci memnuniyetinin %5'i. Genel memnuniyete yaklaşık +${ond(k.genel)} puan ekler.`,
         'Basketbol, futbol, voleybol ve yüzme takımı kurmak için gerekli.',
-        'Takımların maç gücüne +15 ekler; ikinci tesis bunu artırmaz.',
+        'Takımların maç gücüne +15 ekler ama ikinci tesis bunu artırmaz.',
         memnuniyetNotu,
       );
       break;
@@ -989,7 +989,7 @@ function etkiKarti(state, b, tanim, h) {
     case 'konferans':
       maddeler.push(
         'Kalite puanında Uluslararasılaşma bileşenine +15 ekler. Bileşenin ağırlığı %10, kalite puanına yaklaşık +1,5.',
-        'Saygınlık her dönem kalite puanına yavaşça yaklaşır; sıralama hesabı da aynı +15\'i kullanır.',
+        'Saygınlık her dönem kalite puanına yavaşça yaklaşır. Sıralama hesabı da aynı +15\'i kullanır.',
         'Uluslararası sıralamada Uluslararası görünüm puanına +12.',
         'Sosyal Yaşam puanına +8 (öğrenci memnuniyetinin %10\'u).',
         'Etkisi düzeye bağlı değil.',
@@ -997,7 +997,7 @@ function etkiKarti(state, b, tanim, h) {
       break;
     case 'saglik_merkezi':
       maddeler.push(
-        'Sağlık hizmeti puanına +12. Bu puan İdari Hizmetler puanının beşte biri, İdari Hizmetler de öğrenci memnuniyetinin %12\'si; genel memnuniyete yaklaşık +0,3 puan.',
+        'Sağlık hizmeti puanına +12. Bu puan İdari Hizmetler puanının beşte biri, İdari Hizmetler de öğrenci memnuniyetinin %12\'si. Genel memnuniyete yaklaşık +0,3 puan ekler.',
         'Etkisi düzeye ve günlük hasta kapasitesine bağlı değil.',
         idariNotu('Sağlık Merkezi', 15),
         memnuniyetNotu,
@@ -1007,8 +1007,8 @@ function etkiKarti(state, b, tanim, h) {
       const katki = idariKatki(duzeyToplami(state, 'idari_bina', degisen));
       maddeler.push(
         `İdari Hizmetler puanına düzey 1'de +6, düzey 2'de +10, düzey 3'te +14 ekler. ${zaman} <b>+${katki}</b>.`,
-        `İdari Hizmetler öğrenci memnuniyetinin %12'si; genel memnuniyete yaklaşık +${ond(katki * MEMNUNIYET_AGIRLIGI.idari)} puan.`,
-        'İdari sekmesinde bütün birimlere düzeye göre "+%10, +%15, +%20 verimlilik" yazılır; bu yalnız gösterimdir, bir sonucu yok.',
+        `İdari Hizmetler öğrenci memnuniyetinin %12'si. Genel memnuniyete yaklaşık +${ond(katki * MEMNUNIYET_AGIRLIGI.idari)} puan ekler.`,
+        'İdari sekmesinde bütün birimlere düzeye göre "+%10, +%15, +%20 verimlilik" yazılır. Bu yalnız gösterimdir, bir sonucu yok.',
         memnuniyetNotu,
       );
       break;
@@ -1017,7 +1017,7 @@ function etkiKarti(state, b, tanim, h) {
       const katki = ulasimKatki(duzeyToplami(state, 'ulasim_merkezi', degisen));
       maddeler.push(
         `Ulaşım puanına düzey 1'de +12, düzey 2'de +18, düzey 3'te +24 ekler. ${zaman} <b>+${katki}</b>.`,
-        `Ulaşım öğrenci memnuniyetinin %5'i; genel memnuniyete yaklaşık +${ond(katki * MEMNUNIYET_AGIRLIGI.ulasim)} puan.`,
+        `Ulaşım öğrenci memnuniyetinin %5'i. Genel memnuniyete yaklaşık +${ond(katki * MEMNUNIYET_AGIRLIGI.ulasim)} puan ekler.`,
         idariNotu('Ulaşım Hizmetleri', 10),
         memnuniyetNotu,
       );
@@ -1033,9 +1033,9 @@ function etkiKarti(state, b, tanim, h) {
           : `Bina bitince teknokent açılır ve bütçeye her dönem sponsorluk geliri girer${acik ? '. Olayla zaten açık olduğu için bina ayrıca gelir eklemez' : ''}.`,
         `Gelir ${tr(kural.temel)} ₺, öğrenci başına ${tr(kural.ogrenciBasina)} ₺ ve sanayi bağlantısı. Sanayi bağlantısı saygınlığın 0,3 katı puan (aşağı yuvarlanır), puan başına ${tr(kural.puanBasina)} ₺.`,
         `${bitti && acik ? 'Şimdi' : 'Bugünkü durumla'} ${sayi(state.students?.totalEnrolled || 0)} öğrenci ve saygınlık ${ond(Number(state.university?.prestige) || 0)} ile dönemde <b>${h.para(teknokentDonemGeliri(state))}</b>${z.gelir !== 1 ? ` (zorluk ×${ond(z.gelir)} dahil)` : ''}.`,
-        `Kariyer Desteği puanına +${KARIYER_TEKNOKENT} (puan en çok 100). Kariyer Desteği öğrenci memnuniyetinin %9'u; genel memnuniyete en çok +${ond(Math.round(KARIYER_TEKNOKENT * MEMNUNIYET_AGIRLIGI.kariyer * 100) / 100)} puan.`,
-        'Teknokent "Özel Sektör AR-GE Merkezi Teklifi" olayında teklif kabul edilince de açılır; iki yoldan açılsa da etki bir kez sayılır.',
-        'Etkisi düzeye bağlı değil; yükseltme yalnız alanı ve bakımı büyütür.',
+        `Kariyer Desteği puanına +${KARIYER_TEKNOKENT} (puan en çok 100). Kariyer Desteği öğrenci memnuniyetinin %9'u. Genel memnuniyete en çok +${ond(Math.round(KARIYER_TEKNOKENT * MEMNUNIYET_AGIRLIGI.kariyer * 100) / 100)} puan ekler.`,
+        'Teknokent "Özel Sektör AR-GE Merkezi Teklifi" olayında teklif kabul edilince de açılır. İki yoldan açılsa da etki bir kez sayılır.',
+        'Etkisi düzeye bağlı değil. Yükseltme yalnız alanı ve bakımı büyütür.',
         memnuniyetNotu,
       );
       break;
@@ -1067,7 +1067,7 @@ function bakimKarti(state, b, h) {
   satirlar.push(`<div class="ob-satir ob-satir--toplam"><span>${k.yapimda ? 'Bina bitince dönemlik' : 'Dönemlik bakım'}</span><b>${h.para(k.tutar)}</b></div>`);
   satirlar.push(`<div class="ob-aciklama">${k.yapimda
     ? 'Yapım sürerken bakım ödenmez.'
-    : `Durum %100'ün altındaysa bakım artar; her düzey m² başına bakımı %25 artırır.${k.zorluk !== 1 ? ' Zorluk bütün giderleri aynı oranda değiştirir.' : ''} Bu tutar dönem sonunda kasadan düşer.`}</div>`);
+    : `Durum %100'ün altındaysa bakım artar. Her düzey m² başına bakımı %25 artırır.${k.zorluk !== 1 ? ' Zorluk bütün giderleri aynı oranda değiştirir.' : ''} Bu tutar dönem sonunda kasadan düşer.`}</div>`);
   if (Number.isFinite(Number(b.constructionCost)) && Number(b.constructionCost) > 0) {
     satirlar.push(h.satir('İnşaat bedeli', `${h.para(Number(b.constructionCost))} <span class="ob-soluk">ilk yapım</span>`));
   }
@@ -1094,7 +1094,7 @@ export function yukseltmeEtkisi(state, b, h) {
     case 'arastirma_merkezi': {
       const odaSonra = s.kapasite.labs || 0;
       const oda = `laboratuvar odası ${h.sayi(labOdasi(b))} → <b>${h.sayi(odaSonra)}</b>`;
-      const merkez = b.type === 'arastirma_merkezi' ? '; yayın ve proje çarpanı düzeye bağlı değil' : '';
+      const merkez = b.type === 'arastirma_merkezi' ? '. Yayın ve proje çarpanı düzeye bağlı değil' : '';
       if (!b.isCompleted) return `${oda}${merkez}`;
       const once = labDagilimi(state);
       const sonra = labDagilimi(state, { id: b.id, oda: odaSonra });
@@ -1104,7 +1104,7 @@ export function yukseltmeEtkisi(state, b, h) {
         .map(d => `${h.esc(d.shortName || d.name)} %${Math.round((once.bolumler.get(d.id)?.karsilama ?? 0) * 100)} → <b>%${Math.round((sonra.bolumler.get(d.id)?.karsilama ?? 0) * 100)}</b>`);
       return degisim.length
         ? `${oda}${merkez}. Bugünkü öğrenci sayısıyla karşılama ${degisim.slice(0, 4).join(', ')}${degisim.length > 4 ? ` ve ${degisim.length - 4} bölüm daha` : ''}`
-        : `${oda}${merkez}; bağlı ve laboratuvar gerektiren bölüm yok`;
+        : `${oda}${merkez}. Bağlı ve laboratuvar gerektiren bölüm yok`;
     }
     case 'kutuphane': case 'yurt': case 'yemekhane': case 'spor_tesisi': {
       const once = hizmetKatkisi(state, b.type);
@@ -1116,7 +1116,7 @@ export function yukseltmeEtkisi(state, b, h) {
     case 'ulasim_merkezi':
       return `Ulaşım +${ulasimKatki(duzeyToplami(state, 'ulasim_merkezi'))} → <b>+${ulasimKatki(duzeyToplami(state, 'ulasim_merkezi', degisen))}</b>`;
     default:
-      return 'değişmez; bu türün etkisi düzeye bağlı değil, yalnız alan ve bakım büyür';
+      return 'değişmez. Bu türün etkisi düzeye bağlı değil, yalnız alan ve bakım büyür';
   }
 }
 
@@ -1145,7 +1145,7 @@ function sonrakiDuzeyKarti(state, b, tanim, h) {
   const etki = yukseltmeEtkisi(state, b, h);
 
   const kisit = state._internal?.spendingRestricted
-    ? '<div class="ob-aciklama ob-aciklama--kritik">Kasa açığı nedeniyle YÖK denetimi sürüyor; yükseltme donduruldu.</div>'
+    ? '<div class="ob-aciklama ob-aciklama--kritik">Kasa açığı nedeniyle YÖK denetimi sürüyor. Yükseltme donduruldu.</div>'
     : kasa < s.maliyet
       ? `<div class="ob-aciklama ob-aciklama--kritik">Kasada yeterli para yok (gerekli ${h.para(s.maliyet)}, kasada ${h.para(kasa)}).</div>`
       : '';

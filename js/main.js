@@ -1849,7 +1849,7 @@ function _onTopluKabul() {
     return;
   }
   if (u.kasaEksi) {
-    showNotification(`Kasa eksi (${formatMoney(u.kasa)}); toplu kabul yapılmaz. Başvuruları tek tek kabul edebilirsiniz.`, 'warning', 5000);
+    showNotification(`Kasa eksi (${formatMoney(u.kasa)}), bu yüzden toplu kabul yapılmaz. Başvuruları tek tek kabul edebilirsiniz.`, 'warning', 5000);
     return;
   }
   const t = kabulTahmini(state, u.uygun);
@@ -1875,7 +1875,7 @@ function _onTopluKabul() {
     giris: 'Toplu kabul ölçütüne uyan başvurular, genel puanı yüksek olandan başlayarak oyunun kabul kararıyla tek tek kabul edilir. Kurala takılan başvuru atlanır, listede kalır ve sonuçta nedeniyle yazar.',
     kutular,
     notlar: t.takilacak.length
-      ? [{ tur: 'uyari', metin: `Tahmine göre ${t.takilacak.length} başvuru kurala takılacak (${nedenler.join('; ')}).` }]
+      ? [{ tur: 'uyari', metin: `Tahmine göre ${t.takilacak.length} başvuru kurala takılacak (${nedenler.join(', ')}).` }]
       : [],
     listeler: [
       { baslik: 'Kabul edilecekler', satirlar: t.alinacak.map(satir) },
@@ -1892,7 +1892,7 @@ function _onTopluKabul() {
         _maasEtkisiKutusu('Maaş etkisi', sonuc.aylikMaas),
       ],
       notlar: sonuc.takilan.length
-        ? [{ tur: 'uyari', metin: 'Takılan başvurular listede kalır; 2 dönem içinde yanıtlanmazsa geri çekilir.' }] : [],
+        ? [{ tur: 'uyari', metin: 'Takılan başvurular listede kalır ve 2 dönem içinde yanıtlanmazsa geri çekilir.' }] : [],
       listeler: [
         { baslik: 'Kurala takılanlar', acik: true, satirlar: sonuc.takilan.map(x => ({ ad: x.ad, alt: `${x.bolumAdi} · ${x.neden}`, rozet: 'takıldı', rozetSinif: 'kritik' })) },
         { baslik: 'Kabul edilenler', satirlar: sonuc.kabul.map(satir) },
@@ -1909,7 +1909,7 @@ function _onTopluRet() {
   if (!state) return;
   const u = basvuruUygunlugu(state, kadroSpontSecimleri());
   if (u.kalan.length === 0) {
-    showNotification('Reddedilecek başvuru yok; kalanların hepsi ölçüte uyuyor.', 'info');
+    showNotification('Reddedilecek başvuru yok. Kalanların hepsi ölçüte uyuyor.', 'info');
     return;
   }
   const gruplar = {};
@@ -1962,7 +1962,7 @@ function _onTopluHocaTerfi() {
     alt: `${x.bolumAdi} · ${UNVAN_ADLARI[x.eskiUnvan] || x.eskiUnvan} → ${UNVAN_ADLARI[x.yeniUnvan] || x.yeniUnvan} · maaş ${formatMoney(x.maasOnce)} → ${formatMoney(x.maasSonra)}`,
   });
   showConfirmModal('Hazır hocaları yükselt', topluPencereHtml({
-    giris: 'Unvan yükseltmeye hazır hocalar oyunun yükseltme kararıyla tek tek bir üst unvana yükseltilir. Maaşı yeni unvanın barem alt sınırının altında olanın maaşı ona çıkar; yükselen hocanın morali artar.',
+    giris: 'Unvan yükseltmeye hazır hocalar oyunun yükseltme kararıyla tek tek bir üst unvana yükseltilir. Maaşı yeni unvanın barem alt sınırının altında olanın maaşı ona çıkar. Yükselen hocanın morali artar.',
     kutular,
     notlar: oran && oran.sonra > oran.sinir
       ? [{ tur: 'uyari', metin: `Bu yükseltmelerle maaşlar dönem gelirinin %${Math.round(oran.sonra * 100)} kadarı olur (sınır %${Math.round(oran.sinir * 100)}). Sınır aşılınca yeni işe alım ve zam yapılamaz.` }]
@@ -2617,7 +2617,7 @@ function _onTopluIdariTerfi() {
     alt: `${x.birimAdi} · ${x.eskiUnvan} → ${x.yeniUnvan} · maaş ${formatMoney(x.maasOnce)} → ${formatMoney(x.maasSonra)}`,
   });
   showConfirmModal('Terfiye hazır personeli terfi ettir', topluPencereHtml({
-    giris: 'Terfiye hazır idari personel oyunun terfi işleviyle tek tek bir üst unvana yükseltilir. Yeni maaş yeni unvanın barem ortasıdır (şimdiki maaş daha yüksekse değişmez); terfi edenin mutluluğu ve liderliği artar, yönetici rütbesine çıkan birim yöneticisi olabilir.',
+    giris: 'Terfiye hazır idari personel oyunun terfi işleviyle tek tek bir üst unvana yükseltilir. Yeni maaş yeni unvanın barem ortasıdır (şimdiki maaş daha yüksekse değişmez). Terfi edenin mutluluğu ve liderliği artar, yönetici rütbesine çıkan birim yöneticisi olabilir.',
     kutular: [
       ['Terfi edecek', String(liste.length), `${birimSayisi} birimden`],
       _maasEtkisiKutusu('Maaş etkisi', ek),
