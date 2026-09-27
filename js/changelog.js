@@ -12,8 +12,8 @@ export const CHANGELOG = [
     items: [
       { type: 'feat', text: 'Skor tablosunda Sezon 2 başladı. v0.7 ve sonrasında oynanan oyunlar ayrı sıralanıyor, eski skorlar "Eski sezon" sekmesinde duruyor.' },
       { type: 'feat', text: '"Bildir" düğmesi artık GitHub hesabı istemiyor. Öneri ya da şikâyetinizi oyunun içinden yazabilirsiniz.' },
-      { type: 'feat', text: 'Kadro sekmesinde uygun başvuruları tek tıkla kabul edebilir, kalanları reddedebilir, terfiye hazır hocaların hepsini birden yükseltebilirsiniz (oyuncu önerisi).' },
-      { type: 'feat', text: 'İdari birimlerde otomatik personel var. Açık birimde eksikler her dönem sonunda, seçtiğiniz kademeyi aşmadan dolduruluyor (oyuncu önerisi).' },
+      { type: 'feat', text: 'Kadro sekmesinde başvuruları toplu kabul edip reddedebilir, terfiye hazır hocaları birden yükseltebilirsiniz. İdari birimlerde otomatik personeli açarsanız eksikler her dönem sonunda dolduruluyor (oyuncu önerileri).' },
+      { type: 'fix', text: 'Araştırma merkezine atanan bölüm artık fakülte binasından çıkmıyor, öğrenci almayı sürdürüyor (oyuncu bildirimi).' },
     ],
   },
   {

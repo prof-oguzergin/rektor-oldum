@@ -5826,6 +5826,13 @@ export function renderCampusPanel(state, onBuildStart, onDecision) {
   panel._onDecision    = onDecision;
 }
 
+/** v0.7.1: binada ders verilebilecek derslik var mı (araştırma merkezi, teknokent gibi binalarda yok). */
+function derslikliBina(b) {
+  const derslik = b?.currentCapacity?.classrooms;
+  if (Number.isFinite(derslik)) return derslik > 0;
+  return (BUILDINGS[b?.type]?.capacity?.classrooms || 0) > 0;
+}
+
 /**
  * Bölüm atama penceresi (prompt() yerine tam arayüz). Satırlar (.dept-assign-row, data-action,
  * data-dept-id, data-from-building-id) pencere gövdesindeki dinleyiciye bağlı.
@@ -5867,10 +5874,15 @@ function _showDepartmentAssignModal(state, building, onDecision) {
           dataAttr    = `data-action="assign" data-dept-id="${dept.id}"`;
         }
       } else {
-        // Normal bina: assignedDepartments üzerinden denetim
+        // Normal bina: assignedDepartments üzerinden denetim.
+        // v0.7.1: taşıma yalnız derslikli binalar arasında. Dersliği olmayan bir binaya
+        // (araştırma merkezi gibi) atama bağlamadır; bölüm ders verdiği binada kalır.
+        // Eskiden araştırma merkezine atanan bölüm fakülte binasından çıkıyor, derslik
+        // yeri kalmadığı için öğrenci alamıyordu (oyuncu bildirimi, 27 Eyl 2026).
         const assignedHere  = (building.assignedDepartments || []).includes(dept.id);
-        const otherBuilding = assignedHere ? null :
-          allBuildings.find(b => b.id !== building.id && b.type !== 'lab' && (b.assignedDepartments || []).includes(dept.id));
+        const hedefDerslikli = derslikliBina(building);
+        const otherBuilding = (assignedHere || !hedefDerslikli) ? null :
+          allBuildings.find(b => b.id !== building.id && b.type !== 'lab' && derslikliBina(b) && (b.assignedDepartments || []).includes(dept.id));
 
         if (assignedHere) {
           statusBadge = '<span class="ob-rozet ob-rozet--iyi ob-rozet--kucuk">Bu binada</span>';
@@ -5881,7 +5893,9 @@ function _showDepartmentAssignModal(state, building, onDecision) {
           actionHint  = '<span class="atama-eylem ob-uyari">Taşı</span>';
           dataAttr    = `data-action="move" data-dept-id="${dept.id}" data-from-building-id="${otherBuilding.id}"`;
         } else {
-          actionHint  = '<span class="atama-eylem ob-soluk">Ata</span>';
+          actionHint  = hedefDerslikli
+            ? '<span class="atama-eylem ob-soluk">Ata</span>'
+            : '<span class="atama-eylem ob-iyi">Bağla</span>';
           dataAttr    = `data-action="assign" data-dept-id="${dept.id}"`;
         }
       }
@@ -5900,7 +5914,9 @@ function _showDepartmentAssignModal(state, building, onDecision) {
 
     const hint = isLab
       ? 'Bir bölüme tıklayarak bu laboratuvar binasına bağlayabilirsiniz. Bölüm, fakülte binasında kalmaya devam eder.'
-      : 'Bir bölüme tıklayarak atama yapabilir, kaldırabilir ya da başka binadan taşıyabilirsiniz.';
+      : !derslikliBina(building)
+        ? 'Bu binada derslik yok. Bağladığınız bölüm burada ders vermez, kendi binasında öğrenci almaya devam eder.'
+        : 'Bir bölüme tıklayarak atama yapabilir, kaldırabilir ya da başka binadan taşıyabilirsiniz.';
 
     return `
       <p class="pencere-metin">${hint}</p>

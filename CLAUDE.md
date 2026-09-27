@@ -118,6 +118,7 @@ Tam liste: `js/changelog.js` (oyun içi "Yenilikler" panelinde de gösterilir, b
   - Sezon 2: `scores_s2` koleksiyonu; Sezon 2 görünümü = `scores_s2` ∪ `scores` içinde 2026-09-25T00:00Z sonrası kayıtlar (uid başına en yüksek). En İyiler'de "Sezon 2 / Eski sezon" sekmeleri. Skor ve ileti gönderimine 20 sn zaman aşımı (reCAPTCHA engellenince "Gönderiliyor"da kalıyordu).
   - Öneri formu: "Bildir" oyun içi pencere, `feedback` koleksiyonu (yalnız create). Okuma yolu yukarıda. Kurallar `firestore.rules`; yayına alırken kurallar koddan ÖNCE yüklenir (`firebase login` bir kez Oğuz tarafından, sonra `firebase deploy --only firestore:rules`, ya da Console'a yapıştır).
   - Toplu işlemler ve idari otomatik personel: `js/idari_otomatik.js`; Kadro'da ölçütlü "Uygun başvuruları kabul et / Kalanları reddet", "Hazır olanların hepsini yükselt"; İdari'de birim başına otomatik personel + kademe sınırı (varsayılan kapalı). Toplu işlemler tekil kararları döngüyle çağırır (norm kadro, %60 sınırı uygulanır). Bilinen: `promote_faculty` %60 sınırına bakmıyor; %60 kuralı idari maaşları saymıyor; idari personel kimlik sayacı her açılışta 1'den başlıyordu (otomatik/elle alım ve kayıt yüklemede onarıldı).
+  - Araştırma merkezine atama (oyuncu e-postası, 27 Eyl 2026): bina atama penceresi dersliği olmayan binaya atamayı "Taşı" akışıyla yapıyor, bölüm fakülte binasından çıkıyor, v0.7.0'daki derslik yeri sınırı yüzünden alım duruyordu. `ui.js` `derslikliBina`: taşıma yalnız derslikli binalar arasında, dersliksiz binaya atama "Bağla". Sınama `C:\repos\_v071\birlesik\arastirma_atama_sina.py` + `tasima_sina.py` (olağan taşıma bozulmadı). Eski kayıtlarda taşınmış bölüm kendiliğinden onarılmaz, oyuncu fakülte binasına yeniden atar.
   - Birleştirme dersi: iki dal da theme.css'i aynı kapanış satırıyla bitirince git ortak "}" satırını tek sayıyor, bir @media bloğu açık kalıyor. Çakışma çözümünden sonra süslü parantez dengesi denetlenmeli (`C:\repos\_v070\cakisma_coz.py` artık denetliyor).
 
 ## Aktif Oyuncu Raporcuları
@@ -138,6 +139,11 @@ Erdinç (en yoğun), AkaDemi, Emir, Burak Gökalp, Yusuf Sertkaya, R-Fatih (Issu
   - "Liyakat" olay paketi: siyasi bağlantı / akraba kadrosu baskıları, kabul/ret bedeli (LinkedIn yorumlarından, şaka ama oyunun diline uygun).
   - Tarihî hocalar (Tesla, Edison, Turing; LinkedIn mesajı, Kaan Burak K.). Oğuz: "sonraya bırak". Yalnız hayatta olmayan tarihî isimler.
   - Oyunun adı "oturmuyor" (X @kemalkaya0); Oğuz "her türlü öneriye açığız" dedi, karar Oğuz'da.
+- **E-posta ile gelen oyuncu önerileri (27 Eyl 2026):**
+  - Yerleşke yerleşim ve tasarım özgürlüğü (binaları istediği yere koymak).
+  - Bina ayrıntı ve yönetim panelleri.
+  - Laboratuvar dengesi: tek laboratuvar binasına bütün bölümler bağlanabiliyor, her bağlanan bölüm puan ekliyor. Öneri: kapasite sınırı ya da uzmanlaşma.
+  - (Aynı e-postadaki araştırma merkezi hatası v0.7.1'de düzeltildi.)
 
 ## Çözülmüş (sonraki cleanup'a kadar burada)
 - Emir (özet ekranında tüm değerler 0) → v0.4.28'de gameOver/gameWon erken çıkış
