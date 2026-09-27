@@ -5685,7 +5685,7 @@ export function renderCampusPanel(state, onBuildStart, onDecision) {
         ${cap.labs != null ? _binaBolumu('Laboratuvarlar', cap.labs === 0
           ? _obSatir('Laboratuvar', '0 <span class="ob-soluk">(laboratuvar odası Laboratuvar binasında ve araştırma merkezinde)</span>')
           : `${_obSatir('Laboratuvar', cap.labs)}${_obSatir('Kullanılan / boş', `${used.labs ?? 0} / ${Math.max(0, cap.labs - (used.labs ?? 0))}`)}`) : ''}
-        ${_binaBolumu(pay?.ortak ? 'Ortak kullanan bölümler' : 'Atanmış bölümler', bolumSatirlari || '<div class="ob-aciklama">Henüz bölüm atanmadı; aşağıdaki "Bölüm ata" düğmesiyle ekleyebilirsiniz.</div>')}`;
+        ${_binaBolumu(pay?.ortak ? 'Ortak kullanan bölümler' : 'Atanmış bölümler', bolumSatirlari || '<div class="ob-aciklama">Henüz bölüm atanmadı. Aşağıdaki "Bölüm ata" düğmesiyle ekleyebilirsiniz.</div>')}`;
     } else if (b.type === 'kutuphane') {
       const simCap   = cap.simultaneous || 200;
       const dailyCap = cap.daily || 800;
@@ -5900,7 +5900,7 @@ export function renderCampusPanel(state, onBuildStart, onDecision) {
 
           <section class="ob-bolum">
             ${_obBaslik('kasa', 'İnşaat seçenekleri')}
-            <div class="ob-aciklama">Bir binayı seçince maliyeti, süresi ve kazandırdıkları gösterilir; inşaat onayladığınızda başlar.</div>
+            <div class="ob-aciklama">Bir binayı seçince maliyeti, süresi ve kazandırdıkları gösterilir. İnşaat, onayladığınızda başlar.</div>
             <div class="ob-kartlar bina-kartlar">
               ${BUILDING_CATALOG.map(secenekKarti).join('')}
             </div>
