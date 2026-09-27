@@ -6,6 +6,17 @@
 
 export const CHANGELOG = [
   {
+    version: '0.7.2',
+    date: '2026-09-28',
+    title: 'Yerleşke düzeni, Bina Sayfası ve laboratuvar odaları',
+    items: [
+      { type: 'feat', text: 'Binaları Yerleşke haritasında istediğiniz yere taşıyabilirsiniz. Haritadaki "Yerleşkeyi düzenle" düğmesiyle başlayın (oyuncu önerisi).' },
+      { type: 'feat', text: 'Bir binaya tıklayınca Bina Sayfası açılıyor. Kapasitesi, kullanımı, bağlı bölümleri, oyundaki etkisi ve bakım gideri orada (oyuncu önerisi).' },
+      { type: 'balance', text: 'Laboratuvar odaları bölümler arasında ihtiyaca göre paylaşılıyor, tek laboratuvar bütün bölümlere yetmiyor. Araştırma merkezinin odaları da sayılıyor (oyuncu önerisi).' },
+      { type: 'fix', text: 'Bina kartlarındaki etkiler ve bakım giderleri oyunun hesabıyla eşleşti. Teknokent artık sanayi gelirini açıyor, alım yeri ve laboratuvar eksikliği için uyarı var.' },
+    ],
+  },
+  {
     version: '0.7.1',
     date: '2026-09-26',
     title: 'Yeni sezon, öneri formu ve toplu işlemler',
