@@ -4,25 +4,25 @@
  * Vanilla JS, framework yok.
  */
 
-import { DEPARTMENTS, DEPARTMENT_CURRICULA, UNIVERSITY_TYPES, UNIVERSITY_MODELS, USD_TO_TL, DIFFICULTY_SETTINGS, BUILDINGS, SEMESTER_MONTHS, FACULTIES, DEPT_TO_FACULTY, SALARY_SCALES, ADMIN_UNITS, ADMIN_TITLES, ADMIN_UNIT_BUILDINGS, ACCREDITATION_BODIES, SCENARIOS, BANKS } from './data.js?v=0.7.0';
-import { DEPARTMENT_FIELDS, getSalaryRange, renderFacultyAvatar, renderFacultyPortrait, calculateOverallRating, getFacultyRatingTrend } from './faculty.js?v=0.7.0';
-import { AVAILABLE_NEW_DEPARTMENTS, getCourseEffectiveDifficulty, getUnitTitles, getUnitTitleSalary, isUnitManagerTitle, calculateCampusUsageSummary, kaliciSayginlikEtkisi, checkAccreditationRequirements } from './game.js?v=0.7.1';
-import { calculateIncome, calculateExpenses, calculateLoanPayment } from './economy.js?v=0.7.0';
+import { DEPARTMENTS, DEPARTMENT_CURRICULA, UNIVERSITY_TYPES, UNIVERSITY_MODELS, USD_TO_TL, DIFFICULTY_SETTINGS, BUILDINGS, SEMESTER_MONTHS, FACULTIES, DEPT_TO_FACULTY, SALARY_SCALES, ADMIN_UNITS, ADMIN_TITLES, ADMIN_UNIT_BUILDINGS, ACCREDITATION_BODIES, SCENARIOS, BANKS } from './data.js?v=0.7.2';
+import { DEPARTMENT_FIELDS, getSalaryRange, renderFacultyAvatar, renderFacultyPortrait, calculateOverallRating, getFacultyRatingTrend } from './faculty.js?v=0.7.2';
+import { AVAILABLE_NEW_DEPARTMENTS, getCourseEffectiveDifficulty, getUnitTitles, getUnitTitleSalary, isUnitManagerTitle, calculateCampusUsageSummary, kaliciSayginlikEtkisi, checkAccreditationRequirements } from './game.js?v=0.7.2';
+import { calculateIncome, calculateExpenses, calculateLoanPayment } from './economy.js?v=0.7.2';
 // v0.7 ekonomi: Bütçe sekmesinin harcama kararları ve devlet kısıtları, kontenjan penceresinin
 // alım yeri ve vakıf başvuru tahmini, Genel Bakış'ın Hazine iadesi tahmini
-import { harcamaKararlari, arastirmaFonuCarpani, ogrenciHizmetiEtkisi, tanitimEtkisi, kadroDurumu, maasGelirDurumu, hazineIadesiTahmini } from './economy.js?v=0.7.0';
+import { harcamaKararlari, arastirmaFonuCarpani, ogrenciHizmetiEtkisi, tanitimEtkisi, kadroDurumu, maasGelirDurumu, hazineIadesiTahmini } from './economy.js?v=0.7.2';
 import { bolumAlimYeri, vakifBasvuruTahmini } from './students.js?v=0.7.0';
-import { HARCAMA_KARARLARI } from './data.js?v=0.7.0';
-import { renderCampusMap, handleCampusClick, handleCampusHover, clearHover } from './campus-renderer.js?v=0.5.1';
+import { HARCAMA_KARARLARI } from './data.js?v=0.7.2';
+import { renderCampusMap, handleCampusClick, handleCampusHover, clearHover } from './campus-renderer.js?v=0.7.2';
 import { ODAKLAR, KONTENJAN_KURALLARI, POLITIKA_SINIRLARI, KARAR_TURLERI, politikaOku, devirDurumu, yonetimKademesi, donemAdi } from './baskan.js?v=0.7.0';
 // v0.7.1: Kadro ve İdari sekmelerinde toplu işlemler, idari birimlerde otomatik personel
 import {
   TOPLU_OLCUT, TOPLU_DURUM, KADEMELER, IDARI_KARAR_TURLERI,
   basvuruUygunlugu, hocaTerfiListesi, idariTerfiListesi, idariOtomatikOku, kademeAdi,
-} from './idari_otomatik.js?v=0.7.1';
+} from './idari_otomatik.js?v=0.7.2';
 // v0.7.2: Bina Sayfası (çizim ve hesaplar ayrı modülde; game.js'i içe aktarmaz)
 import { binaSayfasiniCiz, binaEtkiOzeti, binaKartEtkileri, binaBakimi, kapasiteDagilimi, labGerekir, yukseltmeEtkisi, merkezCarpani,
-  teknokentDonemGeliri, teknokentZatenAcikNotu, sonrakiDuzey, zorlukCarpani, SINIF_SAYISI as KOLTUK_SINIF } from './bina_sayfasi.js?v=0.7.1';
+  teknokentDonemGeliri, teknokentZatenAcikNotu, sonrakiDuzey, zorlukCarpani, SINIF_SAYISI as KOLTUK_SINIF } from './bina_sayfasi.js?v=0.7.2';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // DOM YARDIMCILARI

@@ -7,7 +7,7 @@ import {
   EVENTS_POOL,
   DIFFICULTY_SETTINGS,
   TREND_CYCLES,
-} from './data.js?v=0.7.0';
+} from './data.js?v=0.7.2';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // YARDIMCI: 0-100 aralığına sıkıştır

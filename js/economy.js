@@ -19,7 +19,7 @@ import {
   DIFFICULTY_SETTINGS,
   HARCAMA_KARARLARI,
   DEVLET_KADRO,
-} from './data.js?v=0.7.0';
+} from './data.js?v=0.7.2';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // EKONOMİ SABİTLERİ

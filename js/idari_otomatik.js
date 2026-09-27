@@ -24,9 +24,9 @@
  * parametreyle gelir (döngüsel içe aktarma yok). Kayıtlı oyunlarda ve yeni oyunda bütün birimler kapalıdır.
  */
 
-import { ADMIN_UNITS, ADMIN_TITLES, SEMESTER_MONTHS } from './data.js?v=0.7.0';
-import { calculateOverallRating, getSalaryRange } from './faculty.js?v=0.7.0';
-import { kadroDurumu, maasGelirDurumu } from './economy.js?v=0.7.0';
+import { ADMIN_UNITS, ADMIN_TITLES, SEMESTER_MONTHS } from './data.js?v=0.7.2';
+import { calculateOverallRating, getSalaryRange } from './faculty.js?v=0.7.2';
+import { kadroDurumu, maasGelirDurumu } from './economy.js?v=0.7.2';
 import { politikaOku } from './baskan.js?v=0.7.0';
 
 // ─────────────────────────────────────────────────────────────────────────────

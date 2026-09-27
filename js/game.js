@@ -37,15 +37,15 @@ import {
   HARCAMA_KARARLARI,
   DEVLET_KADRO,
   SALARY_SCALES,
-} from './data.js?v=0.7.0';
+} from './data.js?v=0.7.2';
 
 import {
   calculateEconomy, applyBudget, calculateLoanPayment, processLoanPayments,
   // v0.7 ekonomi: harcama kararlarının etkileri ve devlet kısıtları
   arastirmaFonuCarpani, tanitimEtkisi, harcamaKararlari, devletKisitlari,
   maasGelirDurumu, kadroDurumu, hazineIadesi,
-} from './economy.js?v=0.7.0';
-import { generateInitialFaculty, updateAllFacultyHappiness, generateApplicants, generateFaculty, getSalaryRange, calculateOverallRating, getFacultyRatingTrend } from './faculty.js?v=0.7.0';
+} from './economy.js?v=0.7.2';
+import { generateInitialFaculty, updateAllFacultyHappiness, generateApplicants, generateFaculty, getSalaryRange, calculateOverallRating, getFacultyRatingTrend } from './faculty.js?v=0.7.2';
 import {
   generateInitialStudents,
   getTotalEnrolled,
@@ -94,13 +94,13 @@ export { foundClub, upgradeClub, dissolveClub, CLUB_TYPES, CLUB_CATEGORIES };
 import { SPORTS, initSportsState, foundTeam, upgradeTeam, dissolveTeam, processSports } from './sports.js?v=0.5.2';
 export { SPORTS, foundTeam, upgradeTeam, dissolveTeam };
 
-import { initCampusState, ensureCampusLayout, assignBuildingPosition, BUILDING_FOOTPRINTS } from './campus-layout.js?v=0.5.0';
+import { initCampusState, ensureCampusLayout, assignBuildingPosition, BUILDING_FOOTPRINTS } from './campus-layout.js?v=0.7.2';
 
 // v0.7: bölüm başkanına devretme. Başkan kararlarını bu dosyanın karar işlevleriyle alır;
 // işlevler baskanDonemi'ne parametre olarak geçer (döngüsel içe aktarma yok).
 import { baskanDonemi, politikaAyarla, politikaTamamla } from './baskan.js?v=0.7.0';
 // v0.7.1: toplu işlem ölçütü ve idari birimlerde otomatik personel (işlevler parametreyle geçer)
-import { idariOtomatikDonemi, idariOtomatikAyarla, idariOtomatikGoc, topluOlcutAyarla } from './idari_otomatik.js?v=0.7.1';
+import { idariOtomatikDonemi, idariOtomatikAyarla, idariOtomatikGoc, topluOlcutAyarla } from './idari_otomatik.js?v=0.7.2';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // YARDİMCI: Derin kopya (state immutability için)

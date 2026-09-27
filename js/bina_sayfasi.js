@@ -16,8 +16,8 @@
  * yukseltmeEtkisi); bina kartı, inşaat seçenekleri, inşaat ve yükseltme onayları bunları kullanır.
  */
 
-import { BUILDINGS, DIFFICULTY_SETTINGS, ACCREDITATION_BODIES } from './data.js?v=0.7.0';
-import { binaDonemBakimi, teknokentGeliri } from './economy.js?v=0.7.0';
+import { BUILDINGS, DIFFICULTY_SETTINGS, ACCREDITATION_BODIES } from './data.js?v=0.7.2';
+import { binaDonemBakimi, teknokentGeliri } from './economy.js?v=0.7.2';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // OYUNUN SABİTLERİ (kaynaktaki değerlerin aynısı)
