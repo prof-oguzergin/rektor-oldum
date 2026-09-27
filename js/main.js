@@ -67,6 +67,8 @@ import {
   topluSonucGoster,
   kadroSpontSecimleri,
 } from './ui.js?v=0.7.1';
+// v0.7.2: Bina Sayfası (bina kartı, Ayrıntılar düğmesi, data-bina-git öğeleri ve harita açar)
+import { binaSayfasiniGoster, binaSayfasiGirisleriniBagla } from './ui.js?v=0.7.1';
 
 // v0.7.1: toplu işlemler (var olan tekil kararları döngüyle çağırır) ve idari birimlerde otomatik personel
 import {
@@ -657,6 +659,9 @@ function _startGameWithState(state) {
   // v0.6: Bölüm Sayfası (Genel Bakış, Bölümler, Fakülteler, Kadro, Öğrenciler satırlarından açılır)
   _bolumSayfasi = null;
   window._openDeptPage = _bolumSayfasiniAc;
+  // v0.7.2: Bina Sayfası (bina kartı ve Ayrıntılar düğmesi, data-bina-git öğeleri, harita)
+  window._binaSayfasiniAc = _binaSayfasiniAc;
+  binaSayfasiGirisleriniBagla();
   // v0.7: dönem özetindeki "Doğrudan yönetime al" düğmesi
   window._onSetDeptPolicy = _onSetDeptPolicy;
 
@@ -895,6 +900,36 @@ const _bolumSayfasiIslemleri = {
   onProjectDecision:   (tur, applicationId, ek) => _onProjectDecision(tur, applicationId, ek),
   onSetPolicy:         (deptId, politika) => _onSetDeptPolicy(deptId, politika),
 };
+
+// ─────────────────────────────────────────────────────────────────────────────
+// BİNA SAYFASI (v0.7.2)
+// ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * Bina Sayfası'nı geniş pencerede açar (ui.js binaSayfasiniGoster, bina_sayfasi.js). Kararlar
+ * Yerleşke sekmesinin karar işleyicisinden geçer (bildirim, kayıt, arayüz yenileme); yükseltme ve
+ * ad değişikliğinden sonra sayfa güncel durumla yeniden açılır. Bina kartı, Ayrıntılar düğmesi,
+ * data-bina-git öğeleri ve harita window._binaSayfasiniAc(binaId) ile çağırır.
+ * @param {string} buildingId
+ * @param {{ sessiz?: boolean }} [secenek]  sessiz: tık sesi çalma (karardan sonra yeniden açılış)
+ * @returns {boolean} pencere açıldıysa true
+ */
+function _binaSayfasiniAc(buildingId, secenek = {}) {
+  const state = getState();
+  if (!state) return false;
+  if (!(state.buildings || []).some(b => b.id === buildingId)) {
+    showNotification('Bina bulunamadı.', 'warning');
+    return false;
+  }
+  if (!secenek?.sessiz) playSound('click');
+  return binaSayfasiniGoster(state, buildingId, {
+    onDecision: (karar, { yenidenAc = false } = {}) => {
+      _onCampusDecision(karar);
+      if (yenidenAc) _binaSayfasiniAc(buildingId, { sessiz: true });
+    },
+    yenidenAc: () => _binaSayfasiniAc(buildingId, { sessiz: true }),
+  });
+}
 
 /**
  * v0.7: bölümün yönetimi: doğrudan ya da başkana devret (baskan.js, applyDecision 'set_dept_policy').

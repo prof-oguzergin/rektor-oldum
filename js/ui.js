@@ -20,6 +20,8 @@ import {
   TOPLU_OLCUT, TOPLU_DURUM, KADEMELER, IDARI_KARAR_TURLERI,
   basvuruUygunlugu, hocaTerfiListesi, idariTerfiListesi, idariOtomatikOku, kademeAdi,
 } from './idari_otomatik.js?v=0.7.1';
+// v0.7.2: Bina Sayfası (çizim ve hesaplar ayrı modülde; game.js'i içe aktarmaz)
+import { binaSayfasiniCiz, binaEtkiOzeti } from './bina_sayfasi.js?v=0.7.1';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // DOM YARDIMCILARI
@@ -5031,40 +5033,72 @@ const BUILDING_CATALOG = Object.values(BUILDINGS).map(b => ({
   benefitText:      b.benefitText ?? null,
 }));
 
-/** Bina etki nesnesini Türkçe kısa etiketlere çevirir */
+/**
+ * Binanın oyundaki etkisinin kısa dökümü (inşaat seçeneği kartı ve inşaat onayı).
+ * v0.7.2: eskiden data.js effects / qualityEffects alanlarını yazıyordu ("+5 eğitim kalitesi",
+ * "+%5 araştırma bonusu", "yurt geliri" ...); oyun bu alanları hiç kullanmıyor. Artık Bina Sayfası'yla
+ * aynı, oyunun hesabından doğrulanmış metin (bina_sayfasi.js binaEtkiOzeti). Çağıranlar yalnız etki
+ * nesnesini verir; bina türü bu nesneden bulunur (her türün nesnesi farklı).
+ */
 function _formatBuildingEffects(effects) {
-  // Ondalıklar Türkçe virgülle (0.3 → 0,3)
-  const s = (v) => ondalikYaz(v, 2);
-  const labelMap = {
-    educationQuality:       (v) => `+${s(v)} eğitim kalitesi`,
-    studentSatisfaction:    (v) => `+${s(v)} öğrenci memnuniyeti`,
-    researchOutput:         (v) => `+${s(v)} araştırma çıktısı`,
-    researchBoost:          (v) => `+%${Math.round(v * 100)} araştırma bonusu`,
-    labScore:               (v) => `+${s(v)} laboratuvar puanı`,
-    publicationRate:        (v) => `+${s(v)} yayın/hoca/yıl`,
-    studentGPA:             (v) => `+${s(v)} not ortalaması`,
-    facultyHappiness:       (v) => `+${s(v)} hoca memnuniyeti`,
-    studentDemandBonus:     (v) => `+%${Math.round(v * 100)} öğrenci talebi`,
-    revenuePerBed:          (v) => `+${formatMoney(v)}/dönem yurt geliri (yatak başına)`,
-    prestige:               ()  => 'saygınlığa katkı',
-    internationalization:   (v) => `+${s(v)} uluslararasılaşma`,
-    internationalVisibility:(v) => `+${s(v)} uluslararası görünürlük`,
-    eventRevenuePerTurn:    (v) => `+${formatMoney(v)}/dönem etkinlik geliri`,
-    tubitakSuccessRate:     (v) => `+%${Math.round(v * 100)} TÜBİTAK başarı şansı`,
-    industryTieBonus:       (v) => `+${s(v)} sektör bağı`,
-    coopPartnerQuality:     (v) => `+${s(v)} co-op kalitesi`,
-    annualRentalRevenue:    (v) => `+${formatMoney(v)}/yıl kira geliri`,
-    alumniBonus:            (v) => `+${s(v)} mezun bonusu`,
-    coopStressReduction:    (v) => `−${s(v)} co-op stresi`,
-    classroomCapacity:      (v) => `+${s(v)} derslik kapasitesi`,
-    officeCapacity:         (v) => `+${s(v)} ofis kapasitesi`,
-    dormCapacity:           (v) => `+${s(v)} yatak`,
-    interdisciplinaryBonus: ()  => 'Disiplinlerarası bonus',
-    spinoffRevenue:         ()  => 'Spin-off geliri',
+  const tur = _BINA_ETKI_IMZASI.get(_binaEtkiImzasi(effects));
+  return tur ? binaEtkiOzeti(tur) : [];
+}
+
+/** Etki nesnesinin sıradan bağımsız imzası (türü bulmak için). */
+function _binaEtkiImzasi(nesne) {
+  return JSON.stringify(Object.keys(nesne || {}).sort().map(k => [k, nesne[k]]));
+}
+
+/** Tür imzaları: çağıranların birleştirdiği { ...qualityEffects, ...effects } nesnesiyle aynı. */
+const _BINA_ETKI_IMZASI = new Map(Object.values(BUILDINGS).map(b =>
+  [_binaEtkiImzasi({ ...(b.qualityEffects || {}), ...(b.effects || {}) }), b.id]));
+
+/**
+ * v0.7.2: Bina Sayfası'nı geniş pencerede açar (çizim, hesaplar ve işlemler bina_sayfasi.js'te).
+ * main.js window._binaSayfasiniAc bunu çağırır; ui.js'in biçim ve pencere yardımcılarını verir.
+ * @param {object} state      getState() kopyası
+ * @param {string} binaId
+ * @param {{ onDecision?: Function, yenidenAc?: Function }} islemler  main.js kararları
+ * @returns {boolean} pencere açıldıysa true
+ */
+export function binaSayfasiniGoster(state, binaId, islemler = {}) {
+  return binaSayfasiniCiz(state, binaId, {
+    para: formatMoney, sayi: formatNumber, ondalik: ondalikYaz, ek: sayiEkle,
+    esc: _escHtml, puan: _obPuan, kutu: _obKutu, satir: _obSatir,
+    gorsel: _binaGorseli, bolumIkonu, kapasiteParcalari: _kapasiteParcalari,
+    showModal, hideModal, showConfirmModal, showNotification,
+    yukseltmeOnayi: _yukseltmeOnayIcerigi, bolumAtamaPenceresi: _showDepartmentAssignModal,
+  }, islemler);
+}
+
+/**
+ * v0.7.2: data-bina-git="<bina kimliği>" taşıyan her öğe Bina Sayfası'nı açar (bina kartının
+ * "Ayrıntılar" düğmesi ve başka sekmelerdeki bina bağlantıları). Belge düzeyinde bir kez bağlanır;
+ * ui.js ikinci kez yüklense de (sınamalar) dinleyici birikmez.
+ */
+export function binaSayfasiGirisleriniBagla() {
+  if (window.__binaSayfasiGirisiBagli) return;
+  window.__binaSayfasiGirisiBagli = true;
+  const ac = (hedef) => {
+    if (typeof window._binaSayfasiniAc === 'function') window._binaSayfasiniAc(hedef.dataset.binaGit);
   };
-  return Object.entries(effects)
-    .map(([k, v]) => labelMap[k] ? labelMap[k](v) : null)
-    .filter(Boolean);
+  document.addEventListener('click', (e) => {
+    const hedef = e.target.closest?.('[data-bina-git]');
+    if (!hedef) return;
+    // Öğenin içindeki başka bir denetim kendi işini yapsın
+    const icDenetim = e.target.closest('button, a, input, select, textarea, label');
+    if (icDenetim && icDenetim !== hedef && hedef.contains(icDenetim)) return;
+    e.preventDefault();
+    ac(hedef);
+  });
+  document.addEventListener('keydown', (e) => {
+    if (e.key !== 'Enter' && e.key !== ' ') return;
+    const hedef = e.target.closest?.('[data-bina-git][role="button"]');
+    if (!hedef || hedef !== e.target) return;
+    e.preventDefault();
+    ac(hedef);
+  });
 }
 
 /** v0.6.1: kullanım oranına göre durum sınıfı: doluluk %100'ü aştıysa kritik, %85'i aştıysa uyarı. */
@@ -5402,7 +5436,7 @@ export function renderCampusPanel(state, onBuildStart, onDecision) {
       const isUpg = b.status === 'upgrading';
       const kalan = b.turnsRemaining != null ? `${b.turnsRemaining} dönem kaldı` : 'yapım sürüyor';
       return `
-        <article class="ob-kart bina-kart bina-kart--yapim">
+        <article class="ob-kart bina-kart bina-kart--yapim" data-building-id="${b.id}">
           <header class="ob-kimlik">
             <span class="ob-kimlik-ikon ob-kimlik-ikon--gorsel">${isUpg
               ? _binaGorseli(b.type, Math.min(b.level || 1, maxLvl), 56)
@@ -5415,6 +5449,9 @@ export function renderCampusPanel(state, onBuildStart, onDecision) {
           </header>
           ${_obSatir(isUpg ? 'Yükseltme' : 'Yapım', `%${pct}`)}
           <div class="ob-cubuk ob-cubuk--uyari"><span style="width:${Math.min(100, pct)}%"></span></div>
+          <div class="ob-dugmeler ob-dugmeler--alt">
+            <button type="button" class="btn btn-ghost btn-sm bina-ayrinti-dugme" data-bina-git="${b.id}">Ayrıntılar</button>
+          </div>
         </article>`;
     }
 
@@ -5614,6 +5651,7 @@ export function renderCampusPanel(state, onBuildStart, onDecision) {
             <button type="button" class="btn btn-ghost btn-sm btn-campus-assign" data-building-id="${b.id}">
               ${b.type === 'lab' ? 'Bölüm bağla' : 'Bölüm ata'}
             </button>` : ''}
+          <button type="button" class="btn btn-ghost btn-sm bina-ayrinti-dugme" data-bina-git="${b.id}">Ayrıntılar</button>
         </div>
       </article>`;
   };
@@ -6069,6 +6107,13 @@ export function renderCampusPanel(state, onBuildStart, onDecision) {
         if (ke.key === 'Escape') { _savedOnce = true; nameSpan.innerHTML = originalContent; }
       });
       input.addEventListener('blur', saveName);
+    });
+
+    // v0.7.2: bina kartına tıklamak Bina Sayfası'nı açar. Karttaki düğmeler (Yükselt, Bölüm ata,
+    // Ayrıntılar, ✏️) ve ad düzenleme girdisi kendi işini yapar.
+    delegate(panel, '.bina-kart[data-building-id]', 'click', (e, kart) => {
+      if (e.target.closest('button, a, input, select, textarea, label')) return;
+      if (typeof window._binaSayfasiniAc === 'function') window._binaSayfasiniAc(kart.dataset.buildingId);
     });
   }
 
