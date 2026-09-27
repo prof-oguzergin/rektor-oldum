@@ -3579,3 +3579,64 @@ input[type="range"].ob-kaydirici:focus-visible { outline: 2px solid var(--gold-s
   .geri-dugmeler .btn { flex: 1 1 0; min-width: 0; min-height: 44px; }
   .geri-yedek { text-align: center; }
 }
+
+/* v0.7.2 yerleşke düzenleme */
+/* Harita alanı: tuval, bilgi kutusu ve harita üstündeki düğmeler bu kutuya göre konumlanır */
+.campus-hero .yd-harita,
+.campus-map-fullscreen .yd-harita--tam { position: relative; }
+.yd-kaydir { position: relative; }
+.yd-kaydir > canvas { display: block; }
+
+/* "Yerleşkeyi düzenle": Büyüt düğmesiyle aynı görünüş, haritanın sol üstünde */
+.campus-hero .yd-duzenle-ac { left: 10px; right: auto; font-weight: 700; }
+.campus-hero.yd-acik .yd-duzenle-ac,
+.campus-map-fullscreen.yd-acik .yd-duzenle-ac { display: none; }
+.yd-duzenle-ac .yd-kisa { display: none; }
+
+/* Şerit: düzenleme kipinde yönerge ve son işlemin sonucu; kip kapalıyken yeni inşaat önerisi */
+.yd-serit { display: none; align-items: center; flex-wrap: wrap; gap: 8px 14px; }
+.yd-acik .yd-serit,
+.yd-serit.yd-serit--oneri { display: flex; }
+.campus-hero > .yd-serit { margin: 0; border-radius: 0; border-width: 0 0 1px; }
+.yd-serit-metin { flex: 1 1 200px; min-width: 0; margin: 0; }
+.yd-serit-dugmeler { display: flex; flex: 0 0 auto; flex-wrap: wrap; gap: 8px; margin-left: auto; }
+.yd-serit .yd-bitti,
+.yd-serit .yd-yeni-sec,
+.yd-serit .yd-yeni-kapat { display: none; justify-content: center; }
+.yd-acik .yd-serit .yd-bitti { display: inline-flex; min-width: 84px; }
+.yd-serit--oneri .yd-yeni-sec,
+.yd-serit--oneri .yd-yeni-kapat { display: inline-flex; }
+
+/* Düzenleme kipinde tuvalin imleci (bina ve hedef üstünde renderer değiştirir) */
+#screen-game .campus-hero.yd-acik canvas,
+.campus-map-fullscreen.yd-acik canvas { cursor: crosshair; }
+
+/* Büyük harita: başlık, şerit ve harita aynı genişlikte; kısa ekranda yüksekliğe sığar */
+.campus-map-fullscreen .campus-map-fullscreen-header,
+.campus-map-fullscreen .yd-serit--tam,
+.campus-map-fullscreen .yd-harita--tam {
+  width: min(90%, 1200px, calc((100vh - 190px) * 1.6));
+  width: min(90%, 1200px, calc((100dvh - 190px) * 1.6));
+  max-width: 1200px;
+}
+.campus-map-fullscreen .campus-map-fullscreen-header { gap: 10px; }
+.campus-map-fullscreen .yd-harita--tam canvas { width: 100%; max-width: none; }
+.campus-map-fullscreen .yd-serit--tam { margin: 0 0 10px; background-color: #121c38; }
+.campus-map-fullscreen .yd-serit--tam.ob-not--iyi { background-color: #10282f; }
+.campus-map-fullscreen .yd-serit--tam.ob-not--kritik { background-color: #2a1630; }
+.yd-baslik-dugmeler { display: flex; align-items: center; gap: 10px; flex: 0 0 auto; }
+
+@media (max-width: 640px) {
+  /* Telefonda düzenleme haritası iki kat büyük gösterilir ve yana kayar; dokunma hedefleri 44 piksel */
+  .yd-acik .yd-kaydir { overflow-x: auto; overflow-y: hidden; overscroll-behavior-x: contain; -webkit-overflow-scrolling: touch; }
+  .yd-acik .yd-kaydir > canvas,
+  .yd-acik .yd-kaydir > #campus-canvas,
+  .campus-map-fullscreen.yd-acik .yd-harita--tam canvas { width: 200%; max-width: none; }
+  .campus-hero .campus-hero-expand { min-height: 44px; padding: 8px 12px; font-size: 13px; }
+  .yd-serit .btn,
+  .yd-baslik-dugmeler .btn { min-height: 44px; padding: 8px 14px; font-size: 13px; }
+  .campus-map-fullscreen .campus-map-close { width: 44px; height: 44px; }
+  .campus-map-fullscreen .campus-map-fullscreen-header > span { font-size: 16px; }
+  .yd-duzenle-ac .yd-uzun { display: none; }
+  .yd-duzenle-ac .yd-kisa { display: inline; }
+}

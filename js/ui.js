@@ -5211,8 +5211,99 @@ function _insaatOnayIcerigi(katalog, kasa) {
       ['İnşaattan sonra kasa', formatMoney(kasa - katalog.cost)],
     ])}
     ${kazanc.length ? `<div class="onay-kazanc"><div class="onay-kazanc-baslik">Ne kazandırır</div>
-      <ul>${kazanc.map(k => `<li>${k}</li>`).join('')}</ul></div>` : ''}`;
+      <ul>${kazanc.map(k => `<li>${k}</li>`).join('')}</ul></div>` : ''}
+    <div class="ob-aciklama yd-onay-not">Bina haritada kendiliğinden bir yere konur. Yerini sonra "Yerleşkeyi düzenle" ile değiştirebilirsiniz.</div>`;
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// v0.7.2 YERLEŞKE DÜZENLEME
+// Oyuncu Yerleşke haritasında (ve büyük haritada) binaları taşır: önce binaya, sonra yeni
+// yerine dokunur. Durum modül düzeyinde kalır; renderCampusPanel her çizimde geri yükler
+// (taşıma kararı paneli yeniden çizer). Kural campus-layout.js'te, çizim campus-renderer.js'te.
+// ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * aktif: düzenleme kipi · seciliId: taşınacak bina · mesaj/tur: şerit iletisi ve ob-not rengi
+ * anlik: imleç uygun olmayan yerdeyken nedeni · bekleyen: sonucu yeni çizimde yazılacak taşıma
+ * tamEkran: büyük harita açık · kaydirma: telefonda haritanın yatay kaydırması
+ * kapatilanYeni: yeni inşaat için "yerini değiştir" önerisi kapatılan binalar
+ */
+const _yerleskeDuzen = {
+  aktif: false, seciliId: null, mesaj: null, tur: '', anlik: null, bekleyen: null,
+  tamEkran: false, kaydirma: {}, kapatilanYeni: new Set(),
+};
+
+/** Dokunmatik ekranda "dokunun", fareyle "tıklayın". */
+function _ydFiil() {
+  try { return window.matchMedia('(hover: none)').matches ? 'dokunun' : 'tıklayın'; } catch (e) { return 'tıklayın'; }
+}
+
+function _ydAd(b) {
+  return b?.name || BUILDINGS[b?.type]?.name || 'Bina';
+}
+
+/** Bu dönem yapımı başlayan (ilerlemesi 0) ve önerisi kapatılmamış son bina. */
+function _ydYeniBina(binalar) {
+  const yeni = (binalar || []).filter(b => !b.isCompleted && b.status === 'under_construction'
+    && !(b.constructionProgress > 0) && !_yerleskeDuzen.kapatilanYeni.has(b.id));
+  return yeni[yeni.length - 1] || null;
+}
+
+/** Şeridin metni ve rengi. Düzenleme kipinde yönerge ya da son işlemin sonucu; kip kapalıyken yeni inşaat önerisi. */
+function _ydSeritIcerigi(binalar) {
+  const d = _yerleskeDuzen;
+  const fiil = _ydFiil();
+  if (!d.aktif) {
+    const yeni = _ydYeniBina(binalar);
+    return yeni
+      ? { html: `<b>${_escHtml(_ydAd(yeni))}</b> haritada kendiliğinden bir yere kondu. Yerini değiştirebilirsiniz.`, tur: '' }
+      : { html: '', tur: '' };
+  }
+  if (d.anlik) return { html: d.anlik, tur: 'kritik' };
+  if (d.mesaj) return { html: d.mesaj, tur: d.tur || '' };
+  const secili = d.seciliId ? (binalar || []).find(b => b.id === d.seciliId) : null;
+  if (secili) return { html: `<b>${_escHtml(_ydAd(secili))}</b> seçili. Yeni yerine ${fiil}. Yeşil yer uygun, kırmızı değil.`, tur: '' };
+  return { html: `Taşımak istediğiniz binaya ${fiil}, sonra haritada yeni yerine ${fiil}.`, tur: '' };
+}
+
+/** Düzenleme şeridi (Yerleşke haritasının ve büyük haritanın üstünde). */
+function _ydSerit(id, tam = false) {
+  return `
+      <div class="ob-not yd-serit${tam ? ' yd-serit--tam' : ''}" id="${id}" role="status" aria-live="polite">
+        <p class="yd-serit-metin"></p>
+        <div class="yd-serit-dugmeler">
+          <button type="button" class="btn btn-primary btn-sm yd-yeni-sec" data-yd="yeni">Yerini değiştir</button>
+          <button type="button" class="btn btn-ghost btn-sm yd-yeni-kapat" data-yd="yeni-kapat" aria-label="Öneriyi kapat">Kapat</button>
+          <button type="button" class="btn btn-primary btn-sm yd-bitti" data-yd="bitti">Bitti</button>
+        </div>
+      </div>`;
+}
+
+/** Oyunda açık bir pencere ya da dönem özeti var mı (Esc önce onları kapatır). */
+function _ydUstPencereAcik() {
+  const m = el('modal-overlay');
+  if (m && !m.classList.contains('hidden')) return true;
+  const t = el('turn-summary-overlay');
+  return !!t && !t.classList.contains('hidden') && getComputedStyle(t).display !== 'none';
+}
+
+/**
+ * v0.7.2: Yerleşke düzenlemesini başka yerlerden (ör. bina sayfası) açar. Yerleşke sekmesine
+ * geçer, düzenleme kipini açar; bina kimliği verildiyse o bina taşınmak üzere seçili gelir.
+ * @param {string} [buildingId]
+ */
+window._yerleskeDuzenle = (buildingId) => {
+  const d = _yerleskeDuzen;
+  Object.assign(d, { aktif: true, seciliId: buildingId || null, mesaj: null, tur: '', anlik: null, bekleyen: null, kaydirma: {} });
+  if (buildingId) d.kapatilanYeni.add(buildingId);
+  const panel = el('tab-campus');
+  if (panel && panel.classList.contains('active') && el('campus-canvas') && typeof panel._yerleskeDuzenUygula === 'function') {
+    panel._yerleskeDuzenUygula();
+  } else {
+    qs('.sidebar-tab[data-tab="campus"]')?.click();
+  }
+  requestAnimationFrame(() => el('campus-hero')?.scrollIntoView?.({ block: 'nearest' }));
+};
 
 /** Düzey yükseltme onay penceresinin içeriği; bina yükseltilemiyorsa null. */
 function _yukseltmeOnayIcerigi(bina, kasa) {
@@ -5570,11 +5661,15 @@ export function renderCampusPanel(state, onBuildStart, onDecision) {
     <div class="campus-layout">
       <div class="campus-main">
 
-    <!-- Yerleşke haritası: sekmenin ana görünümü (v0.5.0) -->
-    <div class="campus-hero">
-      <canvas id="campus-canvas" width="1600" height="1000"></canvas>
-      <div id="campus-tooltip" class="campus-tooltip" style="display:none;"></div>
-      <button class="campus-hero-expand" id="campus-map-expand" type="button" title="Haritayı büyüt">⛶ Büyüt</button>
+    <!-- Yerleşke haritası: sekmenin ana görünümü (v0.5.0); v0.7.2 düzenleme kipi -->
+    <div class="campus-hero${_yerleskeDuzen.aktif ? ' yd-acik' : ''}" id="campus-hero">
+      ${_ydSerit('campus-yd-serit')}
+      <div class="yd-harita">
+        <div class="yd-kaydir"><canvas id="campus-canvas" width="1600" height="1000"></canvas></div>
+        <div id="campus-tooltip" class="campus-tooltip" style="display:none;"></div>
+        <button class="campus-hero-expand yd-duzenle-ac" type="button" data-yd="ac">Yerleşkeyi düzenle</button>
+        <button class="campus-hero-expand" id="campus-map-expand" type="button" title="Haritayı büyüt">⛶ Büyüt</button>
+      </div>
     </div>
 
         <div class="ob-yigin">
@@ -5603,89 +5698,222 @@ export function renderCampusPanel(state, onBuildStart, onDecision) {
       </div><!-- /campus-main -->
     </div><!-- /campus-layout -->
 
-    <!-- Tam ekran harita katmanı (varsayılan: gizli) -->
-    <div class="campus-map-fullscreen" id="campus-map-fullscreen" style="display:none;">
+    <!-- Tam ekran harita katmanı (varsayılan: gizli); v0.7.2 düzenleme burada da yapılır -->
+    <div class="campus-map-fullscreen${_yerleskeDuzen.aktif ? ' yd-acik' : ''}" id="campus-map-fullscreen" style="display:none;">
       <div class="campus-map-fullscreen-header">
         <span>Yerleşke Haritası</span>
-        <button class="campus-map-close" id="campus-map-close">✕</button>
+        <div class="yd-baslik-dugmeler">
+          <button type="button" class="btn btn-secondary btn-sm yd-duzenle-ac" data-yd="ac"><span class="yd-uzun">Yerleşkeyi düzenle</span><span class="yd-kisa">Düzenle</span></button>
+          <button class="campus-map-close" id="campus-map-close" type="button" aria-label="Haritayı kapat">✕</button>
+        </div>
       </div>
-      <div style="position:relative;width:90%;max-width:1200px;">
-        <canvas id="campus-canvas-full" width="1600" height="1000"></canvas>
+      ${_ydSerit('campus-yd-serit-tam', true)}
+      <div class="yd-harita yd-harita--tam">
+        <div class="yd-kaydir"><canvas id="campus-canvas-full" width="1600" height="1000"></canvas></div>
         <div id="campus-tooltip-full" class="campus-tooltip" style="display:none;"></div>
       </div>
     </div>
   `;
 
-  // Yerleşke haritası canvas: innerHTML her yenilendiğinde yeniden bağlanmalı
+  // ── Yerleşke haritası (v0.5.0) ve düzenleme kipi (v0.7.2) ─────────────────
+  // innerHTML her yenilendiğinde tuvaller ve dinleyiciler yeniden bağlanır. Düzenleme durumu
+  // modül düzeyindeki _yerleskeDuzen'de kalır: taşıma kararı paneli yeniden çizince seçim,
+  // şerit iletisi, açık büyük harita ve telefondaki kaydırma geri gelir.
+  const duzen        = _yerleskeDuzen;
   const campusCanvas = document.getElementById('campus-canvas');
-  if (campusCanvas) {
-    renderCampusMap(campusCanvas, state);
+  const expandBtn    = document.getElementById('campus-map-expand');
+  const fullscreen   = document.getElementById('campus-map-fullscreen');
+  const closeBtn     = document.getElementById('campus-map-close');
+  const fullCanvas   = document.getElementById('campus-canvas-full');
+  const haritaBinalari = state.buildings || [];
 
-    campusCanvas.addEventListener('click', (e) => {
-      const building = handleCampusClick(e, campusCanvas, state);
-      renderCampusMap(campusCanvas, state);
-      _binaIpucu(document.getElementById('campus-tooltip'), building, e);
-    });
-
-    campusCanvas.addEventListener('mousemove', (e) => {
-      const building = handleCampusHover(e, campusCanvas, state);
-      renderCampusMap(campusCanvas, state);
-      _binaIpucu(document.getElementById('campus-tooltip'), building, e);
-    });
-
-    campusCanvas.addEventListener('mouseleave', () => {
-      clearHover();
-      renderCampusMap(campusCanvas, state);
-      const tooltip = document.getElementById('campus-tooltip');
-      if (tooltip) tooltip.style.display = 'none';
-    });
+  // Seçili bina artık yoksa (başka oyun yüklendi) seçim düşer; bekleyen taşımanın sonucu şeride yazılır
+  if (duzen.seciliId && !haritaBinalari.some(b => b.id === duzen.seciliId)) {
+    Object.assign(duzen, { seciliId: null, mesaj: null, tur: '', anlik: null });
+  }
+  if (duzen.bekleyen) {
+    const { id, col, row } = duzen.bekleyen;
+    const tasinan = haritaBinalari.find(b => b.id === id);
+    const oldu = !!tasinan && tasinan.gridX === col && tasinan.gridY === row;
+    duzen.mesaj = oldu
+      ? `<b>${_escHtml(_ydAd(tasinan))}</b> taşındı. İsterseniz yeniden taşıyın ya da başka bir binaya ${_ydFiil()}.`
+      : `<b>${_escHtml(_ydAd(tasinan))}</b> taşınamadı.`;
+    duzen.tur = oldu ? 'iyi' : 'kritik';
+    duzen.anlik = null;
+    duzen.bekleyen = null;
   }
 
-  // Tam ekran harita: önizlemeye tıklanınca aç
-  const expandBtn   = document.getElementById('campus-map-expand');
-  const fullscreen  = document.getElementById('campus-map-fullscreen');
-  const closeBtn    = document.getElementById('campus-map-close');
-  const fullCanvas  = document.getElementById('campus-canvas-full');
+  const tamAcik    = () => !!fullscreen && fullscreen.style.display !== 'none';
+  const haritaAyari = () => (duzen.aktif ? { seciliId: duzen.seciliId } : null);
+  const ciz        = (cv) => { if (cv && (cv !== fullCanvas || tamAcik())) renderCampusMap(cv, state, haritaAyari()); };
+  const hepsiniCiz = () => { ciz(campusCanvas); ciz(fullCanvas); };
+  const ipucuGizle = () => ['campus-tooltip', 'campus-tooltip-full'].forEach((id) => {
+    const t = document.getElementById(id);
+    if (t) t.style.display = 'none';
+  });
+
+  /** Şeridin metni, rengi, düğmeleri ve düzenleme sınıfı (haritayı yeniden çizmeden). */
+  function seritiGuncelle() {
+    const { html, tur } = _ydSeritIcerigi(haritaBinalari);
+    for (const serit of panel.querySelectorAll('.yd-serit')) {
+      serit.classList.remove('ob-not--iyi', 'ob-not--kritik');
+      if (tur) serit.classList.add(`ob-not--${tur}`);
+      serit.classList.toggle('yd-serit--oneri', !duzen.aktif && !!html);
+      const p = serit.querySelector('.yd-serit-metin');
+      if (p && p._html !== html) { p.innerHTML = html; p._html = html; }
+    }
+    document.getElementById('campus-hero')?.classList.toggle('yd-acik', duzen.aktif);
+    fullscreen?.classList.toggle('yd-acik', duzen.aktif);
+  }
+
+  /** Telefonda düzenleme haritası iki kat büyük gösterilir ve yana kayar (kaydırma korunur). */
+  const kaydiricilar = [[campusCanvas, 'hero'], [fullCanvas, 'tam']]
+    .map(([cv, anahtar]) => ({ kap: cv?.parentElement, anahtar }))
+    .filter(k => k.kap && k.kap.classList.contains('yd-kaydir'));
+  function kaydirmaAyarla() {
+    for (const { kap, anahtar } of kaydiricilar) {
+      if (!duzen.aktif || kap.scrollWidth <= kap.clientWidth + 1) { kap.scrollLeft = 0; continue; }
+      const kayitli = duzen.kaydirma[anahtar];
+      kap.scrollLeft = Number.isFinite(kayitli) ? kayitli : (kap.scrollWidth - kap.clientWidth) / 2;
+    }
+  }
+  for (const { kap, anahtar } of kaydiricilar) {
+    kap.addEventListener('scroll', () => { if (duzen.aktif) duzen.kaydirma[anahtar] = kap.scrollLeft; }, { passive: true });
+  }
+
+  function gorunumuYenile() {
+    clearHover();
+    ipucuGizle();
+    seritiGuncelle();
+    hepsiniCiz();
+    kaydirmaAyarla();
+  }
+
+  function duzenAc(id = null) {
+    Object.assign(duzen, { aktif: true, seciliId: id, mesaj: null, tur: '', anlik: null, bekleyen: null, kaydirma: {} });
+    if (id) duzen.kapatilanYeni.add(id);
+    gorunumuYenile();
+  }
+
+  function duzenKapat() {
+    Object.assign(duzen, { aktif: false, seciliId: null, mesaj: null, tur: '', anlik: null, bekleyen: null, kaydirma: {} });
+    gorunumuYenile();
+  }
+
+  // window._yerleskeDuzenle bu çizimin görünümünü yerinde günceller
+  panel._yerleskeDuzenUygula = gorunumuYenile;
+
+  // Oyuncu başka sekmeye geçince düzenleme kipi ve büyük harita kapanır (panel bir kez izlenir)
+  if (!panel._ydGozcu && typeof MutationObserver === 'function') {
+    panel._ydGozcu = new MutationObserver(() => {
+      if (panel.classList.contains('active')) return;
+      Object.assign(_yerleskeDuzen, { aktif: false, seciliId: null, mesaj: null, tur: '', anlik: null, bekleyen: null, tamEkran: false, kaydirma: {} });
+    });
+    panel._ydGozcu.observe(panel, { attributes: true, attributeFilter: ['class'] });
+  }
+
+  function sec(b) {
+    Object.assign(duzen, { seciliId: b.id, mesaj: null, tur: '', anlik: null });
+    clearHover();
+    seritiGuncelle();
+    hepsiniCiz();
+  }
+
+  function birak() {
+    Object.assign(duzen, { seciliId: null, mesaj: null, tur: '', anlik: null });
+    clearHover();
+    seritiGuncelle();
+    hepsiniCiz();
+  }
+
+  /** Taşıma kararı: main.js paneli yeniden çizer, sonuç yeni çizimde şeride yazılır. */
+  function tasi(b, col, row) {
+    duzen.bekleyen = { id: b.id, col, row };
+    duzen.anlik = null;
+    if (typeof panel._onDecision === 'function') {
+      panel._onDecision({ type: 'move_building', buildingId: b.id, gridX: col, gridY: row });
+    }
+  }
+
+  function duzenTikla(cv, e) {
+    const r = handleCampusClick(e, cv, state);
+    if (!r.secili) {
+      if (r.bina) { sec(r.bina); return; }
+      Object.assign(duzen, { mesaj: `Önce taşımak istediğiniz binaya ${_ydFiil()}.`, tur: '', anlik: null });
+      seritiGuncelle();
+      ciz(cv);
+      return;
+    }
+    if (r.bina && r.bina.id !== r.secili.id) { sec(r.bina); return; }
+    if (!r.hedef || r.hedef.ayniYer) { birak(); return; }      // seçili binaya yeniden dokunmak seçimi bırakır
+    if (r.hedef.ok) { tasi(r.secili, r.hedef.col, r.hedef.row); return; }
+    Object.assign(duzen, { mesaj: `Buraya konamaz. ${r.hedef.mesaj}`, tur: 'kritik', anlik: null });
+    seritiGuncelle();
+    ciz(cv);
+  }
+
+  function duzenGezin(cv, e) {
+    const h = handleCampusHover(e, cv, state).hedef;
+    duzen.anlik = h && !h.ok && !h.ayniYer ? `Buraya konamaz. ${h.mesaj}` : null;
+    if (!duzen.anlik && duzen.tur === 'kritik') { duzen.mesaj = null; duzen.tur = ''; }
+    seritiGuncelle();
+    ciz(cv);
+  }
+
+  function olaganTikla(cv, ipucuId, e) {
+    ciz(cv);   // tuvalin kipi şeritle aynı olsun (tıklama sonucu kipe göre değişir)
+    const building = handleCampusClick(e, cv, state);
+    // v0.7.2: bina sayfası tanımlıysa binaya tıklamak onu açar; değilse bilgi kutusu
+    if (building && typeof window._binaSayfasiniAc === 'function') {
+      clearHover();
+      ipucuGizle();
+      if (cv === fullCanvas) closeFullscreen(); else ciz(cv);
+      window._binaSayfasiniAc(building.id);
+      return;
+    }
+    ciz(cv);
+    _binaIpucu(document.getElementById(ipucuId), building, e);
+  }
+
+  function olaganGezin(cv, ipucuId, e) {
+    const building = handleCampusHover(e, cv, state);
+    ciz(cv);
+    _binaIpucu(document.getElementById(ipucuId), building, e);
+  }
+
+  // Yerleşke haritası ve büyük harita aynı dinleyicileri kullanır (büyük harita gizliyken olay gelmez)
+  for (const [cv, ipucuId] of [[campusCanvas, 'campus-tooltip'], [fullCanvas, 'campus-tooltip-full']]) {
+    if (!cv) continue;
+    let sonIsaretci = 'mouse';
+    cv.addEventListener('pointerdown', (e) => { sonIsaretci = e.pointerType || 'mouse'; });
+    cv.addEventListener('click', (e) => (duzen.aktif ? duzenTikla(cv, e) : olaganTikla(cv, ipucuId, e)));
+    cv.addEventListener('mousemove', (e) => (duzen.aktif ? duzenGezin(cv, e) : olaganGezin(cv, ipucuId, e)));
+    cv.addEventListener('mouseleave', () => {
+      // Dokunmatikte hayalet ve nedeni bir sonraki dokunuşa dek kalır (dokunuştan sonra gelen öykünme olayı silmesin)
+      if (duzen.aktif && sonIsaretci === 'touch') return;
+      clearHover();
+      if (duzen.aktif && duzen.anlik) { duzen.anlik = null; seritiGuncelle(); }
+      ciz(cv);
+      const t = document.getElementById(ipucuId);
+      if (t) t.style.display = 'none';
+    });
+  }
 
   function openFullscreen() {
     if (!fullscreen || !fullCanvas) return;
     fullscreen.style.display = 'flex';
-    renderCampusMap(fullCanvas, state);
-
-    // Tam ekran kanvasında da bilgi kutusu ve üstüne gelme
-    fullCanvas.addEventListener('click', _fullCanvasClick);
-    fullCanvas.addEventListener('mousemove', _fullCanvasMove);
-    fullCanvas.addEventListener('mouseleave', _fullCanvasLeave);
+    duzen.tamEkran = true;
+    ciz(fullCanvas);
+    kaydirmaAyarla();
   }
 
   function closeFullscreen() {
     if (!fullscreen) return;
     fullscreen.style.display = 'none';
+    duzen.tamEkran = false;
     clearHover();
-    fullCanvas.removeEventListener('click', _fullCanvasClick);
-    fullCanvas.removeEventListener('mousemove', _fullCanvasMove);
-    fullCanvas.removeEventListener('mouseleave', _fullCanvasLeave);
-    const tt = document.getElementById('campus-tooltip-full');
-    if (tt) tt.style.display = 'none';
-  }
-
-  function _fullCanvasClick(e) {
-    const building = handleCampusClick(e, fullCanvas, state);
-    renderCampusMap(fullCanvas, state);
-    _binaIpucu(document.getElementById('campus-tooltip-full'), building, e);
-  }
-
-  function _fullCanvasMove(e) {
-    const building = handleCampusHover(e, fullCanvas, state);
-    renderCampusMap(fullCanvas, state);
-    _binaIpucu(document.getElementById('campus-tooltip-full'), building, e);
-  }
-
-  function _fullCanvasLeave() {
-    clearHover();
-    renderCampusMap(fullCanvas, state);
-    const tt = document.getElementById('campus-tooltip-full');
-    if (tt) tt.style.display = 'none';
+    ipucuGizle();
+    ciz(campusCanvas);
   }
 
   if (expandBtn) {
@@ -5709,16 +5937,41 @@ export function renderCampusPanel(state, onBuildStart, onDecision) {
     });
   }
 
-  // Escape tuşuyla kapat: her çizimde eski dinleyiciyi temizle
+  // Düzenleme düğmeleri: aç, bitir, yeni inşaatın yerini değiştir, öneriyi kapat
+  // Düğme gizlenince odak kaybolmasın: kip açılınca Bitti'ye, kapanınca düzenle düğmesine geçer
+  const odakla = (secici) => panel.querySelector(`${tamAcik() ? '.campus-map-fullscreen' : '.campus-hero'} ${secici}`)?.focus({ preventScroll: true });
+  for (const dugme of panel.querySelectorAll('.campus-hero [data-yd], .campus-map-fullscreen [data-yd]')) {
+    dugme.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const is = dugme.dataset.yd;
+      if (is === 'ac') { duzenAc(null); odakla('.yd-bitti'); }
+      else if (is === 'bitti') { duzenKapat(); odakla('.yd-duzenle-ac'); }
+      else if (is === 'yeni') { duzenAc(_ydYeniBina(haritaBinalari)?.id || null); odakla('.yd-bitti'); }
+      else if (is === 'yeni-kapat') {
+        const yeni = _ydYeniBina(haritaBinalari);
+        if (yeni) duzen.kapatilanYeni.add(yeni.id);
+        seritiGuncelle();
+      }
+    });
+  }
+
+  // Escape: önce düzenleme kipini, sonra büyük haritayı kapatır. Açık pencere ya da dönem özeti
+  // varsa Esc onları kapatsın diye (main.js) bu dinleyici yakalama evresinde çalışır ve geri çekilir.
   if (panel._escListener) {
-    document.removeEventListener('keydown', panel._escListener);
+    document.removeEventListener('keydown', panel._escListener, true);
   }
   panel._escListener = (e) => {
-    if (e.key === 'Escape' && fullscreen && fullscreen.style.display !== 'none') {
-      closeFullscreen();
-    }
+    if (e.key !== 'Escape' || _ydUstPencereAcik() || e.target?.closest?.('input, textarea, select, [contenteditable]')) return;
+    if (duzen.aktif && panel.classList.contains('active')) { duzenKapat(); return; }
+    if (tamAcik()) closeFullscreen();
   };
-  document.addEventListener('keydown', panel._escListener);
+  document.addEventListener('keydown', panel._escListener, true);
+
+  // İlk çizim: şerit, açık kalan büyük harita ve kaydırma geri gelir
+  seritiGuncelle();
+  ciz(campusCanvas);
+  if (duzen.tamEkran) openFullscreen();
+  kaydirmaAyarla();
 
   // Olay dinleyicilerini yalnızca bir kez bağla (her çizimde tekrar ekleme)
   if (!panel._campusListenersAttached) {
