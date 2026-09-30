@@ -641,19 +641,26 @@ function kapasiteKarti(state, b, tanim, h, dagilim) {
 
   const ogrenci = toplamOgrenci(state);
   const hoca = (state.faculty || []).length;
+  // v0.7.3: hizmet binaları (kütüphane, yemekhane, spor tesisi) Yerleşke kartı gibi bu binanın kapasitesini,
+  // yerleşke toplamını ve oyunun kullandığı yerleşke ihtiyacını yazar (students.js calculateStudentSatisfaction;
+  // hizmetKatkisi aynı hesap). Eskiden her bina bütün ihtiyacı tek başına karşılıyormuş gibi "500 / 500" yazıyordu.
+  const hizmet = (buAd, buDeger, birim, ihtiyacMetni, aciklama) => {
+    satirlar.push(h.satir(buAd, buDeger));
+    if (!bitti) return;
+    const k = hizmetKatkisi(state, b.type);
+    const adet = (state.buildings || []).filter(x => x.type === b.type && x.isCompleted).length;
+    satirlar.push(h.satir('Yerleşke toplamı', `günde ${sayi(k.toplam)} ${birim}${adet > 1 ? ` <span class="ob-soluk">(${adet} bina)</span>` : ''}`));
+    satirlar.push(h.satir('İhtiyaç', ihtiyacMetni));
+    const yuzde = k.toplam > 0 && k.ihtiyac > 0 ? Math.round((k.ihtiyac / k.toplam) * 100) : 0;
+    satirlar.push(h.yeterlilik ? h.yeterlilik(yuzde) : h.satir('Yeterlilik', `%${yuzde}`));
+    satirlar.push(not(aciklama));
+  };
   switch (b.type) {
-    case 'kutuphane': {
-      satirlar.push(h.satir('Aynı anda oturma', `${sayi(kap.simultaneous || 0)} kişi`));
-      satirlar.push(h.satir('Günlük kapasite', `${sayi(kap.daily || 0)} kişi`));
-      if (kul) {
-        const oran = kap.daily ? ogrenci / kap.daily : 0;
-        satirlar.push(h.satir('Günlük kullanım', `${sayi(kul.daily)} <span class="ob-soluk">/ ${sayi(kap.daily || 0)} · öğrenci ${sayi(ogrenci)}</span>`, `ob-${dolulukTuru(oran)}`));
-        satirlar.push(cubuk(oran));
-        satirlar.push(h.satir('Aynı anda kullanım', `${sayi(kul.simultaneous)} <span class="ob-soluk">/ ${sayi(kap.simultaneous || 0)}</span>`));
-        satirlar.push(not('Oyun her öğrenciyi günde bir kez, öğrencilerin dörtte birini aynı anda sayar. Kullanım kapasiteyle sınırlı.'));
-      }
+    case 'kutuphane':
+      hizmet('Bu kütüphane', `günde ${sayi(kap.daily || 0)} öğrenci, aynı anda ${sayi(kap.simultaneous || 0)}`, 'öğrenci',
+        `${sayi(ogrenci)} öğrenci`,
+        'Memnuniyet hesabı yerleşkedeki bütün kütüphanelerin günlük kapasitesini öğrenci sayısıyla karşılaştırır. Aynı anda oturma yalnız gösterilir.');
       break;
-    }
     case 'yurt': {
       satirlar.push(h.satir('Yatak', sayi(kap.beds || 0)));
       if (kul) {
@@ -664,28 +671,16 @@ function kapasiteKarti(state, b, tanim, h, dagilim) {
       }
       break;
     }
-    case 'yemekhane': {
-      satirlar.push(h.satir('Günlük öğün', sayi(kap.dailyMeals || 0)));
-      if (kul) {
-        const ihtiyac = ogrenci + hoca;
-        const oran = kap.dailyMeals ? ihtiyac / kap.dailyMeals : 0;
-        satirlar.push(h.satir('Günlük kullanım', `${sayi(kul.dailyMeals)} <span class="ob-soluk">/ ${sayi(kap.dailyMeals || 0)} · ihtiyaç ${sayi(ihtiyac)}</span>`, `ob-${dolulukTuru(oran)}`));
-        satirlar.push(cubuk(oran));
-        satirlar.push(not(`İhtiyaç ${sayi(ogrenci)} öğrenci ile ${sayi(hoca)} hocanın toplamı. Her kişi günde bir öğün sayılır.`));
-      }
+    case 'yemekhane':
+      hizmet('Bu yemekhane', `günde ${sayi(kap.dailyMeals || 0)} öğün`, 'öğün',
+        `${sayi(ogrenci)} öğrenci + ${sayi(hoca)} hoca = ${sayi(ogrenci + hoca)}`,
+        'Memnuniyet hesabı yerleşkedeki bütün yemekhanelerin günlük öğününü öğrenci ve hoca sayısıyla karşılaştırır. Her kişi günde bir öğün sayılır.');
       break;
-    }
-    case 'spor_tesisi': {
-      satirlar.push(h.satir('Günlük kullanıcı', sayi(kap.dailyUsers || 0)));
-      if (kul) {
-        const istek = Math.round(ogrenci * 0.60);
-        const oran = kap.dailyUsers ? istek / kap.dailyUsers : 0;
-        satirlar.push(h.satir('Günlük kullanım', `${sayi(kul.dailyUsers)} <span class="ob-soluk">/ ${sayi(kap.dailyUsers || 0)} · isteyen ${sayi(istek)}</span>`, `ob-${dolulukTuru(oran)}`));
-        satirlar.push(cubuk(oran));
-        satirlar.push(not('Oyun öğrencilerin %60\'ını günlük kullanıcı sayar. Kullanım kapasiteyle sınırlı.'));
-      }
+    case 'spor_tesisi':
+      hizmet('Bu tesis', `günde ${sayi(kap.dailyUsers || 0)} kullanıcı`, 'kullanıcı',
+        `${sayi(ogrenci)} öğrenci`,
+        'Memnuniyet hesabı yerleşkedeki bütün spor tesislerinin günlük kapasitesini öğrenci sayısıyla karşılaştırır.');
       break;
-    }
     case 'saglik_merkezi':
       satirlar.push(h.satir('Günlük hasta', sayi(kap.dailyPatients || 0)));
       satirlar.push(not('Oyun bu kapasiteyi bir hesapta kullanmıyor.'));

@@ -5215,6 +5215,7 @@ export function binaSayfasiniGoster(state, binaId, islemler = {}) {
   return binaSayfasiniCiz(state, binaId, {
     para: formatMoney, sayi: formatNumber, ondalik: ondalikYaz, ek: sayiEkle,
     esc: _escHtml, puan: _obPuan, kutu: _obKutu, satir: _obSatir,
+    yeterlilik: _yeterlilik,   // v0.7.3: hizmet binalarında Yerleşke kartıyla aynı yeterlilik satırı
     gorsel: _binaGorseli, bolumIkonu, kapasiteParcalari: _kapasiteParcalari,
     showModal, hideModal, showConfirmModal, showNotification,
     yukseltmeOnayi: _yukseltmeOnayIcerigi, bolumAtamaPenceresi: _showDepartmentAssignModal,
