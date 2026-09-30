@@ -58,6 +58,7 @@ import {
   renderInternationalRankingPanel,
   showChangelogModal,
   showGameWonModal,
+  oyunSonu,
   hocaAyrintisiHtml,
   el,
   on,
@@ -1112,9 +1113,12 @@ function _onNextTurn() {
   // Oyun bittiyse/kazanıldıysa simülasyon yapma (Emir raporu — boş özet
   // modal'ı açılıyordu çünkü nextTurn() "Oyun zaten bitti." döndürüp
   // erken çıkıyor, ama UI hâlâ özet render ediyordu).
-  if (currentState.gameOver || currentState.gameWon) {
+  // v0.7.3: oyun sonu _internal'da (oyunSonu); eskiden bu denetim hiç tutmuyor, Bahar'da
+  // kontenjan penceresi açılıp onaydan sonra tur ilerlemiyordu (#33).
+  const son = oyunSonu(currentState);
+  if (son.bitti) {
     showNotification(
-      currentState.gameWon
+      son.kazanildi
         ? '🏆 Oyun kazanıldı. Yeni oyun başlatabilirsin.'
         : 'Oyun bitti. Yeni oyun başlatabilirsin.',
       'info',
@@ -1157,7 +1161,7 @@ function _runTurnAfterQuotas() {
   // (Emir raporu — _onNextTurn'de zaten erken çıkış var, bu son güvenlik ağı).
   if (/zaten bitti/i.test(summary?.message || '')) {
     showNotification(
-      state?.gameWon ? '🏆 Oyun kazanıldı. Yeni oyun başlatabilirsin.' : 'Oyun bitti. Yeni oyun başlatabilirsin.',
+      oyunSonu(state).kazanildi ? '🏆 Oyun kazanıldı. Yeni oyun başlatabilirsin.' : 'Oyun bitti. Yeni oyun başlatabilirsin.',
       'info',
       5000,
     );

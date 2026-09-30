@@ -1207,6 +1207,19 @@ function _updateDeptSelectionInfo() {
 // ─────────────────────────────────────────────────────────────────────────────
 
 /**
+ * v0.7.3: oyun bitti mi, kazanıldı mı. game.js oyun sonunu state._internal.gameOver / gameWon'a
+ * yazar (checkWinLose); üst düzey state.gameOver / gameWon hiç yazılmaz. Arayüz eskiden yalnız üst
+ * düzeye baktığı için oyun bitince Sonraki Dönem açık kalıyor, şerit çıkmıyor, Bahar'da her basışta
+ * zorunlu kontenjan penceresi açılıp tur ilerlemiyordu (#33).
+ * @returns {{ bitti: boolean, kazanildi: boolean }} bitti: kaybedildi ya da kazanıldı
+ */
+export function oyunSonu(state) {
+  const kazanildi = !!(state?._internal?.gameWon || state?.gameWon);
+  const kaybedildi = !!(state?._internal?.gameOver || state?.gameOver);
+  return { bitti: kazanildi || kaybedildi, kazanildi };
+}
+
+/**
  * Üst barda üniversite bilgilerini güncelle.
  * @param {object} state — Oyun durumu
  */
@@ -1256,12 +1269,13 @@ export function updateTopBar(state) {
   if (facEl) facEl.textContent = formatNumber(state.faculty?.length ?? 0);
 
   // Oyun bittiyse Sonraki Dönem butonunu devre dışı bırak, yeni oyun yönlendirmesi ekle
+  const son = oyunSonu(state);
   const nextBtn = el('btn-next-turn');
   if (nextBtn) {
-    const isOver = !!(state.gameOver || state.gameWon);
+    const isOver = son.bitti;
     nextBtn.disabled = isOver;
     if (isOver) {
-      nextBtn.textContent = state.gameWon ? '🏆 Yeni Oyun' : '🎮 Yeni Oyun';
+      nextBtn.textContent = son.kazanildi ? '🏆 Yeni Oyun' : '🎮 Yeni Oyun';
       nextBtn.onclick = () => showScreen('screen-menu');
     } else {
       nextBtn.textContent = 'Sonraki Dönem →';
@@ -1273,19 +1287,21 @@ export function updateTopBar(state) {
   // gameWon → yeşil/altın, gameOver → kırmızı
   const gameScreen = el('screen-game');
   let bannerEl = el('game-over-banner');
-  const isEnded = !!(state.gameOver || state.gameWon);
+  const isEnded = son.bitti;
   if (isEnded && gameScreen) {
     if (!bannerEl) {
       bannerEl = document.createElement('div');
       bannerEl.id = 'game-over-banner';
-      gameScreen.prepend(bannerEl);
+      // v0.7.3: içerik alanının başına. Oyun ekranının ızgarasına eklenince satırlar kayıyor,
+      // üst çubuk ekranın ortasına iniyordu (şerit oyun sonu denetimi tutmadığı için hiç görünmemişti).
+      (qs('#screen-game .main-content') || gameScreen).prepend(bannerEl);
     }
-    if (state.gameWon) {
+    if (son.kazanildi) {
       bannerEl.style.cssText = 'background:linear-gradient(90deg,#1a6b3c,#2e8b57);color:#fff;text-align:center;padding:8px 16px;font-weight:600;font-size:14px;position:sticky;top:0;z-index:100;border-bottom:2px solid #f5a623;';
-      bannerEl.textContent = '🏆 Oyunu kazandınız; yeni oyuna başlayabilirsiniz.';
+      bannerEl.textContent = '🏆 Oyunu kazandınız. Yeni oyuna başlayabilirsiniz.';
     } else {
       bannerEl.style.cssText = 'background:#c0392b;color:#fff;text-align:center;padding:8px 16px;font-weight:600;font-size:14px;position:sticky;top:0;z-index:100;';
-      bannerEl.textContent = '🔴 Oyun sona erdi; yeni oyuna başlayabilirsiniz.';
+      bannerEl.textContent = '🔴 Oyun sona erdi. Yeni oyuna başlayabilirsiniz.';
     }
     bannerEl.style.display = 'block';
   } else if (bannerEl) {
