@@ -5755,12 +5755,18 @@ export function renderCampusPanel(state, onBuildStart, onDecision) {
           ${sonrakiNot(`${sayi(nextBeds)} yatak.`)}`)}
         ${etkiBolumu()}`;
     } else if (b.type === 'spor_tesisi') {
+      // v0.7.3: yeterlilik yerleşkedeki bütün spor tesislerinin toplamıyla, yemekhane gibi. Oyunun Spor
+      // Tesisleri puanı da toplamı kullanır (students.js). Eskiden yalnız bu tesise bakılıyordu; üç tesis
+      // ve 1.000 öğrencide her kartta "yetersiz" ve kapasite uyarısı çıkıyordu (#32).
+      const sporBinalari = (state.buildings || []).filter(bld => bld.type === 'spor_tesisi' && bld.isCompleted);
+      const totalSporCap = sporBinalari.reduce((s, bld) => s + ((bld.currentCapacity?.dailyUsers) || 0), 0);
       const sporCap  = cap.dailyUsers || 500;
       const nextSCap = nextLvlCap.dailyUsers || 0;
-      const pct      = totalStudents > 0 ? Math.round((totalStudents / sporCap) * 100) : 0;
+      const pct      = totalStudents > 0 && totalSporCap > 0 ? Math.round((totalStudents / totalSporCap) * 100) : 0;
       detailsHtml = `
         ${_binaBolumu('Hizmet kapasitesi', `
-          ${_obSatir('Günlük kapasite', `${sayi(sporCap)} kullanıcı`)}
+          ${_obSatir('Bu tesis', `günde ${sayi(sporCap)} kullanıcı`)}
+          ${_obSatir('Yerleşke toplamı', `günde ${sayi(totalSporCap)} kullanıcı`)}
           ${_obSatir('Öğrenci sayısı', sayi(totalStudents))}
           ${_yeterlilik(pct)}
           ${pct > 130 ? '<div class="ob-aciklama ob-aciklama--kritik">Günlük kapasite öğrenci sayısının gerisinde. Spor Tesisleri puanı karşılama oranıyla düşük kalır.</div>' : ''}
