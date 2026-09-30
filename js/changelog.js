@@ -12,7 +12,7 @@ export const CHANGELOG = [
     items: [
       { type: 'fix', text: 'Oyun bitince "Sonraki Dönem" kilitleniyor ve oyunun neden bittiği yazıyor. Batık vakıfta bahar döneminde kontenjan penceresinin dönüp durması bitti (cocijo1791-ux, #33).' },
       { type: 'fix', text: 'Spor tesisi ve kütüphane kartları yeterliliği bütün yerleşkenin kapasitesiyle hesaplıyor. Yeni tesis yapınca uyarı artık kalkıyor (Kozmoloji, #32).' },
-      { type: 'fix', text: 'Ödenemeyen kredi taksiti dönem özetinde ve Genel Bakış'ta sayısıyla yazıyor (1/3, 2/3). Üçüncüsünde üniversite kapanıyor.' },
+      { type: 'fix', text: 'Ödenemeyen kredi taksiti dönem özetinde ve Genel Bakış\'ta sayısıyla yazıyor (1/3, 2/3). Üçüncüsünde üniversite kapanıyor.' },
       { type: 'fix', text: 'Kayıt yeniden yüklenince eksi kasa krediye dönüşüp sıfırlanıyordu, düzeltildi.' },
     ],
   },
