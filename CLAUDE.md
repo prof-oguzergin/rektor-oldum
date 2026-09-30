@@ -131,12 +131,19 @@ Tam liste: `js/changelog.js` (oyun içi "Yenilikler" panelinde de gösterilir, b
   - Ölü kod: `faculty.js` `calculateHappiness` ve `updateFacultyDevelopment` hiçbir yerden çağrılmıyor (ilk commit'ten beri); hoca mutluluğu ve gelişimindeki laboratuvar etkisi (`LAB_HOCA_ETKISI`) bu yüzden oyunda işlemiyor.
   - firestore.rules: 25 Eylül 00:00 UTC öncesi `scores` kayıtları donduruldu (güncelleme için createdAt ≥ kesim). 28 Eyl sayımı: `scores` 229 kayıt, 150'si kesimden önce.
   - Codex incelemesi (gpt-5.6-sol, çıktı `C:\repos\_v072\codex_inceleme2.txt`): 9 bulgu. Uygulanan: sürüm dizgileri, kurallarda eski sezon dondurma, lab dağıtım zamanlaması, etki metni üst sınır. Tasarım gereği: kasa eksiyken toplu kabul yok. Ertelenen: liste dışı sıradaki eşitlik kuralı, öneri formunda zaman aşımı sonrası olası çift kayıt, eski koleksiyon okuma sınırları (kayıt sayısı sınırın çok altında), hasLab ölü kodu.
+  - Yayın: v0.7.1 ile v0.7.2 birlikte 30 Eyl 2026'da canlıya çıktı (2819d93). Firestore kuralları önce yüklendi (`firebase deploy --only firestore:rules`); canlı kurallar yüklemeden önce Rules API ile okunup depodakiyle karşılaştırıldı, yorumlar dışında aynıydı. Firebase CLI oergin@gmail.com ile girişli. Oğuz bilgisayar başında değilken giriş `firebase login --non-interactive` (bağlantı + oturum kimliği) ve Chrome'da hesap seçimi/izin, ardından `firebase login <kod>` ile yapıldı (auth.firebase.tools sayfası "OAuth hatası" yazsa da adres çubuğundaki `code` geçerli).
+
+- v0.7.3 (30 Eyl 2026) Hata düzeltmeleri (GitHub #32, #33 ve ardından bulunanlar). Dal `v073-hata` (`C:\repos\rektor-wt-hata`), sınamalar `C:\repos\_v073\`, sürüm betiği `surum_073.py` (TABAN 2819d93).
+  - #33: oyun sonu yalnız `_state._internal.gameOver/gameWon`'a yazılıyordu, arayüz `state.gameOver`'a bakıyordu. Oyun bitince düğme kilitlenmiyor, Baharda kontenjan penceresi dönüp duruyordu (0.4.28'den beri; Burak'ın eski "kontenjan modal ilerlemiyor" raporu büyük olasılıkla bu). `ui.js` `oyunSonu(state)`; şerit ve pencere oyunun neden bittiğini yazar (kayıtta neden kodu ve iletisi).
+  - #32 ve kütüphane: kartlar yeterliliği tek binanın kapasitesiyle hesaplıyordu; motor (students.js) aynı türün bütün binalarını toplar. Kart ve Bina Sayfası artık "Bu tesis / Yerleşke toplamı" gösterir.
+  - Kredi: gecikme sınırı `KREDI_GECIKME_SINIRI = 3` adıyla (kural aynı); dönem özeti ve Genel Bakış "(1/3)", "(2/3)" uyarısı verir.
+  - migrateState her yüklemede eksi kasayı Kamu Bankası kredisine çevirip kasayı sıfırlıyordu; vakıf oyuncusu yeniden yükleyerek -30 M kapanmasından kaçabiliyordu. Artık yalnız kredi alanı olmayan (kredi sistemi öncesi) kayıtlara uygulanır.
 
 ## Aktif Oyuncu Raporcuları
-Erdinç (en yoğun), AkaDemi, Emir, Burak Gökalp, Yusuf Sertkaya, R-Fatih (Issue #7, #9), X, serhattural
+Erdinç (en yoğun), AkaDemi, Emir, Burak Gökalp, Yusuf Sertkaya, R-Fatih (Issue #7, #9), X, serhattural, Kozmoloji (#32), cocijo1791-ux (#33)
 
 ## Bekleyen Raporlar
-- Burak — kontenjan modal ilerlemiyor, console log bekleniyor (v0.4.32'de Can GULDOGAN raporu ile birlikte çözülmüş olabilir, doğrulama bekleniyor)
+- Burak — kontenjan modal ilerlemiyor. v0.7.3'te bulunan #33 kök nedeniyle (oyun bitince Baharda kontenjan penceresi döngüsü) büyük olasılıkla aynı; ayrı doğrulanmadı.
 - App Check — 4 May 2026 gece doğrulandı: **Auth %100 verified, 0% Unverified (Monitoring)**, entegrasyon çalışıyor. Cloud Firestore hâlâ **Unenforced**. Sabah Firebase Console > App Check > Cloud Firestore satırına tıklayıp **Enforce** edilecek (gece yapılmadı çünkü eski cache'li client riski). Sonra birkaç oyuncudan skor gönderme doğrulaması al.
 
 ## Enhancement Backlog (Sonraki Büyük Sürüm — v0.5.0?)
