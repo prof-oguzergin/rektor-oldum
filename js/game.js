@@ -5692,6 +5692,8 @@ function migrateState(state) {
   }
 
   // v0.4 Feature: Banka kredileri sistemi
+  // v0.7.3: kredi sistemi öncesi kayıt mı (eksi kasa dönüşümü yalnız onlara uygulanır)
+  const kredisizEskiKayit = !Array.isArray(state.university.loans);
   if (!state.university.loans) state.university.loans = [];
   if (state.university.totalDebt === undefined || state.university.totalDebt === null) {
     state.university.totalDebt = 0;
@@ -5700,8 +5702,10 @@ function migrateState(state) {
     state.university.loanDefault = false;
   }
 
-  // Negatif bütçeyi kredi dönüşümü (eski kayıtlar için)
-  if (state.university.budget < 0) {
+  // Negatif bütçeyi kredi dönüşümü (yalnız kredi sistemi öncesi kayıtlar için).
+  // v0.7.3: eskiden her yüklemede çalışıyordu. Eksi kasa kredi olup sıfırlandığı için vakıf
+  // oyuncusu kaydı yeniden yükleyerek -30 M kapanmasından kaçabiliyordu.
+  if (kredisizEskiKayit && state.university.budget < 0) {
     const debtAmount = Math.abs(state.university.budget);
     const migrationBank = BANKS.find(b => b.id === 'kamu_bankasi');
     if (migrationBank) {
