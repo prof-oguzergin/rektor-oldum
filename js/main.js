@@ -8,7 +8,7 @@ console.log('[main] main.js modülü yükleniyor...');
 // IMPORT
 // ─────────────────────────────────────────────────────────────────────────────
 
-import { initGame, nextTurn, getState, setState, applyDecision, assignCourses, applyQuotas, assignDeptHead, reassignFacultyToDept, generateAdminCandidates, hireAdminStaff, upgradeAdminUnit, promoteAdminStaff, fireAdminStaff, updateAdminStaffSalary, assignUnitManager, RANDOM_EVENTS, ACHIEVEMENTS, getAchievementStats, organizeAlumniEvent, applyRandomEventChoice, ACCREDITATION_BODIES, applyForAccreditation, checkAccreditationRequirements, establishTTO, upgradeTTO, acceptDeal, rejectDeal, foundClub, upgradeClub, dissolveClub, CLUB_TYPES, CLUB_CATEGORIES, SPORTS, foundTeam, upgradeTeam, dissolveTeam, setCourseDifficulty, getUnitTitles, getUnitTitleSalary, isUnitManagerTitle, enableFreeMode } from './game.js?v=0.7.2';
+import { initGame, nextTurn, getState, setState, applyDecision, assignCourses, applyQuotas, assignDeptHead, reassignFacultyToDept, generateAdminCandidates, hireAdminStaff, upgradeAdminUnit, promoteAdminStaff, fireAdminStaff, updateAdminStaffSalary, assignUnitManager, RANDOM_EVENTS, ACHIEVEMENTS, getAchievementStats, organizeAlumniEvent, applyRandomEventChoice, ACCREDITATION_BODIES, applyForAccreditation, checkAccreditationRequirements, establishTTO, upgradeTTO, acceptDeal, rejectDeal, foundClub, upgradeClub, dissolveClub, CLUB_TYPES, CLUB_CATEGORIES, SPORTS, foundTeam, upgradeTeam, dissolveTeam, setCourseDifficulty, getUnitTitles, getUnitTitleSalary, isUnitManagerTitle, enableFreeMode } from './game.js?v=0.7.3';
 import { ADMIN_TITLES, SCENARIOS, SEMESTER_MONTHS } from './data.js?v=0.7.2';
 
 import {
@@ -67,9 +67,9 @@ import {
   topluPencereHtml,
   topluSonucGoster,
   kadroSpontSecimleri,
-} from './ui.js?v=0.7.2';
+} from './ui.js?v=0.7.3';
 // v0.7.2: Bina Sayfası (bina kartı, Ayrıntılar düğmesi, data-bina-git öğeleri ve harita açar)
-import { binaSayfasiniGoster, binaSayfasiGirisleriniBagla } from './ui.js?v=0.7.2';
+import { binaSayfasiniGoster, binaSayfasiGirisleriniBagla } from './ui.js?v=0.7.3';
 
 // v0.7.1: toplu işlemler (var olan tekil kararları döngüyle çağırır) ve idari birimlerde otomatik personel
 import {

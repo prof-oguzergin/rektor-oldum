@@ -9,7 +9,7 @@ import {
   TURNS_PER_YEAR,
   ADMIN_UNITS,
 } from './data.js?v=0.7.2';
-import { calculateTuitionEffect, harcamaKararlari, ogrenciHizmetiEtkisi, tanitimEtkisi } from './economy.js?v=0.7.2';
+import { calculateTuitionEffect, harcamaKararlari, ogrenciHizmetiEtkisi, tanitimEtkisi } from './economy.js?v=0.7.3';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // v0.7: ALIM YERİ VE VAKIF BAŞVURU TALEBİ

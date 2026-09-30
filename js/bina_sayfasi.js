@@ -17,7 +17,7 @@
  */
 
 import { BUILDINGS, DIFFICULTY_SETTINGS, ACCREDITATION_BODIES } from './data.js?v=0.7.2';
-import { binaDonemBakimi, teknokentGeliri } from './economy.js?v=0.7.2';
+import { binaDonemBakimi, teknokentGeliri } from './economy.js?v=0.7.3';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // OYUNUN SABİTLERİ (kaynaktaki değerlerin aynısı)

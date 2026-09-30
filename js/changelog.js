@@ -6,6 +6,17 @@
 
 export const CHANGELOG = [
   {
+    version: '0.7.3',
+    date: '2026-09-30',
+    title: 'Oyun sonu, hizmet binaları ve kredi uyarısı',
+    items: [
+      { type: 'fix', text: 'Oyun bitince "Sonraki Dönem" kilitleniyor ve oyunun neden bittiği yazıyor. Batık vakıfta bahar döneminde kontenjan penceresinin dönüp durması bitti (cocijo1791-ux, #33).' },
+      { type: 'fix', text: 'Spor tesisi ve kütüphane kartları yeterliliği bütün yerleşkenin kapasitesiyle hesaplıyor. Yeni tesis yapınca uyarı artık kalkıyor (Kozmoloji, #32).' },
+      { type: 'fix', text: 'Ödenemeyen kredi taksiti dönem özetinde ve Genel Bakış'ta sayısıyla yazıyor (1/3, 2/3). Üçüncüsünde üniversite kapanıyor.' },
+      { type: 'fix', text: 'Kayıt yeniden yüklenince eksi kasa krediye dönüşüp sıfırlanıyordu, düzeltildi.' },
+    ],
+  },
+  {
     version: '0.7.2',
     date: '2026-09-30',
     title: 'Yerleşke düzeni, Bina Sayfası ve laboratuvar odaları',

@@ -46,7 +46,7 @@ import {
   maasGelirDurumu, kadroDurumu, hazineIadesi,
   // v0.7.3: kredi taksiti sınırı ve metinleri (dönem özeti, oyun sonu nedeni)
   krediGecikmeMetni, krediIflasMetni,
-} from './economy.js?v=0.7.2';
+} from './economy.js?v=0.7.3';
 import { generateInitialFaculty, updateAllFacultyHappiness, generateApplicants, generateFaculty, getSalaryRange, calculateOverallRating, getFacultyRatingTrend } from './faculty.js?v=0.7.2';
 import {
   generateInitialStudents,

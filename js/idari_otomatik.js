@@ -26,7 +26,7 @@
 
 import { ADMIN_UNITS, ADMIN_TITLES, SEMESTER_MONTHS } from './data.js?v=0.7.2';
 import { calculateOverallRating, getSalaryRange } from './faculty.js?v=0.7.2';
-import { kadroDurumu, maasGelirDurumu } from './economy.js?v=0.7.2';
+import { kadroDurumu, maasGelirDurumu } from './economy.js?v=0.7.3';
 import { politikaOku } from './baskan.js?v=0.7.0';
 
 // ─────────────────────────────────────────────────────────────────────────────
