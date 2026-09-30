@@ -7,7 +7,7 @@
 export const CHANGELOG = [
   {
     version: '0.7.2',
-    date: '2026-09-28',
+    date: '2026-09-30',
     title: 'Yerleşke düzeni, Bina Sayfası ve laboratuvar odaları',
     items: [
       { type: 'feat', text: 'Binaları Yerleşke haritasında istediğiniz yere taşıyabilirsiniz. Haritadaki "Yerleşkeyi düzenle" düğmesiyle başlayın (oyuncu önerisi).' },
@@ -18,7 +18,7 @@ export const CHANGELOG = [
   },
   {
     version: '0.7.1',
-    date: '2026-09-26',
+    date: '2026-09-30',
     title: 'Yeni sezon, öneri formu ve toplu işlemler',
     items: [
       { type: 'feat', text: 'Skor tablosunda Sezon 2 başladı. v0.7 ve sonrasında oynanan oyunlar ayrı sıralanıyor, eski skorlar "Eski sezon" sekmesinde duruyor.' },
