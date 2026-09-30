@@ -73,6 +73,9 @@ const DEBT_INTEREST_STAGE3          = 0.05;         // %5/dönem (aşama 3) — 
 
 // Kredi gecikme ceza faizi
 const LOAN_OVERDUE_PENALTY_RATE     = 0.02;         // %2 gecikme faizi (kalan borç üzerinden)
+// v0.7.3: bir kredinin üst üste ödenemeyen taksit sınırı; sınırda kredi iflası (loanDefault) oyunu bitirir.
+// Kural eskisiyle aynı (processLoanPayments'ta sayıyla yazılıydı); dönem özeti ve arayüz metinleri buradan okur.
+export const KREDI_GECIKME_SINIRI   = 3;
 
 // Fiyat elastikliği sabitleri
 const ELASTICITY_BASE_LOW           = -0.5;         // düşük prestij elastikiyeti
@@ -535,7 +538,7 @@ export function calculateLoanPayment(principal, annualRate, termSemesters) {
 /**
  * Tüm aktif kredilerin dönem taksitlerini bütçeden düşer.
  * Ödeme yapılamazsa gecikme faizi ve overdue bayrağı uygulanır.
- * 3 üst üste ödeme atlanırsa loanDefault = true set edilir.
+ * KREDI_GECIKME_SINIRI (3) üst üste ödeme atlanırsa loanDefault = true set edilir.
  *
  * @param {object} state — Oyun state'i (doğrudan değiştirilir)
  * @returns {{ totalPaid: number, overdueLoans: number }}
@@ -574,7 +577,7 @@ export function processLoanPayments(state) {
       loan.overdueCount     = safeNum(loan.overdueCount) + 1;
       overdueCount++;
 
-      if (loan.overdueCount >= 3) {
+      if (loan.overdueCount >= KREDI_GECIKME_SINIRI) {
         state.university.loanDefault = true;
       }
     }
@@ -591,6 +594,29 @@ export function processLoanPayments(state) {
   state.university.totalDebt = remaining.reduce((s, l) => s + safeNum(l.remainingAmount), 0);
 
   return { totalPaid, overdueLoans: overdueCount };
+}
+
+/**
+ * v0.7.3: ödenemeyen kredi taksitinin oyuncuya yazılan açıklaması (dönem özeti ve Genel Bakış uyarısı).
+ * Sayaç kredinin üst üste ödenemeyen taksit sayısıdır; taksit ödenince sıfırlanır, KREDI_GECIKME_SINIRI'nda
+ * kredi iflası oyunu bitirir (processLoanPayments, game.js checkWinLose).
+ * @param {object} loan
+ * @param {{ adiyla?: boolean }} [secenek]  adiyla: birden çok kredi varken sayacın yanına kredinin adı yazılır
+ * @returns {string} iki cümle
+ */
+export function krediGecikmeMetni(loan, secenek = {}) {
+  const n     = safeNum(loan?.overdueCount);
+  const sinir = KREDI_GECIKME_SINIRI;
+  const ad    = secenek.adiyla && loan?.bankName ? `, ${loan.bankName}` : '';
+  const ilk   = `Kredi taksiti ödenemedi (${n}/${sinir}${ad}).`;
+  if (n >= sinir) return `${ilk} Üniversite iflas etti ve kapatıldı.`;
+  if (n === sinir - 1) return `${ilk} Sonraki taksit de ödenemezse üniversite iflas eder ve kapatılır.`;
+  return `${ilk} Taksit ${sinir} dönem üst üste ödenemezse üniversite iflas eder ve kapatılır.`;
+}
+
+/** v0.7.3: kredi iflasıyla biten oyunun nedeni (checkWinLose iletisi; eski kayıtta arayüz de bunu yazar). */
+export function krediIflasMetni() {
+  return `Bir kredinin taksiti ${KREDI_GECIKME_SINIRI} dönem üst üste ödenemedi. Üniversite iflas etti ve kapatıldı.`;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

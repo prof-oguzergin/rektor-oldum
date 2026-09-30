@@ -11,6 +11,8 @@ import { calculateIncome, calculateExpenses, calculateLoanPayment } from './econ
 // v0.7 ekonomi: Bütçe sekmesinin harcama kararları ve devlet kısıtları, kontenjan penceresinin
 // alım yeri ve vakıf başvuru tahmini, Genel Bakış'ın Hazine iadesi tahmini
 import { harcamaKararlari, arastirmaFonuCarpani, ogrenciHizmetiEtkisi, tanitimEtkisi, kadroDurumu, maasGelirDurumu, hazineIadesiTahmini } from './economy.js?v=0.7.2';
+// v0.7.3: kredi taksiti sınırı ve metinleri (Genel Bakış uyarısı, kredi kartı, eski kayıtta oyun sonu nedeni)
+import { KREDI_GECIKME_SINIRI, krediGecikmeMetni, krediIflasMetni } from './economy.js?v=0.7.2';
 import { bolumAlimYeri, vakifBasvuruTahmini } from './students.js?v=0.7.0';
 import { HARCAMA_KARARLARI } from './data.js?v=0.7.2';
 import { renderCampusMap, handleCampusClick, handleCampusHover, clearHover } from './campus-renderer.js?v=0.7.2';
@@ -1211,12 +1213,21 @@ function _updateDeptSelectionInfo() {
  * yazar (checkWinLose); üst düzey state.gameOver / gameWon hiç yazılmaz. Arayüz eskiden yalnız üst
  * düzeye baktığı için oyun bitince Sonraki Dönem açık kalıyor, şerit çıkmıyor, Bahar'da her basışta
  * zorunlu kontenjan penceresi açılıp tur ilerlemiyordu (#33).
- * @returns {{ bitti: boolean, kazanildi: boolean }} bitti: kaybedildi ya da kazanıldı
+ * v0.7.3: neden oyunun kendi iletisidir (game.js checkWinLose, _internal.endMessage; kod endReason).
+ * Nedeni yazılmamış eski kayıtta kredi iflası durumdan okunur (university.loanDefault), öteki nedenler boş kalır.
+ * @returns {{ bitti: boolean, kazanildi: boolean, neden: string|null, kod: string|null }} bitti: kaybedildi ya da kazanıldı
  */
 export function oyunSonu(state) {
   const kazanildi = !!(state?._internal?.gameWon || state?.gameWon);
   const kaybedildi = !!(state?._internal?.gameOver || state?.gameOver);
-  return { bitti: kazanildi || kaybedildi, kazanildi };
+  const bitti = kazanildi || kaybedildi;
+  let neden = bitti ? (state?._internal?.endMessage || null) : null;
+  let kod   = bitti ? (state?._internal?.endReason || null) : null;
+  if (bitti && !neden && kaybedildi && state?.university?.loanDefault === true) {
+    neden = krediIflasMetni();
+    kod   = 'loan_default';
+  }
+  return { bitti, kazanildi, neden, kod };
 }
 
 /**
@@ -1296,12 +1307,14 @@ export function updateTopBar(state) {
       // üst çubuk ekranın ortasına iniyordu (şerit oyun sonu denetimi tutmadığı için hiç görünmemişti).
       (qs('#screen-game .main-content') || gameScreen).prepend(bannerEl);
     }
+    // v0.7.3: oyunun neden bittiği (checkWinLose iletisi) şeritte yazar
+    const neden = son.neden ? `${son.neden} ` : '';
     if (son.kazanildi) {
       bannerEl.style.cssText = 'background:linear-gradient(90deg,#1a6b3c,#2e8b57);color:#fff;text-align:center;padding:8px 16px;font-weight:600;font-size:14px;position:sticky;top:0;z-index:100;border-bottom:2px solid #f5a623;';
-      bannerEl.textContent = '🏆 Oyunu kazandınız. Yeni oyuna başlayabilirsiniz.';
+      bannerEl.textContent = `🏆 Oyunu kazandınız. ${neden}Yeni oyuna başlayabilirsiniz.`;
     } else {
       bannerEl.style.cssText = 'background:#c0392b;color:#fff;text-align:center;padding:8px 16px;font-weight:600;font-size:14px;position:sticky;top:0;z-index:100;';
-      bannerEl.textContent = '🔴 Oyun sona erdi. Yeni oyuna başlayabilirsiniz.';
+      bannerEl.textContent = `🔴 Oyun sona erdi. ${neden}Yeni oyuna başlayabilirsiniz.`;
     }
     bannerEl.style.display = 'block';
   } else if (bannerEl) {
@@ -6731,7 +6744,7 @@ export function renderBudgetPanel(state, onAllocChange, onLoanAction, onTuitionC
           <tbody>
             ${krediler.map((loan, idx) => {
               const durum = loan.overdue
-                ? `<span class="ob-rozet ob-rozet--kritik ob-rozet--kucuk">Gecikti (${loan.overdueCount}/3)</span>`
+                ? `<span class="ob-rozet ob-rozet--kritik ob-rozet--kucuk">Gecikti (${loan.overdueCount}/${KREDI_GECIKME_SINIRI})</span>`
                 : '<span class="ob-rozet ob-rozet--iyi ob-rozet--kucuk">Ödeniyor</span>';
               const canRepay = budget >= loan.remainingAmount;
               return `<tr>
@@ -9084,6 +9097,15 @@ function _getWarnings(state) {
 
   if (uni.budget < 0) {
     warnings.push({ type: 'danger', icon: '🚨', message: 'Bütçe negatife düştü! Acil önlem alın.' });
+  }
+
+  // v0.7.3: son dönem ödenemeyen kredi taksiti, sayacı ve sınırda ne olacağıyla (economy.js processLoanPayments:
+  // taksit, dönemin gelir ve giderinden sonra kasada taksit kadar para varsa ödenir, ödenince sayaç sıfırlanır)
+  const krediler = uni.loans || [];
+  for (const k of krediler.filter(x => x.overdue)) {
+    const odemeNotu = (k.overdueCount || 0) < KREDI_GECIKME_SINIRI
+      ? ` Dönem sonunda kasada taksit kadar para (${formatMoney(k.semesterPayment || 0)}) kalırsa taksit ödenir ve sayaç sıfırlanır.` : '';
+    warnings.push({ type: 'danger', icon: '🏦', message: `${krediGecikmeMetni(k, { adiyla: krediler.length > 1 })}${odemeNotu}` });
   }
 
   const unhappyCount = faculty.filter(f => (f.happiness ?? 60) < 40).length;

@@ -44,6 +44,8 @@ import {
   // v0.7 ekonomi: harcama kararlarının etkileri ve devlet kısıtları
   arastirmaFonuCarpani, tanitimEtkisi, harcamaKararlari, devletKisitlari,
   maasGelirDurumu, kadroDurumu, hazineIadesi,
+  // v0.7.3: kredi taksiti sınırı ve metinleri (dönem özeti, oyun sonu nedeni)
+  krediGecikmeMetni, krediIflasMetni,
 } from './economy.js?v=0.7.2';
 import { generateInitialFaculty, updateAllFacultyHappiness, generateApplicants, generateFaculty, getSalaryRange, calculateOverallRating, getFacultyRatingTrend } from './faculty.js?v=0.7.2';
 import {
@@ -3887,6 +3889,22 @@ function runSimulation() {
     });
   }
 
+  // v0.7.3: bu dönem ödenemeyen kredi taksiti özette sayacıyla ve sınırda ne olacağıyla yazılır
+  // (economy.js processLoanPayments, kural değişmedi). Eskiden uyarı calculateEconomy'nin dönüşünde kalıyor,
+  // oyuncu üç taksit kaçırıp iflas edene dek hiçbir şey görmüyordu (#33).
+  {
+    const krediler = _state.university.loans || [];
+    const gecikenler = krediler.filter(k => k.overdue);
+    for (const k of gecikenler.reverse()) {
+      results.events.unshift({
+        type:  'warning',
+        icon:  '🏦',
+        title: 'Kredi Taksiti Ödenemedi',
+        description: `🏦 ${krediGecikmeMetni(k, { adiyla: krediler.length > 1 })}`,   // özet baştaki simgeyi ikon yapar
+      });
+    }
+  }
+
   return results;
 }
 
@@ -5136,6 +5154,17 @@ function _projeleriDevret(state, ayrilanHocalar) {
   return olaylar;
 }
 
+/**
+ * v0.7.3: oyunun neden bittiği kayda yazılır. Kod kaybetmede kuraldır (loan_default, deficit,
+ * enrollment_collapse), kazanmada reason. İleti bir iki düz cümle; arayüz şeritte ve Oyun Bitti
+ * penceresinde yazar, enableFreeMode siler. Dönen reason değişmedi (ölçüm betikleri 'bankruptcy' sayar).
+ */
+function _oyunSonuYaz(sonuc, kod = sonuc.reason) {
+  _state._internal.endReason  = kod;
+  _state._internal.endMessage = sonuc.message;
+  return sonuc;
+}
+
 export function checkWinLose() {
   if (!_state) return { gameOver: false, gameWon: false, reason: null };
 
@@ -5145,12 +5174,12 @@ export function checkWinLose() {
   if (_state.university.loanDefault === true || _state._internal?.bankruptcyTriggered) {
     _gameOver = true;
     _state._internal.gameOver = true;
-    return {
+    return _oyunSonuYaz({
       gameOver: true,
       gameWon:  false,
       reason:   'bankruptcy',
-      message:  'Üniversite iflas etti! Bir kredi 3 dönem üst üste ödenemedi.',
-    };
+      message:  krediIflasMetni(),
+    }, 'loan_default');
   }
 
   // ── KAYBETME KOŞULU 1b (v0.7): Vakıfta süren derin kasa açığı ──────────────
@@ -5166,12 +5195,12 @@ export function checkWinLose() {
   if (_state.meta.universityType === 'vakif' && _state._internal.consecutiveDeficitTurns >= BANKRUPTCY_DEFICIT_TURNS) {
     _gameOver = true;
     _state._internal.gameOver = true;
-    return {
+    return _oyunSonuYaz({
       gameOver: true,
       gameWon:  false,
       reason:   'bankruptcy',
-      message:  `Vakıf üniversitesi kapandı: kasa açığı ${BANKRUPTCY_DEFICIT_TURNS} dönem üst üste ${formatMoneyShort(-VAKIF_DERIN_ACIK)} sınırını aştı.`,
-    };
+      message:  `Kasa açığı ${BANKRUPTCY_DEFICIT_TURNS} dönem üst üste ${formatMoneyShort(-VAKIF_DERIN_ACIK)} sınırını aştı. Vakıf üniversitesi kapatıldı.`,
+    }, 'deficit');
   }
 
   // ── KAYBETME KOŞULU 2: Öğrenci kaybı ──────────────────────────────────────
@@ -5199,12 +5228,12 @@ export function checkWinLose() {
   if (_state._internal.consecutiveLowStudentTurns >= STUDENT_TURNS_LIMIT) {
     _gameOver = true;
     _state._internal.gameOver = true;
-    return {
+    return _oyunSonuYaz({
       gameOver: true,
       gameWon:  false,
       reason:   'enrollment_collapse',
-      message:  `Öğrenci sayısı ${STUDENT_TURNS_LIMIT} dönem boyunca kapasitenin %25'inin altında kaldı. Üniversite kapandı.`,
-    };
+      message:  `Öğrenci sayısı ${STUDENT_TURNS_LIMIT} dönem üst üste kapasitenin %25'inin altında kaldı. Üniversite kapatıldı.`,
+    });
   }
 
   // ── KAZANMA KOŞULLARI (sandbox ve serbest modda aktif değil) ─────────────
@@ -5218,24 +5247,25 @@ export function checkWinLose() {
       if (scenarioWin.type === 'prestige' && _state.university.prestige >= scenarioWin.target) {
         _gameWon = true;
         _state._internal.gameWon = true;
-        return {
+        const p = Math.round(_state.university.prestige);
+        return _oyunSonuYaz({
           gameOver: false,
           gameWon:  true,
           reason:   'scenario_prestige',
-          message:  `Senaryo tamamlandı! Üniversitenizin saygınlığı ${_state.university.prestige}${_yonelmeEki(_state.university.prestige)} ulaştı. Hedef: ${scenarioWin.target}`,
-        };
+          message:  `Senaryo tamamlandı. Üniversitenin saygınlığı ${p}${_yonelmeEki(p)} ulaştı, hedef ${scenarioWin.target}.`,
+        });
       }
 
       // Senaryo: sıralama hedefi (düşük sayı daha iyi)
       if (scenarioWin.type === 'ranking' && _state.university.ranking <= scenarioWin.target) {
         _gameWon = true;
         _state._internal.gameWon = true;
-        return {
+        return _oyunSonuYaz({
           gameOver: false,
           gameWon:  true,
           reason:   'scenario_ranking',
-          message:  `Senaryo tamamlandı! Üniversiteniz ${_state.university.ranking}. sıraya yükseldi. Hedef: İlk ${scenarioWin.target}`,
-        };
+          message:  `Senaryo tamamlandı. Üniversite Türkiye sıralamasında ${_state.university.ranking}. sıraya yükseldi, hedef ilk ${scenarioWin.target}.`,
+        });
       }
 
       // Senaryo: ardışık pozitif bütçe dönemleri
@@ -5248,12 +5278,12 @@ export function checkWinLose() {
         if (_state.meta.scenarioPositiveTurns >= (scenarioWin.consecutiveTurns || 10)) {
           _gameWon = true;
           _state._internal.gameWon = true;
-          return {
+          return _oyunSonuYaz({
             gameOver: false,
             gameWon:  true,
             reason:   'scenario_budget_positive',
-            message:  `Senaryo tamamlandı! Üniversite ${scenarioWin.consecutiveTurns} dönem boyunca pozitif bütçeyle yönetildi.`,
-          };
+            message:  `Senaryo tamamlandı. Kasa ${scenarioWin.consecutiveTurns || 10} dönem üst üste artıda kaldı.`,
+          });
         }
       }
 
@@ -5277,24 +5307,25 @@ export function checkWinLose() {
       if (_state.university.prestige >= 90) {
         _gameWon = true;
         _state._internal.gameWon = true;
-        return {
+        const p = Math.round(_state.university.prestige);
+        return _oyunSonuYaz({
           gameOver: false,
           gameWon:  true,
           reason:   'prestige_max',
-          message:  `Tebrikler! Üniversitenizin saygınlık puanı ${_state.university.prestige}${_yonelmeEki(_state.university.prestige)} ulaştı.`,
-        };
+          message:  `Üniversitenin saygınlığı ${p}${_yonelmeEki(p)} ulaştı.`,
+        });
       }
 
       // Kazanma 2: Sıralama 1. oldu
       if (_state.university.ranking === 1) {
         _gameWon = true;
         _state._internal.gameWon = true;
-        return {
+        return _oyunSonuYaz({
           gameOver: false,
           gameWon:  true,
           reason:   'ranking_first',
-          message:  'Tebrikler! Üniversiteniz ulusal sıralamada 1. sıraya yükseldi!',
-        };
+          message:  'Üniversite Türkiye sıralamasında 1. sıraya yükseldi.',
+        });
       }
     }
   }
@@ -5319,6 +5350,9 @@ export function enableFreeMode() {
   _state._internal.freeMode    = true;
   _state._internal.gameWon     = false;
   _gameWon                     = false;
+  // v0.7.3: kazanma nedeni silinir (şerit yalnız biten oyunda neden yazar)
+  _state._internal.endReason   = null;
+  _state._internal.endMessage  = null;
   // Senaryo hedefini kaldır — tekrar tetiklenmesin
   if (_state.meta) _state.meta.scenarioWinCondition = null;
   return { success: true };

@@ -747,7 +747,7 @@ function _startGameWithState(state) {
     setTimeout(() => {
       showGameWonModal(
         state,
-        null,
+        oyunSonu(state).kod,   // v0.7.3: kayıtta saklanan kazanma nedeni (eskiden null, genel ileti)
         calculateScore,
         scoreBreakdown,
         () => _showLeaderboardSubmitModal(true),
@@ -1335,6 +1335,11 @@ function _showLeaderboardSubmitModal(isGameOver = false) {
   const score     = calculateScore(state);
   const breakdown = scoreBreakdown(state);
   const heading   = isGameOver ? '🎓 Oyun Bitti!' : '🏆 Skorunu Gönder';
+  // v0.7.3: oyunun neden bittiği (game.js checkWinLose iletisi); eskiden pencere yalnız skoru gösteriyordu
+  const son       = oyunSonu(state);
+  const nedenHtml = isGameOver && son.neden
+    ? `<div class="ob-not ${son.kazanildi ? 'ob-not--iyi' : 'ob-not--kritik'}" id="lb-oyun-sonu-nedeni"><p>${son.neden}</p></div>`
+    : '';
 
   const breakdownHtml = breakdown
     .map(line => `<li style="font-size:12px;color:var(--text-muted,#aaa);margin:2px 0;">${line}</li>`)
@@ -1358,6 +1363,7 @@ function _showLeaderboardSubmitModal(isGameOver = false) {
 
   const bodyHtml = `
     <div style="display:flex;flex-direction:column;gap:16px;padding:4px 0;">
+      ${nedenHtml}
       ${alreadyBanner}
       <p style="margin:0;font-size:14px;line-height:1.5;">
         ${alreadySubmitted
