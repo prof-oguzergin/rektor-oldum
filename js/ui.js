@@ -5703,18 +5703,22 @@ export function renderCampusPanel(state, onBuildStart, onDecision) {
           : `${_obSatir('Laboratuvar', cap.labs)}${_obSatir('Kullanılan / boş', `${used.labs ?? 0} / ${Math.max(0, cap.labs - (used.labs ?? 0))}`)}`) : ''}
         ${_binaBolumu(pay?.ortak ? 'Ortak kullanan bölümler' : 'Atanmış bölümler', bolumSatirlari || '<div class="ob-aciklama">Henüz bölüm atanmadı. Aşağıdaki "Bölüm ata" düğmesiyle ekleyebilirsiniz.</div>')}`;
     } else if (b.type === 'kutuphane') {
+      // v0.7.3: yeterlilik yerleşkedeki bütün kütüphanelerin günlük kapasitesiyle, yemekhane ve spor tesisi
+      // gibi. Oyunun Sosyal Yaşam katkısı da toplamı kullanır (students.js totalLibCap / öğrenci).
+      const kutBinalari   = (state.buildings || []).filter(bld => bld.type === 'kutuphane' && bld.isCompleted);
+      const totalDailyCap = kutBinalari.reduce((s, bld) => s + ((bld.currentCapacity?.daily) || 0), 0);
       const simCap   = cap.simultaneous || 200;
       const dailyCap = cap.daily || 800;
       const nextSim  = nextLvlCap.simultaneous || 0;
       const nextDly  = nextLvlCap.daily || 0;
-      const pct      = totalStudents > 0 ? Math.round((totalStudents / dailyCap) * 100) : 0;
+      const pct      = totalStudents > 0 && totalDailyCap > 0 ? Math.round((totalStudents / totalDailyCap) * 100) : 0;
       detailsHtml = `
         ${_binaBolumu('Hizmet kapasitesi', `
-          ${_obSatir('Aynı anda çalışabilen', `${sayi(simCap)} öğrenci`)}
-          ${_obSatir('Günlük kapasite', `${sayi(dailyCap)} öğrenci`)}
+          ${_obSatir('Bu kütüphane', `günde ${sayi(dailyCap)} öğrenci, aynı anda ${sayi(simCap)}`)}
+          ${_obSatir('Yerleşke toplamı', `günde ${sayi(totalDailyCap)} öğrenci`)}
           ${_obSatir('Öğrenci sayısı', sayi(totalStudents))}
           ${_yeterlilik(pct)}
-          ${pct > 100 ? `<div class="ob-aciklama ob-aciklama--kritik">Öğrenci sayısı günlük kapasiteyi (${sayi(dailyCap)}) aşıyor. Sosyal Yaşam katkısı karşılama oranıyla azalır.</div>` : ''}
+          ${pct > 100 ? `<div class="ob-aciklama ob-aciklama--kritik">Öğrenci sayısı yerleşkedeki günlük kapasiteyi (${sayi(totalDailyCap)}) aşıyor. Sosyal Yaşam katkısı karşılama oranıyla azalır.</div>` : ''}
           ${sonrakiNot(`aynı anda ${sayi(nextSim)}, günde ${sayi(nextDly)} öğrenci.`)}`)}
         ${etkiBolumu()}`;
     } else if (b.type === 'yemekhane') {
