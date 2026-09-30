@@ -77,9 +77,9 @@ import {
   basvuruUygunlugu, kabulTahmini, topluKabulUygula, topluRetUygula,
   hocaTerfiListesi, topluHocaTerfiUygula, idariTerfiListesi, topluIdariTerfiUygula,
   maasOraniTahmini, benzersizPersonelKimligi,
-} from './idari_otomatik.js?v=0.7.2';
+} from './idari_otomatik.js?v=0.7.3';
 
-import { CHANGELOG, hasUnseenChanges, setLastSeenVersion } from './changelog.js?v=0.7.2';
+import { CHANGELOG, hasUnseenChanges, setLastSeenVersion } from './changelog.js?v=0.7.3';
 
 import { saveGame, loadGame, autoSave, getSaveSlots, deleteSave, exportSave, importSave, sanitizeForSave } from './save.js?v=0.4.63';
 import { calculateScore, scoreBreakdown, submitScore, getTopScores, initFirebase, isLeaderboardUnavailable, saveLocalScore, getLocalScores, submitFeedback, GERI_BILDIRIM_SINIR } from './leaderboard.js?v=0.7.2';

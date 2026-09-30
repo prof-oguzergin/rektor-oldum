@@ -65,7 +65,7 @@ import {
   updateCohorts,
   processGraduation,
   processAdmissions,
-} from './students.js?v=0.7.0';
+} from './students.js?v=0.7.3';
 import { calculatePrestige, calculateQualityScore, kurumsalTavan, updateRivals, updateRankings, universiteHIndeksi } from './ranking.js?v=0.7.0';
 import { calculateIntlPillars, calculateIntlTotalScore, findIntlRank } from './intl_ranking.js?v=0.7.0';
 import { THE_2024 } from './intl_rankings_the2024.js?v=0.4.39';
@@ -102,7 +102,7 @@ import { initCampusState, ensureCampusLayout, assignBuildingPosition, BUILDING_F
 // işlevler baskanDonemi'ne parametre olarak geçer (döngüsel içe aktarma yok).
 import { baskanDonemi, politikaAyarla, politikaTamamla } from './baskan.js?v=0.7.0';
 // v0.7.1: toplu işlem ölçütü ve idari birimlerde otomatik personel (işlevler parametreyle geçer)
-import { idariOtomatikDonemi, idariOtomatikAyarla, idariOtomatikGoc, topluOlcutAyarla } from './idari_otomatik.js?v=0.7.2';
+import { idariOtomatikDonemi, idariOtomatikAyarla, idariOtomatikGoc, topluOlcutAyarla } from './idari_otomatik.js?v=0.7.3';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // YARDİMCI: Derin kopya (state immutability için)
