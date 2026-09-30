@@ -24,7 +24,7 @@ import {
 } from './idari_otomatik.js?v=0.7.2';
 // v0.7.2: Bina Sayfası (çizim ve hesaplar ayrı modülde; game.js'i içe aktarmaz)
 import { binaSayfasiniCiz, binaEtkiOzeti, binaKartEtkileri, binaBakimi, kapasiteDagilimi, labGerekir, yukseltmeEtkisi, merkezCarpani,
-  teknokentDonemGeliri, teknokentZatenAcikNotu, sonrakiDuzey, zorlukCarpani, SINIF_SAYISI as KOLTUK_SINIF } from './bina_sayfasi.js?v=0.7.3';
+  teknokentDonemGeliri, teknokentZatenAcikNotu, sonrakiDuzey, zorlukCarpani, hizmetYeterliligi, SINIF_SAYISI as KOLTUK_SINIF } from './bina_sayfasi.js?v=0.7.3';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // DOM YARDIMCILARI
@@ -5718,35 +5718,36 @@ export function renderCampusPanel(state, onBuildStart, onDecision) {
         ${_binaBolumu(pay?.ortak ? 'Ortak kullanan bölümler' : 'Atanmış bölümler', bolumSatirlari || '<div class="ob-aciklama">Henüz bölüm atanmadı. Aşağıdaki "Bölüm ata" düğmesiyle ekleyebilirsiniz.</div>')}`;
     } else if (b.type === 'kutuphane') {
       // v0.7.3: yeterlilik yerleşkedeki bütün kütüphanelerin günlük kapasitesiyle, yemekhane ve spor tesisi
-      // gibi. Oyunun Sosyal Yaşam katkısı da toplamı kullanır (students.js totalLibCap / öğrenci).
-      const kutBinalari   = (state.buildings || []).filter(bld => bld.type === 'kutuphane' && bld.isCompleted);
-      const totalDailyCap = kutBinalari.reduce((s, bld) => s + ((bld.currentCapacity?.daily) || 0), 0);
+      // gibi. Sayılar Bina Sayfası'yla ortak tek hesaptan (bina_sayfasi.js hizmetYeterliligi: students.js'in
+      // Sosyal Yaşam hesabındaki öğrenci ve toplam günlük kapasite).
+      const hy = hizmetYeterliligi(state, 'kutuphane');
+      const totalDailyCap = hy.toplam;
       const simCap   = cap.simultaneous || 200;
       const dailyCap = cap.daily || 800;
       const nextSim  = nextLvlCap.simultaneous || 0;
       const nextDly  = nextLvlCap.daily || 0;
-      const pct      = totalStudents > 0 && totalDailyCap > 0 ? Math.round((totalStudents / totalDailyCap) * 100) : 0;
+      const pct      = hy.yuzde;
       detailsHtml = `
         ${_binaBolumu('Hizmet kapasitesi', `
           ${_obSatir('Bu kütüphane', `günde ${sayi(dailyCap)} öğrenci, aynı anda ${sayi(simCap)}`)}
           ${_obSatir('Yerleşke toplamı', `günde ${sayi(totalDailyCap)} öğrenci`)}
-          ${_obSatir('Öğrenci sayısı', sayi(totalStudents))}
+          ${_obSatir('Öğrenci sayısı', sayi(hy.ogrenci))}
           ${_yeterlilik(pct)}
           ${pct > 100 ? `<div class="ob-aciklama ob-aciklama--kritik">Öğrenci sayısı yerleşkedeki günlük kapasiteyi (${sayi(totalDailyCap)}) aşıyor. Sosyal Yaşam katkısı karşılama oranıyla azalır.</div>` : ''}
           ${sonrakiNot(`aynı anda ${sayi(nextSim)}, günde ${sayi(nextDly)} öğrenci.`)}`)}
         ${etkiBolumu()}`;
     } else if (b.type === 'yemekhane') {
-      const mealsBuildings = (state.buildings || []).filter(bld => bld.type === 'yemekhane' && bld.isCompleted);
-      const totalMealCap   = mealsBuildings.reduce((s, bld) => s + ((bld.currentCapacity?.dailyMeals) || 0), 0);
-      const need           = totalStudents + totalFaculty;
-      const pct            = need > 0 && totalMealCap > 0 ? Math.round((need / totalMealCap) * 100) : 0;
+      // v0.7.3: sayılar Bina Sayfası'yla ortak tek hesaptan (hizmetYeterliligi; students.js yemekhane ölçüsü)
+      const hy             = hizmetYeterliligi(state, 'yemekhane');
+      const totalMealCap   = hy.toplam;
+      const pct            = hy.yuzde;
       const myCap          = cap.dailyMeals || 0;
       const nextCap2       = nextLvlCap.dailyMeals || 0;
       detailsHtml = `
         ${_binaBolumu('Hizmet kapasitesi', `
           ${_obSatir('Bu yemekhane', `günde ${sayi(myCap)} öğün`)}
           ${_obSatir('Yerleşke toplamı', `günde ${sayi(totalMealCap)} öğün`)}
-          ${_obSatir('İhtiyaç', `${sayi(totalStudents)} öğrenci + ${sayi(totalFaculty)} hoca = ${sayi(need)}`)}
+          ${_obSatir('İhtiyaç', `${sayi(hy.ogrenci)} öğrenci + ${sayi(hy.hoca)} hoca = ${sayi(hy.ihtiyac)}`)}
           ${_yeterlilik(pct)}
           ${pct > 100 ? '<div class="ob-aciklama ob-aciklama--kritik">Günlük öğün ihtiyacı karşılamıyor. Yemekhane puanı karşılama oranıyla düşük kalır.</div>' : ''}
           ${sonrakiNot(`günde ${sayi(nextCap2)} öğün.`)}`)}
@@ -5775,17 +5776,18 @@ export function renderCampusPanel(state, onBuildStart, onDecision) {
     } else if (b.type === 'spor_tesisi') {
       // v0.7.3: yeterlilik yerleşkedeki bütün spor tesislerinin toplamıyla, yemekhane gibi. Oyunun Spor
       // Tesisleri puanı da toplamı kullanır (students.js). Eskiden yalnız bu tesise bakılıyordu; üç tesis
-      // ve 1.000 öğrencide her kartta "yetersiz" ve kapasite uyarısı çıkıyordu (#32).
-      const sporBinalari = (state.buildings || []).filter(bld => bld.type === 'spor_tesisi' && bld.isCompleted);
-      const totalSporCap = sporBinalari.reduce((s, bld) => s + ((bld.currentCapacity?.dailyUsers) || 0), 0);
+      // ve 1.000 öğrencide her kartta "yetersiz" ve kapasite uyarısı çıkıyordu (#32). Sayılar Bina Sayfası'yla
+      // ortak tek hesaptan (bina_sayfasi.js hizmetYeterliligi).
+      const hy = hizmetYeterliligi(state, 'spor_tesisi');
+      const totalSporCap = hy.toplam;
       const sporCap  = cap.dailyUsers || 500;
       const nextSCap = nextLvlCap.dailyUsers || 0;
-      const pct      = totalStudents > 0 && totalSporCap > 0 ? Math.round((totalStudents / totalSporCap) * 100) : 0;
+      const pct      = hy.yuzde;
       detailsHtml = `
         ${_binaBolumu('Hizmet kapasitesi', `
           ${_obSatir('Bu tesis', `günde ${sayi(sporCap)} kullanıcı`)}
           ${_obSatir('Yerleşke toplamı', `günde ${sayi(totalSporCap)} kullanıcı`)}
-          ${_obSatir('Öğrenci sayısı', sayi(totalStudents))}
+          ${_obSatir('Öğrenci sayısı', sayi(hy.ogrenci))}
           ${_yeterlilik(pct)}
           ${pct > 130 ? '<div class="ob-aciklama ob-aciklama--kritik">Günlük kapasite öğrenci sayısının gerisinde. Spor Tesisleri puanı karşılama oranıyla düşük kalır.</div>' : ''}
           ${sonrakiNot(`günde ${sayi(nextSCap)} kullanıcı.`)}`)}

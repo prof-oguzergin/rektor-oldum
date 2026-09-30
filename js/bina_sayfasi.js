@@ -509,6 +509,26 @@ export function hizmetKatkisi(state, tur, degisen = null) {
   }
 }
 
+/**
+ * v0.7.3: hizmet binasının yeterliliği; Yerleşke sekmesindeki kart ve Bina Sayfası bu tek hesabı okur.
+ * Sayılar oyunun memnuniyet hesabınınkiler (hizmetKatkisi, students.js): öğrenci bölümlerin dört sınıfından,
+ * toplam kapasite türün tamamlanmış binalarından. Yüzde ihtiyacın toplam kapasiteye oranı, Math.round ile.
+ * Eskiden kart öğrenciyi students.totalEnrolled'dan ve kendi toplamıyla hesaplıyordu.
+ * @returns {null|{ toplam, ihtiyac, ogrenci, hoca, adet, yuzde }}
+ */
+export function hizmetYeterliligi(state, tur) {
+  const k = hizmetKatkisi(state, tur);
+  if (!k) return null;
+  return {
+    toplam:  k.toplam,
+    ihtiyac: k.ihtiyac,
+    ogrenci: toplamOgrenci(state),
+    hoca:    (state.faculty || []).length,
+    adet:    (state.buildings || []).filter(b => b.type === tur && b.isCompleted).length,
+    yuzde:   k.toplam > 0 && k.ihtiyac > 0 ? Math.round((k.ihtiyac / k.toplam) * 100) : 0,
+  };
+}
+
 /** İdari binanın İdari Hizmetler katkısı: en çok 15 (students.js idariBinaBonus). */
 const idariKatki = (toplam) => toplam > 0 ? Math.min(15, 6 + (toplam - 1) * 4) : 0;
 /** Ulaşım merkezinin Ulaşım puanı katkısı: en çok 25 (students.js ulasimMerkeziBonus). */
@@ -639,26 +659,24 @@ function kapasiteKarti(state, b, tanim, h, dagilim) {
     }
   }
 
-  const ogrenci = toplamOgrenci(state);
-  const hoca = (state.faculty || []).length;
   // v0.7.3: hizmet binaları (kütüphane, yemekhane, spor tesisi) Yerleşke kartı gibi bu binanın kapasitesini,
-  // yerleşke toplamını ve oyunun kullandığı yerleşke ihtiyacını yazar (students.js calculateStudentSatisfaction;
-  // hizmetKatkisi aynı hesap). Eskiden her bina bütün ihtiyacı tek başına karşılıyormuş gibi "500 / 500" yazıyordu.
-  const hizmet = (buAd, buDeger, birim, ihtiyacMetni, aciklama) => {
+  // yerleşke toplamını ve oyunun kullandığı yerleşke ihtiyacını yazar. Sayılar kartla ortak tek hesaptan
+  // (hizmetYeterliligi: students.js'in memnuniyet hesabındaki öğrenci ve kapasite). Eskiden her bina bütün
+  // ihtiyacı tek başına karşılıyormuş gibi "500 / 500" yazıyordu.
+  const hizmet = (buAd, buDeger, birim, aciklama) => {
     satirlar.push(h.satir(buAd, buDeger));
     if (!bitti) return;
-    const k = hizmetKatkisi(state, b.type);
-    const adet = (state.buildings || []).filter(x => x.type === b.type && x.isCompleted).length;
-    satirlar.push(h.satir('Yerleşke toplamı', `günde ${sayi(k.toplam)} ${birim}${adet > 1 ? ` <span class="ob-soluk">(${adet} bina)</span>` : ''}`));
-    satirlar.push(h.satir('İhtiyaç', ihtiyacMetni));
-    const yuzde = k.toplam > 0 && k.ihtiyac > 0 ? Math.round((k.ihtiyac / k.toplam) * 100) : 0;
-    satirlar.push(h.yeterlilik ? h.yeterlilik(yuzde) : h.satir('Yeterlilik', `%${yuzde}`));
+    const y = hizmetYeterliligi(state, b.type);
+    satirlar.push(h.satir('Yerleşke toplamı', `günde ${sayi(y.toplam)} ${birim}${y.adet > 1 ? ` <span class="ob-soluk">(${y.adet} bina)</span>` : ''}`));
+    satirlar.push(h.satir('İhtiyaç', b.type === 'yemekhane'
+      ? `${sayi(y.ogrenci)} öğrenci + ${sayi(y.hoca)} hoca = ${sayi(y.ihtiyac)}`
+      : `${sayi(y.ogrenci)} öğrenci`));
+    satirlar.push(h.yeterlilik ? h.yeterlilik(y.yuzde) : h.satir('Yeterlilik', `%${y.yuzde}`));
     satirlar.push(not(aciklama));
   };
   switch (b.type) {
     case 'kutuphane':
       hizmet('Bu kütüphane', `günde ${sayi(kap.daily || 0)} öğrenci, aynı anda ${sayi(kap.simultaneous || 0)}`, 'öğrenci',
-        `${sayi(ogrenci)} öğrenci`,
         'Memnuniyet hesabı yerleşkedeki bütün kütüphanelerin günlük kapasitesini öğrenci sayısıyla karşılaştırır. Aynı anda oturma yalnız gösterilir.');
       break;
     case 'yurt': {
@@ -673,12 +691,10 @@ function kapasiteKarti(state, b, tanim, h, dagilim) {
     }
     case 'yemekhane':
       hizmet('Bu yemekhane', `günde ${sayi(kap.dailyMeals || 0)} öğün`, 'öğün',
-        `${sayi(ogrenci)} öğrenci + ${sayi(hoca)} hoca = ${sayi(ogrenci + hoca)}`,
         'Memnuniyet hesabı yerleşkedeki bütün yemekhanelerin günlük öğününü öğrenci ve hoca sayısıyla karşılaştırır. Her kişi günde bir öğün sayılır.');
       break;
     case 'spor_tesisi':
       hizmet('Bu tesis', `günde ${sayi(kap.dailyUsers || 0)} kullanıcı`, 'kullanıcı',
-        `${sayi(ogrenci)} öğrenci`,
         'Memnuniyet hesabı yerleşkedeki bütün spor tesislerinin günlük kapasitesini öğrenci sayısıyla karşılaştırır.');
       break;
     case 'saglik_merkezi':
